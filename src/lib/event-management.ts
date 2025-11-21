@@ -17,7 +17,7 @@ export async function getCurrentEventInfo() {
 
         // If event data couldn't be retrieved, print the error and use the defaults.
         if (error || data.length == 0) {
-            console.log(error);
+            console.log("Event load error: " + error);
             return info;
         }
 
