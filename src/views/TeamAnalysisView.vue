@@ -2,13 +2,12 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData, eventStatisticsKeys, getPitScoutData } from "@/lib/2025/data-processing";
+import { aggregateEventData, getPitScoutData } from "@/lib/2025/data-processing";
 import { teamLikertRadar, getTeamOverview, teamReefData } from "@/lib/2025/data-visualization";
 import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { matchScoutTable, pitScoutTable, teamInfoTable, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
-import { projectId } from "@/lib/supabase-client";
+import { projectId, matchScoutTable, pitScoutTable, teamInfoTable, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
@@ -147,11 +146,6 @@ export default {
                 this.teamFilters.push({ key: element, text: teamText });
             })
 
-            // Object.keys(this.teamsData).forEach(element => {
-            //     if (!eventStatisticsKeys.includes(element)) {
-
-            //     }
-            // })
 
             this.pitData = await getPitScoutData(pitScoutTable, this.eventStore.eventId);
 

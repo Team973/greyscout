@@ -2,7 +2,8 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData, eventStatisticsKeys } from "@/lib/2025/data-processing";
+import { aggregateEventData } from "@/lib/2025/data-processing";
+import { eventStatisticsKeys } from "@/lib/compute-statistics";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from "@/stores/view-mode-store";
 import { matchScoutTable } from "@/lib/constants";
@@ -53,28 +54,21 @@ export default {
             eventStore: null,
             viewMode: null,
             tableHeaders: [
-                { name: "#", key: "team_number", isDiscrete: true },
-                { name: "Matches Played", key: "num_matches", isDiscrete: true },
-                { name: "Avg. Points", key: "mean_matchPoints" },
-                { name: "Avg. Coral Points", key: "mean_coralPoints" },
-                { name: "Avg. Algae Points", key: "mean_algaePoints" },
-                { name: "Avg. Auto Coral Points", key: "mean_coralAutoPoints" },
-                { name: "Avg. Teleop Coral Points", key: "mean_coralTeleopPoints" },
-                { name: "Avg. Teleop Algae Points", key: "mean_algaeTeleopPoints" },
-                { name: "Avg. Barge Points", key: "mean_bargePoints" },
+                { name: "#", key: "teamNumber", isDiscrete: true },
+                { name: "Matches Played", key: "numMatches", isDiscrete: true },
+                { name: "Avg. Coral", key: "mean_totalCoral" },
+                { name: "Avg. Climb", key: "mean_climbCount" },
             ],
             // Expected schema:
-            // [{"team_number": 401, "metric_name_1": 3.0, "metric_name_2": 3.0}, ...]
+            // [{"team_number": 973, "metric_name_1": 3.0, "metric_name_2": 3.0}, ...]
             tableData: [],
             eventData: {},
             eventDataLoaded: false,
             // Graphing
             graphFilters: [
-                { text: "Match Points", key1: "match_data", key2: "matchPoints", type: "boxplot" },
-                { text: "Auto Points", key1: "match_data", key2: "autoPoints", type: "boxplot" },
-                { text: "Coral vs. Algae", key1: "mean_coralPoints", key2: "mean_algaePoints", type: "scatter" },
-                { text: "Teleop: Coral vs. Algae", key1: "mean_coralTeleopPoints", key2: "mean_algaeTeleopPoints", type: "scatter" },
-                { text: "Barge Points", key1: "match_data", key2: "bargePoints", type: "boxplot" },
+                { text: "Match Coral", key1: "matchData", key2: "totalCoral", type: "boxplot" },
+                { text: "Auto Coral", key1: "matchData", key2: "autoCoralCount", type: "boxplot" },
+                { text: "Coral: Auto vs. Teleop", key1: "mean_autoCoralCount", key2: "mean_teleopCoralCount", type: "scatter" },
             ]
         }
     },
@@ -84,6 +78,8 @@ export default {
             await this.eventStore.updateEvent();
 
             this.eventData = await aggregateEventData(matchScoutTable, this.eventStore.eventId);
+
+            console.log(this.eventData)
 
             // Convert the data to a table.
             this.tableData = [];

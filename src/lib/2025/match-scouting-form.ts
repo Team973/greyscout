@@ -29,9 +29,7 @@ export async function getMatchScoutSchema() {
                     options: {
                         choices: [
                             { key: "invalid", text: "" },
-                            { key: "401", text: "401 - Copperhead Robotics" },
-                            { key: "1629", text: "1629 - Garrett Coalition (GaCo)" },
-                            { key: "5804", text: "5804 - TORCH" }
+                            { key: "973", text: "973 - Greybots" },
                         ]
                     },
                     defaultValue: 0,

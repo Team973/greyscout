@@ -4,12 +4,12 @@
     --primary-text-color: #FFF;
 
     /* Color Scheme */
-    --primary-color: orange;
-    --accent-color: #009879;
+    --primary-color: #b0b0b0;
+    --accent-color: rgb(68, 68, 68);
 
     /* Header */
-    --header-color: #66000a;
-    --header-hover-color: #80030f;
+    --header-color: #b05703;
+    --header-hover-color: #cd8900;
     --header-text-color: #FFF;
 
     /* Tiles */
