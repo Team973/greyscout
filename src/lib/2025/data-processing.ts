@@ -102,8 +102,6 @@ function parseMatchData(rawData, eventData) {
         });
     }
 
-    console.log(eventData)
-
     return eventData;
 }
 

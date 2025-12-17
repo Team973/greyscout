@@ -10,11 +10,11 @@ export function getAllianceOverview(teamInfos, teamNumbers, eventStats) {
     }
 
     const highlightColumns = {
-        mean_matchPoints: "Avg. Points",
-        mean_autoPoints: "Avg. Auto Points",
-        mean_teleopPoints: "Avg. Teleop Points",
-        mean_bargePoints: "Avg. Barge Points",
-        mean_foulPoints: "Avg. Foul Points"
+        mean_totalCoral: "Avg. Total Coral",
+        mean_autoCoralCount: "Avg. Auto Coral",
+        mean_teleopCoralCount: "Avg. Teleop Coral",
+        mean_teleopNetCount: "Avg. Teleop Net",
+        mean_climbCount: "Climb %"
     };
 
     const colKeys = Object.keys(highlightColumns);
@@ -71,46 +71,46 @@ export function getTeamOverview(teamInfo, teamNumber, eventStats) {
         return {};
     }
 
-    const meanPointsRanking = eventStats.rankings.mean_matchPoints.indexOf(teamNumber) + 1;
-    const meanAutoPointsRanking = eventStats.rankings.mean_autoPoints.indexOf(teamNumber) + 1;
-    const meanTeleopPointsRanking = eventStats.rankings.mean_teleopPoints.indexOf(teamNumber) + 1;
-    const meanBargePointsRanking = eventStats.rankings.mean_bargePoints.indexOf(teamNumber) + 1;
-    const meanFoulPointsRanking = eventStats.rankings.mean_foulPoints.indexOf(teamNumber) + 1;
+    const meanTotalCoralRank = eventStats.rankings.mean_totalCoral.indexOf(teamNumber) + 1;
+    const meanAutoCoralRank = eventStats.rankings.mean_autoCoralCount.indexOf(teamNumber) + 1;
+    const meanTeleopNetRank = eventStats.rankings.mean_teleopNetCount.indexOf(teamNumber) + 1;
+    const meanClimbRank = eventStats.rankings.mean_climbCount.indexOf(teamNumber) + 1;
+    const meanDefenseRank = eventStats.rankings.mean_defenseScore.indexOf(teamNumber) + 1;
 
     // Get the number of teams to produce a normalized ranking.
-    const numTeams = eventStats.rankings.mean_matchPoints.length;
+    const numTeams = eventStats.rankings.mean_totalCoral.length;
 
     return [
         {
-            name: "Average Points",
-            value: teamInfo.mean_matchPoints.toFixed(2),
-            ranking: meanPointsRanking,
-            normalized: meanPointsRanking / numTeams
+            name: "Average Coral",
+            value: teamInfo.mean_totalCoral.toFixed(2),
+            ranking: meanTotalCoralRank,
+            normalized: meanTotalCoralRank / numTeams
         },
         {
             name: "Average Auto Points",
-            value: teamInfo.mean_autoPoints.toFixed(2),
-            ranking: meanAutoPointsRanking,
-            normalized: meanAutoPointsRanking / numTeams
+            value: teamInfo.mean_autoCoralCount.toFixed(2),
+            ranking: meanAutoCoralRank,
+            normalized: meanAutoCoralRank / numTeams
         },
         {
-            name: "Average Teleop Points",
-            value: teamInfo.mean_teleopPoints.toFixed(2),
-            ranking: meanTeleopPointsRanking,
-            normalized: meanTeleopPointsRanking / numTeams
+            name: "Average Teleop Algae",
+            value: teamInfo.mean_teleopNetCount.toFixed(2),
+            ranking: meanTeleopNetRank,
+            normalized: meanTeleopNetRank / numTeams
         },
         {
-            name: "Average Barge Points",
-            value: teamInfo.mean_bargePoints.toFixed(2),
-            ranking: meanBargePointsRanking,
-            normalized: meanBargePointsRanking / numTeams
+            name: "Climb Accuracy",
+            value: teamInfo.mean_climbCount.toFixed(2),
+            ranking: meanClimbRank,
+            normalized: meanClimbRank / numTeams
         },
         {
             name: "Average Foul Points",
-            value: Math.abs(teamInfo.mean_foulPoints.toFixed(2)),
-            ranking: meanFoulPointsRanking,
+            value: teamInfo.mean_defenseScore.toFixed(2),
+            ranking: meanDefenseRank,
             // Fouls are bad, but points are more negative if a team has more fouls. So no adjustment is needed here.
-            normalized: meanFoulPointsRanking / numTeams
+            normalized: meanDefenseRank / numTeams
         }
     ];
 }
@@ -121,17 +121,21 @@ export function teamLikertRadar(teamInfo, eventStats) {
     }
 
     // Get normalized team points.
-    const meanTeamPoints = teamInfo.mean_matchPoints;
-    const maxPoints = eventStats.distributions.mean_matchPoints.max;
-    const minPoints = eventStats.distributions.mean_matchPoints.min;
-    const teamNormalizedPoints = 5.0 * (meanTeamPoints - minPoints) / (maxPoints - minPoints);
+    const meanTotalCoral = teamInfo.mean_totalCoral;
+    const maxCoral = eventStats.distributions.mean_totalCoral.max;
+    const minCoral = eventStats.distributions.mean_totalCoral.min;
+    const teamNormalizedPoints = 5.0 * (meanTotalCoral - minCoral) / (maxCoral - minCoral);
+
+    // Normalize climb
+    const meanClimb = teamInfo.mean_climbCount;
+    const maxClimbCount = eventStats.distributions.mean_climbCount.max;
+    const minClimbCount = eventStats.distributions.mean_climbCount.min;
+    const teamNormalizedClimb = 5.0 * (meanClimb - minClimbCount) / (maxClimbCount - minClimbCount);
 
     let radarData = {
-        "Climb Speed": teamInfo.mean_climbSpeed,
-        "Driving": teamInfo.mean_drivingScore,
+        "Climb": teamNormalizedClimb,
         "Defense": teamInfo.mean_defenseScore,
-        "Stability": teamInfo.mean_stabilityScore,
-        "Scoring": teamNormalizedPoints
+        "Coral": teamNormalizedPoints
     };
 
     return radarData;
