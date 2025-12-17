@@ -2,11 +2,11 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData, getPitScoutData } from "@/lib/2025/data-processing";
-import { teamLikertRadar, getAllianceOverview, getRankedStyle, getRanking } from "@/lib/2025/data-visualization";
+import { aggregateEventData } from "@/lib/2025/data-processing";
+import { getAllianceOverview, getRankedStyle, getRanking } from "@/lib/2025/data-visualization";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { matchScoutTable, pitScoutTable, teamInfoTable } from "@/lib/constants";
+import { matchScoutTable, teamInfoTable } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
@@ -94,7 +94,6 @@ export default {
             eventStore: null,
             teamsLoaded: false,
             teamsData: [{}],
-            pitData: [{}],
             teamFilters: [],
             teamIndices: [0, 0, 0, 0, 0, 0]
         }
@@ -125,8 +124,6 @@ export default {
                 this.teamFilters.push({ key: element, text: teamText });
             })
 
-            this.pitData = await getPitScoutData(pitScoutTable, this.eventStore.eventId);
-
             // Mark the data as ready for the view to display.
             this.teamsLoaded = true;
         },
@@ -141,20 +138,6 @@ export default {
             }
 
             return eventStats;
-        },
-        getTeamRadar(radarType) {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-
-            if (radarType == "likert") {
-                return teamLikertRadar(teamInfo, this.getEventStats());
-            }
-
-            return {};
         },
         allianceHighlights(teams) {
             // Get team information.

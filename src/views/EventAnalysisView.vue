@@ -68,6 +68,7 @@ export default {
             graphFilters: [
                 { text: "Match Coral", key1: "matchData", key2: "totalCoral", type: "boxplot" },
                 { text: "Auto Coral", key1: "matchData", key2: "autoCoralCount", type: "boxplot" },
+                { text: "Climb %", key1: "mean_climbCount", key2: "", type: "bar" },
                 { text: "Coral: Auto vs. Teleop", key1: "mean_autoCoralCount", key2: "mean_teleopCoralCount", type: "scatter" },
             ]
         }
@@ -85,10 +86,10 @@ export default {
             this.tableData = [];
 
             // Iterate over the keys in the dataset to populate the teams list.
-            Object.keys(this.eventData).forEach(element => {
-                if (!eventStatisticsKeys.includes(element)) {
+            Object.keys(this.eventData).forEach(stat => {
+                if (!eventStatisticsKeys.includes(stat)) {
                     // Get the corresponding entry of aggregated data
-                    const teamData = this.eventData[element];
+                    const teamData = this.eventData[stat];
 
                     const row = {};
                     this.tableHeaders.forEach(element => {

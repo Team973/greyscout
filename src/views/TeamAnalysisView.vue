@@ -49,15 +49,11 @@ import { supabase } from "@/lib/supabase-client";
                     <div class="graph-tile">
                         <RadarChart :data="getTeamRadar('likert')" :height="maxChartHeight"></RadarChart>
                     </div>
-                    <div class="graph-tile">
+                    <!-- <div class="graph-tile">
                         <h2>Reef Heatmap</h2>
                         <FilterableGraph :data="getTeamReef" :graph-filters="reefFilters" max-height-ratio="0.5">
                         </FilterableGraph>
-                    </div>
-                    <div class="graph-tile">
-                        <h2>Start Position</h2>
-                        <BarChart :data="getTeamStart" column="count" :height="maxChartHeight"></BarChart>
-                    </div>
+                    </div> -->
                 </div>
 
                 <div class="graph-tile match-progression-container">
@@ -66,21 +62,21 @@ import { supabase } from "@/lib/supabase-client";
                     </FilterableGraph>
                 </div>
 
-                <div class="data-tile">
+                <!-- <div class="data-tile">
                     <h2>Comments</h2>
                     <div v-for="comment in getComments">
                         <div v-if="comment && comment.text.length > 0" class="comment-tile">
                             Match {{ comment.match }} ({{ comment.scoutInfo }}): {{ comment.text }}
                         </div>
                     </div>
-                </div>
+                </div> -->
 
-                <div class="data-tile">
+                <!-- <div class="data-tile">
                     <h2>Pit Scouting Report</h2>
                     <div v-for="data, key in getTeamPitReport">
                         {{ key }}: {{ data }}
                     </div>
-                </div>
+                </div> -->
             </div>
         </div>
         <div v-else-if="teamsLoaded">
@@ -105,14 +101,11 @@ export default {
             teamFilters: [],
             currentTeamIndex: 0,
             matchDataFilters: [
-                { text: "Breakdown", keyList: ['coralPoints', 'algaePoints', 'bargePoints'], colorList: ['#ff55ecff', '#5dfc75ff', '#647afaff'], type: "stacked-bar" },
-                { text: "Auto vs. Teleop", keyList: ["autoPoints", "teleopPoints"], colorList: ['#ff55ecff', '#5dfc75ff'], type: "stacked-bar" },
-                { text: "Auto: Coral", key1: "coralAutoPoints", type: "line" },
-                { text: "Teleop: Coral", key1: "coralTeleopPoints", type: "line" },
-                { text: "Teleop: Algae", key1: "algaeTeleopPoints", type: "line" },
-                { text: "Barge Points", key1: "bargePoints", type: "line" },
-                { text: "Foul Points", key1: "foulPoints", type: "line" },
-                { text: "Algae Dislodged", key1: "algaeTotalDislodgedCount", type: "line" },
+                { text: "Breakdown", keyList: ['totalCoral', 'teleopNetCount', 'climbCount'], colorList: ['#ff55ecff', '#5dfc75ff', '#647afaff'], type: "stacked-bar" },
+                { text: "Auto: Coral", key1: "autoCoralCount", type: "line" },
+                { text: "Teleop: Coral", key1: "teleopCoralCount", type: "line" },
+                { text: "Teleop: Net Algae", key1: "teleopNetCount", type: "line" },
+                { text: "Climb", key1: "climbCount", type: "bar", isSorted: false },
             ],
             reefFilters: [
                 { text: "Auto Count", key1: "auto_count", type: "boxplot", isHorizontal: true, isSorted: false },
@@ -147,7 +140,7 @@ export default {
             })
 
 
-            this.pitData = await getPitScoutData(pitScoutTable, this.eventStore.eventId);
+            // this.pitData = await getPitScoutData(pitScoutTable, this.eventStore.eventId);
 
             // Mark the data as ready for the view to display.
             this.teamsLoaded = true;
@@ -283,15 +276,15 @@ export default {
             }
 
             let teamMatches = {};
-            for (var i = 0; i < teamInfo.match_data.matchNumber.length; i++) {
+            for (var i = 0; i < teamInfo.matchData.matchNumber.length; i++) {
                 let matchData = {};
-                Object.keys(teamInfo.match_data).forEach(key => {
+                Object.keys(teamInfo.matchData).forEach(key => {
                     if (key != "matchNumber") {
-                        matchData[key] = teamInfo.match_data[key][i];
+                        matchData[key] = teamInfo.matchData[key][i];
                     }
                 });
 
-                const matchNumber = teamInfo.match_data.matchNumber[i];
+                const matchNumber = teamInfo.matchData.matchNumber[i];
                 teamMatches[matchNumber] = matchData;
             }
 
@@ -317,32 +310,6 @@ export default {
 
             return reefData;
         },
-        getTeamStart() {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-            if (!teamInfo) {
-                return {};
-            }
-
-            let startPositions = {};
-            for (var i = 0; i < teamInfo.match_data.startPosition.length; i++) {
-                const position = teamInfo.match_data.startPosition[i];
-
-                if (Object.keys(startPositions).includes(position)) {
-                    startPositions[position].count += 1;
-                } else {
-                    startPositions[position] = {
-                        count: 1
-                    };
-                }
-            }
-
-            return startPositions;
-        },
         getComments() {
             if (this.teamFilters.length == 0) {
                 return [];
@@ -354,10 +321,10 @@ export default {
                 return {};
             }
 
-            let comments = teamInfo.match_data.comments;
-            let matchNumbers = teamInfo.match_data.matchNumber;
-            let scoutNames = teamInfo.match_data.scoutName;
-            let scoutTeams = teamInfo.match_data.scoutTeam;
+            let comments = teamInfo.matchData.comments;
+            let matchNumbers = teamInfo.matchData.matchNumber;
+            let scoutNames = teamInfo.matchData.scoutName;
+            let scoutTeams = teamInfo.matchData.scoutTeam;
 
             let commentData = []
             for (var i = 0; i < comments.length; i++) {
