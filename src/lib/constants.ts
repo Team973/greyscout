@@ -13,6 +13,9 @@ export const robotPhotoTable = "RobotPhoto";
 // Storage buckets
 export const robotPhotoBucket = "robot-photos";
 
+// Default team number
+export const defaultTeamNumber = 973;
+
 // Event information.
 export const defaultEventId = "2025cafr";
 // Flag to force override to the default event. Useful if you are playing two tournaments on the same day.
