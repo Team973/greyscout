@@ -22,7 +22,8 @@ import RadarChart from "@/components/charts/RadarChart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
 import { computeBarChartDataModel } from "@/lib/chart-data";
-import { queryTeamMatchData } from "@/lib/data-query";
+import { queryTeamMatchData, queryTeamNumbers } from "@/lib/data-query";
+import { defaultTeamNumber } from "@/lib/constants";
 
 
 </script>
@@ -34,6 +35,15 @@ import { queryTeamMatchData } from "@/lib/data-query";
             <Dropdown :choices="chartTypes" v-model="activeChartTypeIndex" @update:modelValue="setChartType"></Dropdown>
         </div>
         <div>
+            <Dropdown :choices="queryTypes" v-model="activeQueryTypeIndex" @update:modelValue="setQueryType">
+            </Dropdown>
+        </div>
+        <div>
+            <div v-if="isTeamNumbersReady">
+                <Dropdown :choices="teamNumbers" v-model="activeTeamNumberIndex" @update:modelValue="setTeamNumber">
+                </Dropdown>
+            </div>
+
             <Dropdown :choices="labelColumns" v-model="activeLabelColumnIndex" @update:modelValue="setLabelColumn">
             </Dropdown>
             <Dropdown :choices="dataColumns" v-model="activeDataColumnIndex" @update:modelValue="setDataColumn"></Dropdown>
@@ -77,6 +87,13 @@ export default {
                 { key: "radar", text: "Radar" }
             ],
             activeChartTypeIndex: 0,
+            queryTypes: [
+                { key: "team_match_timeseries", text: "Team Match Timeseries" },
+                { key: "event_rankings", text: "Event Rankings" },
+            ],
+            activeQueryTypeIndex: 0,
+            teamNumbers: [],
+            activeTeamNumberIndex: 0,
             labelColumns: [
                 { key: "prematch_match_number", text: "Match Number" }
             ],
@@ -87,6 +104,7 @@ export default {
                 { key: "teleop_net", text: "Teleop Net" }
             ],
             activeDataColumnIndex: 0,
+
             chartOptions: {
                 maxDataPoints: null,
                 isHorizontal: false,
@@ -107,6 +125,7 @@ export default {
                 }
             },
             isDataLoaded: false,
+            isTeamNumbersReady: false,
             eventStore: null,
             viewMode: null
         }
@@ -124,6 +143,14 @@ export default {
             this.activeDataColumnIndex = index;
             this.loadNewData();
         },
+        setQueryType(index: int) {
+            this.activeQueryTypeIndex = index;
+            this.loadNewData();
+        },
+        setTeamNumber(index: int) {
+            this.activeTeamNumberIndex = index;
+            this.loadNewData();
+        },
         uniqueKey(id) {
             // TODO: make this better. This is a hack to ensure plots reload if data or filters change.
             const key = JSON.stringify(this.activeData) + JSON.stringify(this.chartTypes[this.activeChartTypeIndex]) + JSON.stringify(getThemeColors()) + id;
@@ -132,12 +159,35 @@ export default {
         activeChartTypeKey() {
             return this.chartTypes[this.activeChartTypeIndex]?.key;
         },
-        async loadNewData() {
+        async initializePage() {
             this.eventStore.updateEvent();
 
-            const teamNumber = 973;
+            const teamNumbersRows = await queryTeamNumbers(this.eventStore.eventId);
 
-            this.stagedData = await queryTeamMatchData(teamNumber, this.eventStore.eventId);
+            // Put the teams in a dictionary first in order to sort them by team number.
+            let teamMap = {};
+            teamNumbersRows.forEach(element => {
+                teamMap[element['team_number']] = (
+                    {
+                        "key": element['team_number'],
+                        "text": element['team_number'] + " - " + element['name']
+                    }
+                );
+            });
+
+
+            this.teamNumbers = [];
+            Object.keys(teamMap).forEach(element => {
+                this.teamNumbers.push(teamMap[element])
+            });
+
+
+            this.isTeamNumbersReady = true;
+
+            this.loadNewData();
+        },
+        async loadNewData() {
+            this.stagedData = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
 
             // Only update activeData if the data came back without errors.
             if (this.stagedData != null) {
@@ -153,7 +203,6 @@ export default {
 
             if (this.isBarChartView) {
                 this.chartModel.data = computeBarChartDataModel(this.activeData, this.activeSeries, this.activeLabel, true);
-                console.log(this.chartModel.data);
             }
         }
 
@@ -224,11 +273,20 @@ export default {
             return this.chartSeries;
         },
 
+        // Other data
+        teamNumber() {
+            if (!this.isTeamNumbersReady) {
+                return defaultTeamNumber;
+            }
+            return this.teamNumbers[this.activeTeamNumberIndex].key;
+        }
+
     },
     created() {
         this.eventStore = useEventStore();
         this.viewMode = useViewModeStore();
-        this.loadNewData()
+
+        this.initializePage();
     }
 }
 </script>
