@@ -14,8 +14,7 @@ import '@material/web/select/select-option';
 import "@material/web/button/filled-button";
 import FilterableGraph from "@/components/FilterableGraph.vue";
 import Dropdown from "@/components/Dropdown.vue";
-import BarChart from "@/components/BarChart.vue";
-import RadarChart from "@/components/RadarChart.vue";
+import RadarChart from "@/components/charts/RadarChart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 import { supabase } from "@/lib/supabase-client";
 

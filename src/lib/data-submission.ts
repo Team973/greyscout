@@ -92,7 +92,7 @@ export function parseScoutData(data, eventId) {
     let db_data = {};
     data.forEach(section => {
         section.components.forEach(component => {
-            const key = (section.key + "." + component.key).toLowerCase();
+            const key = (section.key + "_" + component.key).toLowerCase();
             const type = component.type;
             const val = component.value;
 
@@ -102,7 +102,7 @@ export function parseScoutData(data, eventId) {
                 db_data[key] = val ? component.options.selected : component.options.unselected;
             } else if (type == 'stacked-counters') {
                 val.forEach((v, i) => {
-                    const subKey = (key + "." + component.options.labels[i]).toLowerCase();
+                    const subKey = (key + "_" + component.options.labels[i]).toLowerCase();
                     db_data[subKey] = v;
                 });
             } else if (type == 'grid-counters') {
@@ -110,7 +110,7 @@ export function parseScoutData(data, eventId) {
                 const labels = component.options.labels;
                 for (var row = 0; row < labels.length; row++) {
                     for (var col = 0; col < sections.length; col++) {
-                        const subKey = (key + "." + labels[row] + "." + sections[col].key).toLowerCase();
+                        const subKey = (key + "_" + labels[row] + "_" + sections[col].key).toLowerCase();
                         db_data[subKey] = val[row][col];
                     }
                 }

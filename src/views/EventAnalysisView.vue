@@ -12,7 +12,6 @@ import { filterOutKeys } from "@/lib/util";
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import FilterableGraph from "@/components/FilterableGraph.vue";
-import BoxPlotVue from "@/components/BoxPlot.vue";
 </script>
 
 <template>

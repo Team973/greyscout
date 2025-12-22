@@ -63,15 +63,15 @@ function parseMatchData(rawData, eventData) {
         }
 
         // Match data processing.
-        const matchNumber = String(rawData[i]["prematch.match_number"]);
-        const autoCoralCount = Number(rawData[i]["auto.coral"]);
-        const autoLeaveCount = Number(rawData[i]["auto.leave"]);
-        const teleopCoralCount = Number(rawData[i]["teleop.coral"]);
-        const teleopNetCount = Number(rawData[i]["teleop.net"]);
-        const teleopProcessorCount = Number(rawData[i]["teleop.processor"]);
-        const climbCount = Number(rawData[i]["endgame.climb"]);
-        const defenseScore = Number(rawData[i]["postmatch.defense"]);
-        const diedStatus = Number(rawData[i]["postmatch.died"]);
+        const matchNumber = String(rawData[i]["prematch_match_number"]);
+        const autoCoralCount = Number(rawData[i]["auto_coral"]);
+        const autoLeaveCount = Number(rawData[i]["auto_leave"]);
+        const teleopCoralCount = Number(rawData[i]["teleop_coral"]);
+        const teleopNetCount = Number(rawData[i]["teleop_net"]);
+        const teleopProcessorCount = Number(rawData[i]["teleop_processor"]);
+        const climbCount = Number(rawData[i]["endgame_climb"]);
+        const defenseScore = Number(rawData[i]["postmatch_defense"]);
+        const diedStatus = Number(rawData[i]["postmatch_died"]);
 
         // Match totals.
         const totalCoral = autoCoralCount + teleopCoralCount;
@@ -144,14 +144,14 @@ export async function getPitScoutData(pitScoutTable: String, eventId: String) {
     let pitScoutData = {};
 
     for (let i = 0; i < data.length; i++) {
-        const teamNumber = String(data[i]['pit.team_number'])
+        const teamNumber = String(data[i]['pit_team_number'])
 
         pitScoutData[teamNumber] = {
-            scout: String(data[i]['pit.scout_name']),
-            drivetrain: String(data[i]['pit.drivetrain']),
-            coralIntake: String(data[i]['pit.coral_intake']),
-            algaeIntake: String(data[i]['pit.algae_intake']),
-            climb: String(data[i]['pit.climb'])
+            scout: String(data[i]['pit_scout_name']),
+            drivetrain: String(data[i]['pit_drivetrain']),
+            coralIntake: String(data[i]['pit_coral_intake']),
+            algaeIntake: String(data[i]['pit_algae_intake']),
+            climb: String(data[i]['pit_climb'])
         }
     }
 
