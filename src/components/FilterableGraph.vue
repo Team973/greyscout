@@ -5,12 +5,13 @@
 import { useViewModeStore } from '@/stores/view-mode-store';
 
 import { getThemeColors } from '@/lib/theme';
+import { computeBarChartDataModel } from '@/lib/chart-data';
 
-import BarChart from "@/components/BarChart.vue";
-import BoxPlot from '@/components/BoxPlot.vue';
-import LineChart from "@/components/LineChart.vue";
-import ScatterChart from "@/components/ScatterChart.vue";
-import StackedBarChart from "@/components/StackedBarChart.vue";
+import BarChart from "@/components/charts/BarChart.vue";
+import BoxPlot from '@/components/charts/BoxPlot.vue';
+import LineChart from "@/components/charts/LineChart.vue";
+import ScatterChart from "@/components/charts/ScatterChart.vue";
+import StackedBarChart from "@/components/charts/StackedBarChart.vue";
 import Dropdown from "@/components/Dropdown.vue";
 
 import '@material/web/select/outlined-select';
@@ -25,9 +26,9 @@ import '@material/web/select/select-option';
         <!-- Set :key in order to force remount. This needs to happen since box plot rendering is done in mounted() rather 
             than dynamically, and because dark/light mode switching requires data refresh. -->
         <!-- Show the relevant chart based on the data being shown -->
-        <BarChart :key="uniqueKey(0)" :data="data" :column="getActiveGraphFilter.key1" :isSorted="isChartSorted"
-            :height="maxChartHeight" :max-labels="maxDataPoints" :is-horizontal="isChartHorizontal" :x-scale="chartXScale"
-            :y-scale="chartYScale" v-if="isBarChartView">
+        <BarChart :key="uniqueKey(0)" :labels="barChartModel.labels" :values="barChartModel.values"
+            :series="barChartModel.series" :height="maxChartHeight" :is-horizontal="isChartHorizontal"
+            :x-scale="chartXScale" :y-scale="chartYScale" v-if="isBarChartView">
         </BarChart>
         <ScatterChart :key="uniqueKey(1)" :data="data" :columnX="getActiveGraphFilter.key1"
             :columnY="getActiveGraphFilter.key2" :height="maxChartHeight" v-else-if="isScatterChartView"></ScatterChart>
@@ -121,6 +122,11 @@ export default {
         },
         maxChartHeight() {
             return this.maxHeightRatio * this.viewMode.windowHeight;
+        },
+
+        // Chart data computations
+        barChartModel() {
+            return computeBarChartDataModel(this.data, this.getActiveGraphFilter.key1, this.isChartSorted, this.maxDataPoints);
         }
     },
     created() {
