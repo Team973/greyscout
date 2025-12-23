@@ -7,7 +7,7 @@ import { dataPointColorTranslucent, getThemeColors } from '@/lib/theme';
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { sortKeyValueArrays } from "@/lib/util";
+import { categoricalDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale, ChartJSPluginDatalabels)
 
@@ -22,8 +22,9 @@ ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScal
 <script lang="ts">
 export default {
     props: {
-        column: "",
-        data: {},
+        data: {
+            default: []
+        },
         options: {
             default: {
                 responsive: true,
@@ -42,7 +43,7 @@ export default {
             default: dataPointColorTranslucent
         },
         height: {
-            default: 100
+            default: 500
         }
     },
     computed: {
@@ -50,24 +51,19 @@ export default {
             return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
         },
         chartData() {
-            // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+            let labels = [];
+            if (this.data.length > 0) {
+                labels = this.data[0].labels;
+            }
 
-            // Populate an array of values.
-            let values = [];
-            labels.forEach(element => {
-                values.push(this.data[element][this.column])
+            let datasets = categoricalDataSeriesToChartJSDatasets(this.data);
+            datasets.forEach(element => {
+                element.backgroundColor = this.pointColor;
+                element.borderColor = this.lineColor;
             });
-
-            // Build the chart based on the processing above.
             const chart = {
                 labels: labels,
-                datasets: [{
-                    label: this.column,
-                    backgroundColor: this.pointColor,
-                    borderColor: this.lineColor,
-                    data: values
-                }]
+                datasets: datasets
             };
 
             this.options.scales = {

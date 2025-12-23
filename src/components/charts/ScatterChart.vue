@@ -7,7 +7,6 @@ import { dataPointColor, getThemeColors } from '@/lib/theme';
 import { Scatter } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, PointElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { useViewModeStore } from '@/stores/view-mode-store';
 
 ChartJS.register(Title, Tooltip, Legend, PointElement, CategoryScale, LinearScale, ChartJSPluginDatalabels);
 
@@ -24,7 +23,12 @@ export default {
     props: {
         columnX: "",
         columnY: "",
-        data: {},
+        labels: Array,
+        xValues: Array,
+        values: Array,
+        series: {
+            default: ""
+        },
         pointColor: {
             default: dataPointColor
         },
@@ -64,24 +68,23 @@ export default {
             return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
         },
         chartData() {
-            // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+
 
             // Populate an array of values, which are x,y coordinates.
-            let values = [];
-            labels.forEach(element => {
-                const xVal = this.data[element][this.columnX];
-                const yVal = this.data[element][this.columnY];
-                values.push({ "x": xVal, "y": yVal });
-            });
+            let xy_values = [];
+            for (var i = 0; i < this.values?.length; i++) {
+                const xVal = this.labels[i];
+                const yVal = this.values[i];
+                xy_values.push({ "x": xVal, "y": yVal });
+            }
 
             // Build the chart based on the processing above.
             const chart = {
-                labels: labels,
+                labels: this.labels,
                 datasets: [{
-                    label: "data",
+                    label: this.series,
                     backgroundColor: this.pointColor,
-                    data: values,
+                    data: xy_values,
                     pointRadius: this.pointRadius,
                     pointHoverRadius: this.pointHoverRadius,
                     color: getThemeColors().text.axes

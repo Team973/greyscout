@@ -5,7 +5,7 @@
 import { useViewModeStore } from '@/stores/view-mode-store';
 
 import { getThemeColors } from '@/lib/theme';
-import { computeBarChartDataModel } from '@/lib/chart-data';
+import { computeCategoricalDataSeries } from '@/lib/chart-data';
 
 import BarChart from "@/components/charts/BarChart.vue";
 import BoxPlot from '@/components/charts/BoxPlot.vue';
@@ -32,7 +32,8 @@ import '@material/web/select/select-option';
         </BarChart>
         <ScatterChart :key="uniqueKey(1)" :data="data" :columnX="getActiveGraphFilter.key1"
             :columnY="getActiveGraphFilter.key2" :height="maxChartHeight" v-else-if="isScatterChartView"></ScatterChart>
-        <LineChart :key="uniqueKey(2)" :data="data" :column="getActiveGraphFilter.key1" :height="maxChartHeight"
+        <LineChart :key="uniqueKey(2)" :labels="lineChartModel.labels" :values="lineChartModel.values"
+            :series="lineChartModel.series" :column="getActiveGraphFilter.key1" :height="maxChartHeight"
             v-else-if="isLineChartView">
         </LineChart>
         <StackedBarChart :key="uniqueKey(3)" :data="data" :columns="getActiveGraphFilter.keyList"
@@ -126,7 +127,10 @@ export default {
 
         // Chart data computations
         barChartModel() {
-            return computeBarChartDataModel(this.data, this.getActiveGraphFilter.key1, this.isChartSorted, this.maxDataPoints);
+            return computeCategoricalDataSeries(this.data, this.getActiveGraphFilter.key1, this.isChartSorted, this.maxDataPoints);
+        },
+        lineChartModel() {
+            return computeCategoricalDataSeries(this.data, this.getActiveGraphFilter.key1, false);
         }
     },
     created() {

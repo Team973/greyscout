@@ -3,45 +3,63 @@
 
 import { sortKeyValueArrays } from "@/lib/util";
 
-export function computeBarChartDataModel(data, valueColumn, labelColumn = null, isQuery = false, isSorted = false, maxDataPoints = null) {
+export function computeCategoricalDataSeries(data, valueColumn, labelColumn = null, isQuery = false, isSorted = false, maxDataPoints = null) {
     // This function assumes the keys of "data" are the labels.
-    var dataset = {
-        "series": valueColumn,
+    var dataSeries = {
+        "name": valueColumn,
         "labels": [],
-        "values": []
+        "y": []
     };
 
     if (isQuery) {
         data.forEach(row => {
-            dataset.labels.push(row[labelColumn]);
-            dataset.values.push(row[valueColumn]);
+            dataSeries.labels.push(row[labelColumn]);
+            dataSeries.y.push(row[valueColumn]);
         })
     } else {
-        dataset.labels = Object.keys(data);
-        dataset.labels.forEach(element => {
-            dataset.values.push(data[element][valueColumn])
+        dataSeries.labels = Object.keys(data);
+        dataSeries.labels.forEach(element => {
+            dataSeries.y.push(data[element][valueColumn])
         });
     }
 
 
     // Sort the data if requested.
     if (isSorted) {
-        const sorted = sortKeyValueArrays(dataset.labels, dataset.values);
+        const sorted = sortKeyValueArrays(dataSeries.labels, dataSeries.y);
 
         // Reconstruct a key array and a value array.
-        dataset.labels = [];
-        dataset.values = [];
+        dataSeries.labels = [];
+        dataSeries.y = [];
         for (const [key, val] of sorted) {
-            dataset.labels.push(key);
-            dataset.values.push(val);
+            dataSeries.labels.push(key);
+            dataSeries.y.push(val);
         }
     }
 
     // Limit the amount of data shown if requested.
     if (maxDataPoints != null) {
-        dataset.labels = labels.slice(0, maxDataPoints);
-        dataset.values = values.slice(0, maxDataPoints);
+        dataSeries.labels = labels.slice(0, maxDataPoints);
+        dataSeries.y = y.slice(0, maxDataPoints);
     }
 
-    return dataset;
+    return dataSeries;
+}
+
+export function categoricalDataSeriesToChartJSDatasets(data) {
+    let labels = [];
+    if (data.length > 0) {
+        labels = data[0].labels;
+    }
+
+    let datasets = []
+    data?.forEach(series => {
+        const dataset = {
+            label: series.name,
+            data: series.y
+        };
+        datasets.push(dataset);
+    });
+
+    return datasets;
 }
