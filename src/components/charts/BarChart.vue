@@ -3,6 +3,7 @@
 // @ts-nocheck
 
 import { dataPointColorTranslucent, getThemeColors } from '@/lib/theme';
+import { categoricalDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
@@ -21,12 +22,7 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 <script lang="ts">
 export default {
     props: {
-        series: "",
-        labels: Array,
-        values: Array,
-        isSorted: {
-            default: true
-        },
+        data: Array,
         barColor: {
             default: dataPointColorTranslucent
         },
@@ -45,17 +41,23 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.labels) + JSON.stringify(this.values) + JSON.stringify(this.series) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
         },
         chartData() {
+            let labels = [];
+            if (this.data.length > 0) {
+                labels = this.data[0].labels;
+            }
+
+            let datasets = categoricalDataSeriesToChartJSDatasets(this.data)
+            datasets.forEach(series => {
+                series.backgroundColor = this.barColor
+            });
+
             // Build the chart based on the processing above.
             const chart = {
-                labels: this.labels,
-                datasets: [{
-                    label: this.series,
-                    backgroundColor: this.barColor,
-                    data: this.values
-                }]
+                labels: labels,
+                datasets: datasets
             };
             return chart;
         },

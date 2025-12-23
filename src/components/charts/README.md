@@ -1,24 +1,50 @@
 
 ## Chart Data Schemas
 
-BarChart, LineChart, ScatterChart:
+BarChart, LineChart:
 ```
 color = ""
-series = ""
-labels = [x1, x2, ..., xn]
-values = [y1, y2, ..., yn]
+data = [
+    {
+        name: "",
+        labels: [l1, l2, ..., ln],
+        y: [y1, y2, ..., yn]
+    }
+]
+
+```
+
+ScatterChart:
+```
+color = ""
+data = [
+    {
+        name: "",
+        labels: [l1, l2, ..., ln],
+        x: [x1, x2, ..., xn],
+        y: [y1, y2, ..., yn]
+    }
+]
+
 ```
 
 StackedBarChart:
 ```
 colors = ["#COLOR", ...]
 
-data = {
-    "x1": [y11, y12, ..., y1m],
-    "x2": [y21, y22, ..., y2m],
+data = [
+    {
+        series: "",
+        labels: [l1, l2, ..., ln],
+        y: [y1, y2, ..., yn]
+    },
     ...
-    "xn": [yn1, yn2, ..., ynm]
-}
+    {
+        series: "",
+        labels: [l1, l2, ..., ln],
+        y: [y1, y2, ..., yn]
+    }
+]
 ```
 
 PieChart, DoughnutChart:

@@ -8,20 +8,14 @@ import { useViewModeStore } from '@/stores/view-mode-store';
 // Needed so the chart reloads if light/dark mode is changed.
 import { getThemeColors } from '@/lib/theme';
 
-
 import "@material/web/button/filled-button";
 
 import Dropdown from "@/components/Dropdown.vue";
 
-import BarChart from "@/components/charts/BarChart.vue";
-import LineChart from "@/components/charts/LineChart.vue";
-import ScatterChart from "@/components/charts/ScatterChart.vue";
-import StackedBarChart from "@/components/charts/StackedBarChart.vue";
-import BoxPlot from "@/components/charts/BoxPlot.vue";
-import RadarChart from "@/components/charts/RadarChart.vue";
+import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
-import { computeBarChartDataModel } from "@/lib/chart-data";
+import { computeCategoricalDataSeries } from "@/lib/chart-data";
 import { queryTeamMatchData, queryTeamNumbers } from "@/lib/data-query";
 import { defaultTeamNumber } from "@/lib/constants";
 
@@ -51,25 +45,10 @@ import { defaultTeamNumber } from "@/lib/constants";
         <!-- <div>
             <md-filled-button v-on:click="loadNewData" class="load-button">LOAD</md-filled-button>
         </div> -->
-        <div class="graph-container">
-            <!-- Set :key in order to force remount. This needs to happen since box plot rendering is done in mounted() rather 
-            than dynamically, and because dark/light mode switching requires data refresh. -->
-            <!-- Show the relevant chart based on the data being shown -->
-            <BarChart :key="uniqueKey(0)" :labels="chartModel.data.labels" :values="chartModel.data.values"
-                :series="chartModel.data.series" :height="maxChartHeight" :is-horizontal="isChartHorizontal"
-                :x-scale="chartXScale" :y-scale="chartYScale" v-if="isBarChartView">
-            </BarChart>
-            <ScatterChart :key="uniqueKey(1)" :data="chartData" :height="maxChartHeight" v-else-if="isScatterChartView">
-            </ScatterChart>
-            <LineChart :key="uniqueKey(2)" :data="chartData" :height="maxChartHeight" v-else-if="isLineChartView">
-            </LineChart>
-            <StackedBarChart :key="uniqueKey(3)" :data="chartData" :height="maxChartHeight"
-                v-else-if="isStackedBarChartView">
-            </StackedBarChart>
-            <BoxPlot :key="uniqueKey(4)" :data="chartData" :isSorted="isChartSorted" :height="maxChartHeight"
-                :max-labels="maximumDataPoints" :is-horizontal="isChartHorizontal" :x-range="chartXScale"
-                :y-range="chartYScale" v-else-if="isBoxPlotView">
-            </BoxPlot>
+        <div>
+            <Chart :chart-type="activeChartType" :data="activeChartData" :height="maxChartHeight"
+                :is-horizontal="isChartHorizontal" :x-scale="chartXScale" :y-scale="chartYScale">
+            </Chart>
         </div>
     </div>
 </template>
@@ -118,11 +97,7 @@ export default {
             activeData: {},
             stagedData: {},
             chartModel: {
-                data: {
-                    labels: [],
-                    values: [],
-                    series: "",
-                }
+                data: []
             },
             isDataLoaded: false,
             isTeamNumbersReady: false,
@@ -150,14 +125,6 @@ export default {
         setTeamNumber(index: int) {
             this.activeTeamNumberIndex = index;
             this.loadNewData();
-        },
-        uniqueKey(id) {
-            // TODO: make this better. This is a hack to ensure plots reload if data or filters change.
-            const key = JSON.stringify(this.activeData) + JSON.stringify(this.chartTypes[this.activeChartTypeIndex]) + JSON.stringify(getThemeColors()) + id;
-            return key;
-        },
-        activeChartTypeKey() {
-            return this.chartTypes[this.activeChartTypeIndex]?.key;
         },
         async initializePage() {
             this.eventStore.updateEvent();
@@ -201,8 +168,9 @@ export default {
                 return {};
             }
 
-            if (this.isBarChartView) {
-                this.chartModel.data = computeBarChartDataModel(this.activeData, this.activeSeries, this.activeLabel, true);
+            if (this.activeChartType == "bar" || this.activeChartType == "line") {
+                this.chartModel.data = [];
+                this.chartModel.data.push(computeCategoricalDataSeries(this.activeData, this.activeSeries, this.activeLabel, true));
             }
         }
 
@@ -227,24 +195,13 @@ export default {
         chartYScale() {
             return this.chartOptions.yScale;
         },
-        // View Options
-        isBarChartView() {
-            return this.activeChartTypeKey() == "bar";
+
+        // View options
+        activeChartType() {
+            return this.chartTypes[this.activeChartTypeIndex]?.key;
         },
-        isScatterChartView() {
-            return this.activeChartTypeKey() == "scatter";
-        },
-        isLineChartView() {
-            return this.activeChartTypeKey() == "line";
-        },
-        isStackedBarChartView() {
-            return this.activeChartTypeKey() == "stacked-bar";
-        },
-        isBoxPlotView() {
-            return this.activeChartTypeKey() == "boxplot";
-        },
-        isRadarView() {
-            return this.activeChartTypeKey() == "radar";
+        isTeamNumberRequired() {
+            return this.activeQuery == "team_match_timeseries";
         },
 
         // Chart Data
@@ -254,23 +211,11 @@ export default {
         activeSeries() {
             return this.dataColumns[this.activeDataColumnIndex].key;
         },
-        chartLabels() {
+        activeChartData() {
             if (!this.isDataLoaded) {
-                return {};
+                return [];
             }
-            return this.chartLabels;
-        },
-        chartValues() {
-            if (!this.isDataLoaded) {
-                return {};
-            }
-            return this.chartValues;
-        },
-        chartSeries() {
-            if (!this.isDataLoaded) {
-                return {};
-            }
-            return this.chartSeries;
+            return this.chartModel.data;
         },
 
         // Other data
@@ -291,12 +236,4 @@ export default {
 }
 </script>
 
-<style scoped>
-.graph-container {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    flex: 1 1 auto;
-    justify-content: center;
-}
-</style>
+<style scoped></style>
