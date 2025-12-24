@@ -3,7 +3,7 @@
 // @ts-nocheck
 
 import { dataPointColorTranslucent, getThemeColors } from '@/lib/theme';
-import { categoricalDataSeriesToChartJSDatasets } from "@/lib/chart-data";
+import { discreteDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
@@ -49,7 +49,7 @@ export default {
                 labels = this.data[0].labels;
             }
 
-            let datasets = categoricalDataSeriesToChartJSDatasets(this.data)
+            let datasets = discreteDataSeriesToChartJSDatasets(this.data)
             datasets.forEach(series => {
                 series.backgroundColor = this.barColor
             });

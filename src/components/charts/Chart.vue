@@ -22,18 +22,20 @@ import { getThemeColors } from '@/lib/theme';
         <BarChart :key="uniqueKey(0)" :data="chartData" :height="height" :is-horizontal="isHorizontal" :x-range="xRange"
             :y-range="yRange" v-if="isBarChartView">
         </BarChart>
+
         <LineChart :key="uniqueKey(1)" :data="chartData" v-else-if="isLineChartView">
         </LineChart>
+
         <ScatterChart :key="uniqueKey(2)" :data="chartData" :height="height" v-else-if="isScatterChartView">
         </ScatterChart>
-        <!-- 
-        
-        <StackedBarChart :key="uniqueKey(3)" :data="chartData" :height="maxChartHeight" v-else-if="isStackedBarChartView">
+
+        <BoxPlot :key="uniqueKey(3)" :data="chartData" :height="height" :max-labels="maxLabels"
+            :is-horizontal="isHorizontal" :x-range="xRange" :y-range="yRange" v-else-if="isBoxPlotView">
+        </BoxPlot>
+
+        <StackedBarChart :key="uniqueKey(4)" :data="chartData" :chart-style="chartStyle" :height="height"
+            v-else-if="isStackedBarChartView">
         </StackedBarChart>
-        <BoxPlot :key="uniqueKey(4)" :data="chartData" :isSorted="isChartSorted" :height="maxChartHeight"
-            :max-labels="maximumDataPoints" :is-horizontal="isChartHorizontal" :x-range="chartXScale" :y-range="chartYScale"
-            v-else-if="isBoxPlotView">
-        </BoxPlot> -->
     </div>
 </template>
 
@@ -47,6 +49,9 @@ export default {
             default: "bar"
         },
         data: {
+            default: []
+        },
+        chartStyle: {
             default: []
         },
         height: {
@@ -69,6 +74,7 @@ export default {
         uniqueKey(id) {
             // TODO: make this better. This is a hack to ensure plots reload if data or filters change.
             const key = JSON.stringify(this.chartType)
+                + JSON.stringify(this.chartStyle)
                 + JSON.stringify(this.data)
                 + JSON.stringify(this.xRange)
                 + JSON.stringify(this.yRange)

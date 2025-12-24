@@ -2,6 +2,7 @@
 ## Chart Data Schemas
 
 BarChart, LineChart:
+DiscreteDataSeries
 ```
 color = ""
 data = [
@@ -15,6 +16,7 @@ data = [
 ```
 
 ScatterChart:
+CartesianDataSeries
 ```
 color = ""
 data = [
@@ -28,19 +30,28 @@ data = [
 
 ```
 
+
+BoxPlot:
+SampledDataSeries
+```
+data = {
+    labels: [l1, l2, ..., ln],
+    samples: [y1, y2, ..., yn]
+}
+```
+
+
 StackedBarChart:
 ```
-colors = ["#COLOR", ...]
-
 data = [
     {
-        series: "",
+        name: "",
         labels: [l1, l2, ..., ln],
         y: [y1, y2, ..., yn]
     },
     ...
     {
-        series: "",
+        name: "",
         labels: [l1, l2, ..., ln],
         y: [y1, y2, ..., yn]
     }
@@ -79,6 +90,16 @@ values = [y1, y2, ..., yn]
 ```
 
 
+
+## Chart Style Schema
+
+BarChart:
+
+
+LineChart, ScatterChart:
+
+
+
 BoxPlot:
 ```
 style = {
@@ -92,12 +113,10 @@ style = {
         "color": "#COLOR"
     }
 }
+```
 
-labels = [x1, x2, ..., xn]
-values = [
-    [y11, y12, ..., y1m], 
-    [y21, y22, ..., y2m], 
-    ...,
-    [yn1, yn2, ..., ynm]
-]
+
+StackedBarChart:
+```
+colors = ["#COLOR", ...]
 ```

@@ -12,6 +12,11 @@ export const dataPointAccentColor = "#009879";
 export const dataPointAccentColorTranslucent = "#00987980";
 
 
+export const randomColorWheel = [
+    '#ff55ecff', '#5dfc75ff', '#647afaff'
+]
+
+
 // radar color options
 export const radarRedTheme = {
     background: 'rgba(255,99,132,0.2)',

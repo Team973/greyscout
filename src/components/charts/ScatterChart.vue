@@ -3,6 +3,7 @@
 // @ts-nocheck
 
 import { dataPointColor, getThemeColors } from '@/lib/theme';
+import { cartesianDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 import { Scatter } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, PointElement, CategoryScale, LinearScale } from 'chart.js'
@@ -23,9 +24,7 @@ export default {
     props: {
         columnX: "",
         columnY: "",
-        labels: Array,
-        xValues: Array,
-        values: Array,
+        data: Array,
         series: {
             default: ""
         },
@@ -56,7 +55,7 @@ export default {
                             weight: 'bold'
                         },
                         formatter: function (value, context) {
-                            return context.chart.data.labels[context.dataIndex];
+                            return context.chart.data?.labels[context.dataIndex];
                         }
                     }
                 }
@@ -68,27 +67,23 @@ export default {
             return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
         },
         chartData() {
-
-
-            // Populate an array of values, which are x,y coordinates.
-            let xy_values = [];
-            for (var i = 0; i < this.values?.length; i++) {
-                const xVal = this.labels[i];
-                const yVal = this.values[i];
-                xy_values.push({ "x": xVal, "y": yVal });
+            let labels = [];
+            if (this.data.length > 0) {
+                labels = this.data[0].labels;
             }
+
+            let datasets = cartesianDataSeriesToChartJSDatasets(this.data);
+            datasets.forEach(series => {
+                series.backgroundColor = this.pointColor;
+                series.pointRadius = this.pointRadius;
+                series.pointHoverRadius = this.pointHoverRadius;
+                series.color = getThemeColors().text.axes;
+            })
 
             // Build the chart based on the processing above.
             const chart = {
-                labels: this.labels,
-                datasets: [{
-                    label: this.series,
-                    backgroundColor: this.pointColor,
-                    data: xy_values,
-                    pointRadius: this.pointRadius,
-                    pointHoverRadius: this.pointHoverRadius,
-                    color: getThemeColors().text.axes
-                }]
+                labels: labels,
+                datasets: datasets
             };
 
             // Label the axes.

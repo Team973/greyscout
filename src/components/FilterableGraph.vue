@@ -5,7 +5,7 @@
 import { useViewModeStore } from '@/stores/view-mode-store';
 
 import { getThemeColors } from '@/lib/theme';
-import { computeCategoricalDataSeries } from '@/lib/chart-data';
+import { computeDiscreteDataSeries } from '@/lib/chart-data';
 
 import BarChart from "@/components/charts/BarChart.vue";
 import BoxPlot from '@/components/charts/BoxPlot.vue';
@@ -127,10 +127,10 @@ export default {
 
         // Chart data computations
         barChartModel() {
-            return computeCategoricalDataSeries(this.data, this.getActiveGraphFilter.key1, this.isChartSorted, this.maxDataPoints);
+            return computeDiscreteDataSeries(this.data, this.getActiveGraphFilter.key1, this.isChartSorted, this.maxDataPoints);
         },
         lineChartModel() {
-            return computeCategoricalDataSeries(this.data, this.getActiveGraphFilter.key1, false);
+            return computeDiscreteDataSeries(this.data, this.getActiveGraphFilter.key1, false);
         }
     },
     created() {
