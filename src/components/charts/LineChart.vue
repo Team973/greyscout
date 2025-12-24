@@ -7,7 +7,7 @@ import { dataPointColorTranslucent, getThemeColors } from '@/lib/theme';
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { categoricalDataSeriesToChartJSDatasets } from "@/lib/chart-data";
+import { discreteDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale, ChartJSPluginDatalabels)
 
@@ -56,7 +56,7 @@ export default {
                 labels = this.data[0].labels;
             }
 
-            let datasets = categoricalDataSeriesToChartJSDatasets(this.data);
+            let datasets = discreteDataSeriesToChartJSDatasets(this.data);
             datasets.forEach(element => {
                 element.backgroundColor = this.pointColor;
                 element.borderColor = this.lineColor;

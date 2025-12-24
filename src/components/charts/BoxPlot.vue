@@ -117,9 +117,9 @@ export default {
             }
         },
         chartDataSetup() {
-            const data = this.chartData();
-            const labels = data.labels;
-            const values = data.values;
+            // const data = this.chartData();
+            const labels = this.data[0].labels;
+            const values = this.data[0].values;
 
             // Build the chart based on the processing above.
             const chart = {
