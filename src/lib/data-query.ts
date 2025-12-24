@@ -29,3 +29,15 @@ export async function queryTeamMatchData(teamNumber, eventId) {
 
     return data;
 }
+
+export async function queryEventData(eventId) {
+    const { data, error } = await supabase.from(matchScoutTable).select().eq('event', eventId);
+
+    if (error) {
+        console.log(error);
+        return [];
+    }
+
+    return data;
+}
+

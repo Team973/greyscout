@@ -5,8 +5,6 @@
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 
-// Needed so the chart reloads if light/dark mode is changed.
-import { getThemeColors } from '@/lib/theme';
 
 import "@material/web/button/filled-button";
 
@@ -15,9 +13,13 @@ import Dropdown from "@/components/Dropdown.vue";
 import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
-import { computeCategoricalDataSeries } from "@/lib/chart-data";
-import { queryTeamMatchData, queryTeamNumbers } from "@/lib/data-query";
+
+import { randomColorWheel } from '@/lib/theme';
+import { computeDiscreteDataSeries, computeCartesianDataSeries, computeSampledDataSeries } from "@/lib/chart-data";
+import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
+import { aggregateData } from "@/lib/data-transforms";
 import { defaultTeamNumber } from "@/lib/constants";
+import { mean } from "simple-statistics";
 
 
 </script>
@@ -26,28 +28,50 @@ import { defaultTeamNumber } from "@/lib/constants";
     <div class="main-content">
         <h1>Custom Data Visualization Editor</h1>
         <div>
-            <Dropdown :choices="chartTypes" v-model="activeChartTypeIndex" @update:modelValue="setChartType"></Dropdown>
+            Plot: <Dropdown :choices="chartTypes" v-model="activeChartTypeIndex" @update:modelValue="setChartType">
+            </Dropdown>
         </div>
         <div>
-            <Dropdown :choices="queryTypes" v-model="activeQueryTypeIndex" @update:modelValue="setQueryType">
+            Query: <Dropdown :choices="queryTypes" v-model="activeQueryTypeIndex" @update:modelValue="setQueryType">
             </Dropdown>
         </div>
         <div>
             <div v-if="isTeamNumbersReady">
-                <Dropdown :choices="teamNumbers" v-model="activeTeamNumberIndex" @update:modelValue="setTeamNumber">
+                Team: <Dropdown :choices="teamNumbers" v-model="activeTeamNumberIndex" @update:modelValue="setTeamNumber">
                 </Dropdown>
             </div>
 
-            <Dropdown :choices="labelColumns" v-model="activeLabelColumnIndex" @update:modelValue="setLabelColumn">
+            Independent: <Dropdown :choices="independentColumns" v-model="activeIndependentColumnIndex"
+                @update:modelValue="setLabelColumn">
             </Dropdown>
-            <Dropdown :choices="dataColumns" v-model="activeDataColumnIndex" @update:modelValue="setDataColumn"></Dropdown>
+            <div v-if="activeChartType == 'scatter'">
+                X: <Dropdown :choices="dataColumns" v-model="activeDataXColumnIndex" @update:modelValue="setDataColumnX">
+                </Dropdown>
+                Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex" @update:modelValue="setDataColumnY">
+                </Dropdown>
+            </div>
+            <div v-else-if="activeChartType == 'stacked-bar' || activeChartType == 'radar'">
+                Series:
+                <div v-for="dropdown, i in dropdownList">
+                    <Dropdown :choices="dataColumns" v-model="dropdownList[i]" @update:modelValue="setDropdownValue(i)">
+                    </Dropdown>
+                    <md-filled-button v-on:click="removeSeries(i)" class="load-button">x</md-filled-button>
+                </div>
+                <div>
+                    <md-filled-button v-on:click="addNewSeries()" class="load-button">Add Series</md-filled-button>
+                </div>
+            </div>
+            <div v-else>
+                Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex" @update:modelValue="setDataColumnY">
+                </Dropdown>
+            </div>
+
+
         </div>
-        <!-- <div>
-            <md-filled-button v-on:click="loadNewData" class="load-button">LOAD</md-filled-button>
-        </div> -->
+
         <div>
-            <Chart :chart-type="activeChartType" :data="activeChartData" :height="maxChartHeight"
-                :is-horizontal="isChartHorizontal" :x-scale="chartXScale" :y-scale="chartYScale">
+            <Chart :chart-type="activeChartType" :data="activeChartData" :chart-style="activeChartStyle"
+                :height="maxChartHeight" :is-horizontal="isChartHorizontal" :x-scale="chartXScale" :y-scale="chartYScale">
             </Chart>
         </div>
     </div>
@@ -73,17 +97,19 @@ export default {
             activeQueryTypeIndex: 0,
             teamNumbers: [],
             activeTeamNumberIndex: 0,
-            labelColumns: [
-                { key: "prematch_match_number", text: "Match Number" }
+            independentColumns: [
+                { key: "prematch_match_number", text: "Match Number" },
+                { key: "prematch_team_number", text: "Team Number" }
             ],
-            activeLabelColumnIndex: 0,
+            activeIndependentColumnIndex: 0,
             dataColumns: [
                 { key: "auto_coral", text: "Auto Coral" },
                 { key: "teleop_coral", text: "Teleop Coral" },
                 { key: "teleop_net", text: "Teleop Net" }
             ],
-            activeDataColumnIndex: 0,
-
+            activeDataYColumnIndex: 0,
+            activeDataXColumnIndex: 0,
+            dropdownList: [],
             chartOptions: {
                 maxDataPoints: null,
                 isHorizontal: false,
@@ -97,7 +123,8 @@ export default {
             activeData: {},
             stagedData: {},
             chartModel: {
-                data: []
+                data: [],
+                style: []
             },
             isDataLoaded: false,
             isTeamNumbersReady: false,
@@ -111,11 +138,15 @@ export default {
             this.loadNewData();
         },
         setLabelColumn(index: int) {
-            this.activeLabelColumnIndex = index;
+            this.activeIndependentColumnIndex = index;
             this.loadNewData();
         },
-        setDataColumn(index: int) {
-            this.activeDataColumnIndex = index;
+        setDataColumnY(index: int) {
+            this.activeDataYColumnIndex = index;
+            this.loadNewData();
+        },
+        setDataColumnX(index: int) {
+            this.activeDataXColumnIndex = index;
             this.loadNewData();
         },
         setQueryType(index: int) {
@@ -126,6 +157,22 @@ export default {
             this.activeTeamNumberIndex = index;
             this.loadNewData();
         },
+
+        // Expanding dropdown list.
+        setDropdownValue(index: int, dropdownIndex: int) {
+            this.dropdownList[dropdownIndex] = index;
+            this.loadNewData();
+        },
+        removeSeries(index: int) {
+            this.dropdownList.splice(index, 1);
+            this.loadNewData();
+        },
+        addNewSeries() {
+            this.dropdownList.push(0);
+            this.loadNewData();
+        },
+
+
         async initializePage() {
             this.eventStore.updateEvent();
 
@@ -154,7 +201,11 @@ export default {
             this.loadNewData();
         },
         async loadNewData() {
-            this.stagedData = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
+            if (this.activeQuery == "team_match_timeseries") {
+                this.stagedData = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
+            } else if (this.activeQuery == "event_rankings") {
+                this.stagedData = await queryEventData(this.eventStore.eventId);
+            }
 
             // Only update activeData if the data came back without errors.
             if (this.stagedData != null) {
@@ -165,12 +216,33 @@ export default {
         },
         updateChartModel() {
             if (!this.isDataLoaded) {
-                return {};
+                return [];
             }
 
+            // Perform data aggregation when in certain modes.
+            if (this.activeQuery == "event_rankings" && this.activeChartType != "boxplot") {
+                this.activeData = aggregateData(this.activeData, this.activeIndependentCol, mean);
+            }
+
+            this.chartModel.style = [];
+            this.chartModel.data = [];
+
             if (this.activeChartType == "bar" || this.activeChartType == "line") {
-                this.chartModel.data = [];
-                this.chartModel.data.push(computeCategoricalDataSeries(this.activeData, this.activeSeries, this.activeLabel, true));
+                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY));
+            } else if (this.activeChartType == "scatter") {
+                this.chartModel.data.push(computeCartesianDataSeries(this.activeData, this.activeSeriesX, this.activeSeriesY, this.activeIndependentCol, true))
+            } else if (this.activeChartType == "boxplot") {
+                this.chartModel.data = computeSampledDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY, this.isChartSorted);
+            } else if (this.activeChartType == "stacked-bar") {
+                for (var i = 0; i < this.dropdownList.length; i++) {
+                    const index = this.dropdownList[i];
+                    const dropdownColumn = this.dataColumns[index];
+
+                    this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, dropdownColumn.key));
+                    this.chartModel.style.push({
+                        "color": randomColorWheel[i % randomColorWheel.length]
+                    });
+                }
             }
         }
 
@@ -204,18 +276,27 @@ export default {
             return this.activeQuery == "team_match_timeseries";
         },
 
-        // Chart Data
-        activeLabel() {
-            return this.labelColumns[this.activeLabelColumnIndex].key;
+        // Data
+        activeIndependentCol() {
+            return this.independentColumns[this.activeIndependentColumnIndex].key;
         },
-        activeSeries() {
-            return this.dataColumns[this.activeDataColumnIndex].key;
+        activeSeriesY() {
+            return this.dataColumns[this.activeDataYColumnIndex].key;
+        },
+        activeSeriesX() {
+            return this.dataColumns[this.activeDataXColumnIndex].key;
         },
         activeChartData() {
             if (!this.isDataLoaded) {
                 return [];
             }
             return this.chartModel.data;
+        },
+        activeChartStyle() {
+            return this.chartModel.style;
+        },
+        activeQuery() {
+            return this.queryTypes[this.activeQueryTypeIndex].key;
         },
 
         // Other data
