@@ -11,7 +11,7 @@ import "@material/web/chips/chip-set";
 import "@material/web/chips/filter-chip";
 
 import Dropdown from "@/components/Dropdown.vue";
-
+import ResizableList from "@/components/ResizableList.vue";
 import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
@@ -54,24 +54,24 @@ import { mean } from "simple-statistics";
             </div>
             <div v-else-if="activeChartType == 'stacked-bar' || activeChartType == 'radar'">
                 Series:
-                <div v-for="dropdown, i in dropdownList">
-                    <Dropdown :choices="dataColumns" v-model="dropdownList[i]" @update:modelValue="setDropdownValue(i)">
-                    </Dropdown>
-                    <md-filled-button v-on:click="removeSeries(i)" class="load-button">x</md-filled-button>
-                </div>
-                <div>
-                    <md-filled-button v-on:click="addNewSeries()" class="load-button">Add Series</md-filled-button>
-                </div>
+                <ResizableList :item-list="dropdownList" item-type-name="series" @item-added="addDropdownListItem()"
+                    @item-removed="removeDropdownListItem(index)">
+                    <template v-slot:item-content="{ index }">
+                        <Dropdown :choices="dataColumns" v-model="dropdownList[index]['series']"
+                            @update:modelValue="setDropdownValue($event, index)">
+                        </Dropdown>
+                    </template>
+                </ResizableList>
             </div>
             <div v-else>
                 Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex" @update:modelValue="setDataColumnY">
                 </Dropdown>
             </div>
 
-            <md-chip-set class="vertical-chip-set">
+            <md-chip-set class="horizontal-chip-set">
                 <md-filter-chip v-for="chip, idx in filterChips" :label="chip.label" @click="toggleChip(idx)"
                     v-bind:selected="chip.value" v-bind:disabled="chip.isDisabled"
-                    class="vertical-chip-set-chip"></md-filter-chip>
+                    class="horizontal-chip-set-chip"></md-filter-chip>
             </md-chip-set>
 
         </div>
@@ -182,16 +182,17 @@ export default {
         },
 
         // Expanding dropdown list.
-        setDropdownValue(index: int, dropdownIndex: int) {
-            this.dropdownList[dropdownIndex] = index;
+        setDropdownValue(index: number, dropdownIndex: number) {
+            this.dropdownList[dropdownIndex]['series'] = index;
             this.loadNewData();
         },
-        removeSeries(index: int) {
+        addDropdownListItem() {
+            const defaultItem = { 'series': 0 };
+            this.dropdownList.push(defaultItem);
+            this.loadNewData();
+        },
+        removeDropdownListItem(index: number) {
             this.dropdownList.splice(index, 1);
-            this.loadNewData();
-        },
-        addNewSeries() {
-            this.dropdownList.push(0);
             this.loadNewData();
         },
 
@@ -258,7 +259,7 @@ export default {
                 this.chartModel.data = computeSampledDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY, this.isChartSorted);
             } else if (this.activeChartType == "stacked-bar") {
                 for (var i = 0; i < this.dropdownList.length; i++) {
-                    const index = this.dropdownList[i];
+                    const index = this.dropdownList[i]['series'];
                     const dropdownColumn = this.dataColumns[index];
 
                     this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, dropdownColumn.key));
