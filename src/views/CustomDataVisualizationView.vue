@@ -38,7 +38,7 @@ import { mean } from "simple-statistics";
             </Dropdown>
         </div>
         <div>
-            <div v-if="isTeamNumbersReady">
+            <div v-if="isTeamNumbersReady && isTeamNumberRequired">
                 Team: <Dropdown :choices="teamNumbers" v-model="activeTeamNumberIndex" @update:modelValue="setTeamNumber">
                 </Dropdown>
             </div>
@@ -46,19 +46,40 @@ import { mean } from "simple-statistics";
             Independent: <Dropdown :choices="independentColumns" v-model="activeIndependentColumnIndex"
                 @update:modelValue="setLabelColumn">
             </Dropdown>
+
             <div v-if="activeChartType == 'scatter'">
                 X: <Dropdown :choices="dataColumns" v-model="activeDataXColumnIndex" @update:modelValue="setDataColumnX">
                 </Dropdown>
                 Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex" @update:modelValue="setDataColumnY">
                 </Dropdown>
             </div>
-            <div v-else-if="activeChartType == 'stacked-bar' || activeChartType == 'radar'">
+            <div v-else-if="activeChartType == 'stacked-bar'">
                 Series:
-                <ResizableList :item-list="dropdownList" item-type-name="series" @item-added="addDropdownListItem()"
-                    @item-removed="removeDropdownListItem(index)">
+                <ResizableList :item-list="seriesDropdownList" item-type-name="series"
+                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem(index)">
                     <template v-slot:item-content="{ index }">
-                        <Dropdown :choices="dataColumns" v-model="dropdownList[index]['series']"
-                            @update:modelValue="setDropdownValue($event, index)">
+                        <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
+                            @update:modelValue="setSeriesDropdownValue($event, index)">
+                        </Dropdown>
+                    </template>
+                </ResizableList>
+            </div>
+            <div v-else-if="activeChartType == 'radar'">
+                Comparisons:
+                <ResizableList :item-list="radarDropdownList" :item-type-name="activeIndependentColumnText"
+                    @item-added="addRadarListDropdownListItem()" @item-removed="removeRadarListDropdownListItem(index)">
+                    <template v-slot:item-content="{ index }">
+                        <Dropdown :choices="activeIndependentColumnChoices" v-model="radarDropdownList[index]['comp']"
+                            @update:modelValue="setRadarListDropdownValue($event, index)">
+                        </Dropdown>
+                    </template>
+                </ResizableList>
+                Dimensions:
+                <ResizableList :item-list="seriesDropdownList" item-type-name="series"
+                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem(index)">
+                    <template v-slot:item-content="{ index }">
+                        <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
+                            @update:modelValue="setSeriesDropdownValue($event, index)">
                         </Dropdown>
                     </template>
                 </ResizableList>
@@ -122,7 +143,8 @@ export default {
             ],
             activeDataYColumnIndex: 0,
             activeDataXColumnIndex: 0,
-            dropdownList: [],
+            seriesDropdownList: [],
+            radarDropdownList: [],
             chips: [
                 { key: "isSorted", label: "Sorted?", value: false, isDisabled: false },
                 { key: "isHorizontal", label: "Horizontal?", value: false, isDisabled: false }
@@ -135,8 +157,6 @@ export default {
                 yScale: null
             },
             maxHeightRatio: 0.7,
-            independentAxis: null,
-            dependentAxes: [],
             activeData: {},
             stagedData: {},
             chartModel: {
@@ -181,18 +201,31 @@ export default {
             this.loadNewData();
         },
 
-        // Expanding dropdown list.
-        setDropdownValue(index: number, dropdownIndex: number) {
-            this.dropdownList[dropdownIndex]['series'] = index;
+        // Expanding dropdown lists.
+        setSeriesDropdownValue(index: number, dropdownIndex: number) {
+            this.seriesDropdownList[dropdownIndex]['series'] = index;
             this.loadNewData();
         },
-        addDropdownListItem() {
+        addSeriesDropdownListItem() {
             const defaultItem = { 'series': 0 };
-            this.dropdownList.push(defaultItem);
+            this.seriesDropdownList.push(defaultItem);
             this.loadNewData();
         },
-        removeDropdownListItem(index: number) {
-            this.dropdownList.splice(index, 1);
+        removeSeriesDropdownListItem(index: number) {
+            this.seriesDropdownList.splice(index, 1);
+            this.loadNewData();
+        },
+        setRadarListDropdownValue(index: number, dropdownIndex: number) {
+            this.radarDropdownList[dropdownIndex]['comp'] = index;
+            this.loadNewData();
+        },
+        addRadarListDropdownListItem() {
+            const defaultItem = { 'comp': 0 };
+            this.radarDropdownList.push(defaultItem);
+            this.loadNewData();
+        },
+        removeRadarListDropdownListItem(index: number) {
+            this.radarDropdownList.splice(index, 1);
             this.loadNewData();
         },
 
@@ -245,24 +278,24 @@ export default {
 
             // Perform data aggregation when in certain modes.
             if (this.activeQuery == "event_rankings" && this.activeChartType != "boxplot") {
-                this.activeData = aggregateData(this.activeData, this.activeIndependentCol, mean);
+                this.activeData = aggregateData(this.activeData, this.activeIndependentColumn, mean);
             }
 
             this.chartModel.style = [];
             this.chartModel.data = [];
 
             if (this.activeChartType == "bar" || this.activeChartType == "line") {
-                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY, this.isChartSorted));
+                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentColumn, this.activeSeriesY, this.isChartSorted));
             } else if (this.activeChartType == "scatter") {
-                this.chartModel.data.push(computeCartesianDataSeries(this.activeData, this.activeSeriesX, this.activeSeriesY, this.activeIndependentCol, true))
+                this.chartModel.data.push(computeCartesianDataSeries(this.activeData, this.activeSeriesX, this.activeSeriesY, this.activeIndependentColumn, true))
             } else if (this.activeChartType == "boxplot") {
-                this.chartModel.data = computeSampledDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY, this.isChartSorted);
+                this.chartModel.data = computeSampledDataSeries(this.activeData, this.activeIndependentColumn, this.activeSeriesY, this.isChartSorted);
             } else if (this.activeChartType == "stacked-bar") {
-                for (var i = 0; i < this.dropdownList.length; i++) {
-                    const index = this.dropdownList[i]['series'];
+                for (var i = 0; i < this.seriesDropdownList.length; i++) {
+                    const index = this.seriesDropdownList[i]['series'];
                     const dropdownColumn = this.dataColumns[index];
 
-                    this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, dropdownColumn.key));
+                    this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentColumn, dropdownColumn.key));
                     this.chartModel.style.push({
                         "color": randomColorWheel[i % randomColorWheel.length]
                     });
@@ -304,8 +337,11 @@ export default {
         },
 
         // Data
-        activeIndependentCol() {
+        activeIndependentColumn() {
             return this.independentColumns[this.activeIndependentColumnIndex].key;
+        },
+        activeIndependentColumnText() {
+            return this.independentColumns[this.activeIndependentColumnIndex].text;
         },
         activeSeriesY() {
             return this.dataColumns[this.activeDataYColumnIndex].key;
@@ -324,6 +360,12 @@ export default {
         },
         activeQuery() {
             return this.queryTypes[this.activeQueryTypeIndex].key;
+        },
+        activeIndependentColumnChoices() {
+            if (this.activeIndependentColumn == "prematch_team_number") {
+                return this.teamNumbers;
+            }
+            return [];
         },
 
         // Other data
