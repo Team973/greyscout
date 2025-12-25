@@ -7,6 +7,8 @@ import { useViewModeStore } from '@/stores/view-mode-store';
 
 
 import "@material/web/button/filled-button";
+import "@material/web/chips/chip-set";
+import "@material/web/chips/filter-chip";
 
 import Dropdown from "@/components/Dropdown.vue";
 
@@ -66,6 +68,11 @@ import { mean } from "simple-statistics";
                 </Dropdown>
             </div>
 
+            <md-chip-set class="vertical-chip-set">
+                <md-filter-chip v-for="chip, idx in filterChips" :label="chip.label" @click="toggleChip(idx)"
+                    v-bind:selected="chip.value" v-bind:disabled="chip.isDisabled"
+                    class="vertical-chip-set-chip"></md-filter-chip>
+            </md-chip-set>
 
         </div>
 
@@ -93,6 +100,7 @@ export default {
             queryTypes: [
                 { key: "team_match_timeseries", text: "Team Match Timeseries" },
                 { key: "event_rankings", text: "Event Rankings" },
+                { key: "team_comparison", text: "Team Comparison" },
             ],
             activeQueryTypeIndex: 0,
             teamNumbers: [],
@@ -104,16 +112,25 @@ export default {
             activeIndependentColumnIndex: 0,
             dataColumns: [
                 { key: "auto_coral", text: "Auto Coral" },
+                { key: "auto_leave", text: "Auto Leave" },
                 { key: "teleop_coral", text: "Teleop Coral" },
-                { key: "teleop_net", text: "Teleop Net" }
+                { key: "teleop_net", text: "Net" },
+                { key: "teleop_processor", text: "Processor" },
+                { key: "endgame_climb", text: "Climb" },
+                { key: "postmatch_defense", text: "Defense" },
+                { key: "postmatch_died", text: "Died" }
             ],
             activeDataYColumnIndex: 0,
             activeDataXColumnIndex: 0,
             dropdownList: [],
+            chips: [
+                { key: "isSorted", label: "Sorted?", value: false, isDisabled: false },
+                { key: "isHorizontal", label: "Horizontal?", value: false, isDisabled: false }
+            ],
             chartOptions: {
-                maxDataPoints: null,
+                isSorted: false,
                 isHorizontal: false,
-                isSorted: true,
+                maxDataPoints: null,
                 xScale: null,
                 yScale: null
             },
@@ -155,6 +172,12 @@ export default {
         },
         setTeamNumber(index: int) {
             this.activeTeamNumberIndex = index;
+            this.loadNewData();
+        },
+        toggleChip(index: int) {
+            this.chips[index].value = !this.chips[index].value;
+            const key = this.chips[index].key;
+            this.chartOptions[key] = this.chips[index].value;
             this.loadNewData();
         },
 
@@ -228,7 +251,7 @@ export default {
             this.chartModel.data = [];
 
             if (this.activeChartType == "bar" || this.activeChartType == "line") {
-                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY));
+                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentCol, this.activeSeriesY, this.isChartSorted));
             } else if (this.activeChartType == "scatter") {
                 this.chartModel.data.push(computeCartesianDataSeries(this.activeData, this.activeSeriesX, this.activeSeriesY, this.activeIndependentCol, true))
             } else if (this.activeChartType == "boxplot") {
@@ -274,6 +297,9 @@ export default {
         },
         isTeamNumberRequired() {
             return this.activeQuery == "team_match_timeseries";
+        },
+        filterChips() {
+            return this.chips;
         },
 
         // Data
