@@ -56,7 +56,7 @@ export function discreteDataSeriesToChartJSDatasets(data) {
     return datasets;
 }
 
-export function computeCartesianDataSeries(data, xColumn, yColumn, labelColumn, isQuery = false) {
+export function computeCartesianDataSeries(data, xColumn, yColumn, labelColumn) {
     // The labels in this data series are the values that would show up in a chart tooltip.
     var dataSeries = {
         "name": yColumn,
@@ -65,19 +65,12 @@ export function computeCartesianDataSeries(data, xColumn, yColumn, labelColumn, 
         "y": []
     };
 
-    if (isQuery) {
-        data.forEach(row => {
-            dataSeries.labels.push(row[labelColumn]);
-            dataSeries.x.push(row[xColumn]);
-            dataSeries.y.push(row[yColumn]);
-        })
-    } else {
-        dataSeries.labels = Object.keys(data);
-        dataSeries.labels.forEach(element => {
-            dataSeries.x.push(data[element][xColumn]);
-            dataSeries.y.push(data[element][yColumn]);
-        });
-    }
+    data.forEach(row => {
+        dataSeries.labels.push(row[labelColumn]);
+        dataSeries.x.push(row[xColumn]);
+        dataSeries.y.push(row[yColumn]);
+    })
+
 
     // TODO: data transforms.
 
@@ -94,7 +87,6 @@ export function cartesianDataSeriesToChartJSDatasets(data) {
 
     let datasets = []
     data?.forEach(series => {
-        console.log(series);
         // Populate an array of values, which are x,y coordinates.
         let xy_values = [];
         for (var i = 0; i < series.x.length; i++) {
@@ -152,4 +144,25 @@ export function computeSampledDataSeries(data, keyColumn, valueColumn, isSorted 
     };
 
     return [sampledDataSeries];
+}
+
+export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, dimensionColumns) {
+    let datasets = [];
+
+    data.forEach(row => {
+        if (comparisonItems.includes(row[comparisonColumn])) {
+            let itemValues = []
+            dimensionColumns.forEach(col => {
+                itemValues.push(row[col]);
+            });
+
+            datasets.push({
+                'labels': dimensionColumns,
+                'name': row[comparisonColumn],
+                'y': itemValues
+            });
+        }
+    });
+
+    return datasets;
 }
