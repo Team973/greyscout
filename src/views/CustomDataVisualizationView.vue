@@ -16,10 +16,8 @@ import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
 
-import { randomColorWheel, radarChartColorWheel } from '@/lib/theme';
-import { computeDiscreteDataSeries, computeCartesianDataSeries, computeSampledDataSeries, computeRadarDataSeries } from "@/lib/chart-data";
-import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
-import { aggregateData } from "@/lib/data-transforms";
+import { getChartModel, QueryInputs, ChartInputs } from "@/lib/chart-model";
+import { queryTeamNumbers } from "@/lib/data-query";
 import { defaultTeamNumber } from "@/lib/constants";
 import { mean } from "simple-statistics";
 
@@ -264,59 +262,31 @@ export default {
             this.loadNewData();
         },
         async loadNewData() {
-            if (this.activeQuery == "team_match_timeseries") {
-                this.stagedData = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
-            } else if (this.activeQuery == "event_rankings") {
-                this.stagedData = await queryEventData(this.eventStore.eventId);
-            }
+            let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']].key);
+            let dimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
 
-            // Only update activeData if the data came back without errors.
-            if (this.stagedData != null) {
-                this.activeData = this.stagedData;
-                this.isDataLoaded = true;
-                this.updateChartModel();
-            }
-        },
-        updateChartModel() {
-            if (!this.isDataLoaded) {
-                return [];
-            }
+            let queryInputs: QueryInputs = {
+                type: this.activeQuery,
+                teamNumber: this.teamNumber,
+                eventId: this.eventStore.eventId,
+                aggregationFn: mean
+            };
+            let chartInputs: ChartInputs = {
+                type: this.activeChartType,
+                independentColumn: this.activeIndependentColumn,
+                ySeries: this.activeSeriesY,
+                xSeries: this.activeSeriesX,
+                dimensions: dimensions,
+                comparisonItems: comparisonItems,
+                isSorted: this.isChartSorted
+            };
 
-            // Perform data aggregation when in certain modes.
-            if (this.activeQuery == "event_rankings" && this.activeChartType != "boxplot") {
-                this.activeData = aggregateData(this.activeData, this.activeIndependentColumn, mean);
-            }
+            this.chartModel = await getChartModel(queryInputs, chartInputs);
 
-            this.chartModel.style = [];
-            this.chartModel.data = [];
+            this.isDataLoaded = true;
 
-            if (this.activeChartType == "bar" || this.activeChartType == "line") {
-                this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentColumn, this.activeSeriesY, this.isChartSorted));
-            } else if (this.activeChartType == "scatter") {
-                this.chartModel.data.push(computeCartesianDataSeries(this.activeData, this.activeSeriesX, this.activeSeriesY, this.activeIndependentColumn, true))
-            } else if (this.activeChartType == "boxplot") {
-                this.chartModel.data = computeSampledDataSeries(this.activeData, this.activeIndependentColumn, this.activeSeriesY, this.isChartSorted);
-            } else if (this.activeChartType == "stacked-bar") {
-                for (var i = 0; i < this.seriesDropdownList.length; i++) {
-                    const index = this.seriesDropdownList[i]['series'];
-                    const dropdownColumn = this.dataColumns[index];
-
-                    this.chartModel.data.push(computeDiscreteDataSeries(this.activeData, this.activeIndependentColumn, dropdownColumn.key));
-                    this.chartModel.style.push({
-                        "color": randomColorWheel[i % randomColorWheel.length]
-                    });
-                }
-            } else if (this.activeChartType == "radar") {
-                let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']].key);
-                let comparisonDimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
-                this.chartModel.data = computeRadarDataSeries(this.activeData, this.activeIndependentColumn, comparisonItems, comparisonDimensions);
-
-                for (var i = 0; i < comparisonItems.length; i++) {
-                    this.chartModel.style.push(radarChartColorWheel[i % radarChartColorWheel.length]);
-                }
-            }
+            console.log(this.chartModel);
         }
-
     },
     computed: {
         // Chart Options
@@ -370,7 +340,7 @@ export default {
             return this.chartModel.data;
         },
         activeChartStyle() {
-            return this.chartModel.style;
+            return this.chartModel?.style;
         },
         activeQuery() {
             return this.queryTypes[this.activeQueryTypeIndex].key;
