@@ -36,6 +36,9 @@ import { getThemeColors } from '@/lib/theme';
         <StackedBarChart :key="uniqueKey(4)" :data="chartData" :chart-style="chartStyle" :height="height"
             v-else-if="isStackedBarChartView">
         </StackedBarChart>
+
+        <RadarChart :key="uniqueKey(5)" :data="chartData" :chart-style="chartStyle" :height="height"
+            v-else-if="isRadarChartView"></RadarChart>
     </div>
 </template>
 
@@ -105,7 +108,7 @@ export default {
         isBoxPlotView() {
             return this.activeChartTypeKey() == "boxplot";
         },
-        isRadarView() {
+        isRadarChartView() {
             return this.activeChartTypeKey() == "radar";
         },
 

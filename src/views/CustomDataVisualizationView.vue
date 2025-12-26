@@ -16,8 +16,8 @@ import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
 
-import { randomColorWheel } from '@/lib/theme';
-import { computeDiscreteDataSeries, computeCartesianDataSeries, computeSampledDataSeries } from "@/lib/chart-data";
+import { randomColorWheel, radarChartColorWheel } from '@/lib/theme';
+import { computeDiscreteDataSeries, computeCartesianDataSeries, computeSampledDataSeries, computeRadarDataSeries } from "@/lib/chart-data";
 import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
 import { aggregateData } from "@/lib/data-transforms";
 import { defaultTeamNumber } from "@/lib/constants";
@@ -48,15 +48,21 @@ import { mean } from "simple-statistics";
             </Dropdown>
 
             <div v-if="activeChartType == 'scatter'">
-                X: <Dropdown :choices="dataColumns" v-model="activeDataXColumnIndex" @update:modelValue="setDataColumnX">
-                </Dropdown>
-                Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex" @update:modelValue="setDataColumnY">
-                </Dropdown>
+                <div>
+                    X: <Dropdown :choices="dataColumns" v-model="activeDataXColumnIndex"
+                        @update:modelValue="setDataColumnX">
+                    </Dropdown>
+                </div>
+                <div>
+                    Y: <Dropdown :choices="dataColumns" v-model="activeDataYColumnIndex"
+                        @update:modelValue="setDataColumnY">
+                    </Dropdown>
+                </div>
             </div>
             <div v-else-if="activeChartType == 'stacked-bar'">
                 Series:
                 <ResizableList :item-list="seriesDropdownList" item-type-name="series"
-                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem(index)">
+                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem">
                     <template v-slot:item-content="{ index }">
                         <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
                             @update:modelValue="setSeriesDropdownValue($event, index)">
@@ -67,7 +73,7 @@ import { mean } from "simple-statistics";
             <div v-else-if="activeChartType == 'radar'">
                 Comparisons:
                 <ResizableList :item-list="radarDropdownList" :item-type-name="activeIndependentColumnText"
-                    @item-added="addRadarListDropdownListItem()" @item-removed="removeRadarListDropdownListItem(index)">
+                    @item-added="addRadarListDropdownListItem()" @item-removed="removeRadarListDropdownListItem">
                     <template v-slot:item-content="{ index }">
                         <Dropdown :choices="activeIndependentColumnChoices" v-model="radarDropdownList[index]['comp']"
                             @update:modelValue="setRadarListDropdownValue($event, index)">
@@ -76,7 +82,7 @@ import { mean } from "simple-statistics";
                 </ResizableList>
                 Dimensions:
                 <ResizableList :item-list="seriesDropdownList" item-type-name="series"
-                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem(index)">
+                    @item-added="addSeriesDropdownListItem()" @item-removed="removeSeriesDropdownListItem">
                     <template v-slot:item-content="{ index }">
                         <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
                             @update:modelValue="setSeriesDropdownValue($event, index)">
@@ -299,6 +305,14 @@ export default {
                     this.chartModel.style.push({
                         "color": randomColorWheel[i % randomColorWheel.length]
                     });
+                }
+            } else if (this.activeChartType == "radar") {
+                let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']].key);
+                let comparisonDimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
+                this.chartModel.data = computeRadarDataSeries(this.activeData, this.activeIndependentColumn, comparisonItems, comparisonDimensions);
+
+                for (var i = 0; i < comparisonItems.length; i++) {
+                    this.chartModel.style.push(radarChartColorWheel[i % radarChartColorWheel.length]);
                 }
             }
         }
