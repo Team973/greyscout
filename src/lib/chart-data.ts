@@ -149,6 +149,10 @@ export function computeSampledDataSeries(data, keyColumn, valueColumn, isSorted 
 export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, dimensionColumns) {
     let datasets = [];
 
+    if (dimensionColumns.length == 0 || comparisonItems.length == 0) {
+        return datasets;
+    }
+
     data.forEach(row => {
         if (comparisonItems.includes(row[comparisonColumn])) {
             let itemValues = []
