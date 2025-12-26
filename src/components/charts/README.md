@@ -34,11 +34,14 @@ data = [
 BoxPlot:
 SampledDataSeries
 ```
-data = {
-    labels: [l1, l2, ..., ln],
-    samples: [y1, y2, ..., yn]
-}
+data = [
+    {
+        labels: [l1, l2, ..., ln],
+        values: [y1, y2, ..., yn]
+    }
+]
 ```
+Note: `data` is a single element array for BoxPlot to conform with other specifications of `data`
 
 
 StackedBarChart:
@@ -66,7 +69,7 @@ values = [y1, y2, ..., yn]
 
 RadarChart:
 ```
-style = {
+style = [
     "border": {
         "color": "#COLOR"
     },
@@ -83,10 +86,21 @@ style = {
             "hoverColor": "#COLOR"
         }
     }
-}
+]
 
-labels = [x1, x2, ..., xn]
-values = [y1, y2, ..., yn]
+data = [
+    {
+        name: "",
+        labels: [l1, l2, ..., ln],
+        y: [y1, y2, ..., yn]
+    },
+    ...
+    {
+        name: "",
+        labels: [l1, l2, ..., ln],
+        y: [y1, y2, ..., yn]
+    }
+]
 ```
 
 

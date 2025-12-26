@@ -18,12 +18,68 @@ export const randomColorWheel = [
 
 
 // radar color options
-export const radarRedTheme = {
-    background: 'rgba(255,99,132,0.2)',
-    border: 'rgba(255,99,132,1)',
-    pointBackground: 'rgba(255,99,132,1)',
-    pointHoverBorder: 'rgba(255,99,132,1)'
+const radarRedStyle = {
+    background: {
+        color: 'rgba(255,99,132,0.2)'
+    },
+    border: {
+        color: 'rgba(255,99,132,1)'
+    },
+    point: {
+        background: {
+            color: 'rgba(255,99,132,1)',
+            hoverColor: "#FFF"
+        },
+        border: {
+            color: "#FFF",
+            hoverColor: 'rgba(255,99,132,1)'
+        }
+    }
 }
+
+const radarGreenStyle = {
+    background: {
+        color: 'rgba(99,255,132,0.2)'
+    },
+    border: {
+        color: 'rgba(99,255,132,1)'
+    },
+    point: {
+        background: {
+            color: 'rgba(99,255,132,1)',
+            hoverColor: "#FFF"
+        },
+        border: {
+            color: "#FFF",
+            hoverColor: 'rgba(99,255,132,1)'
+        }
+    }
+}
+
+const radarBlueStyle = {
+    background: {
+        color: 'rgba(99,132,255,0.2)'
+    },
+    border: {
+        color: 'rgba(99,132,255,1)'
+    },
+    point: {
+        background: {
+            color: 'rgba(99,132,255,1)',
+            hoverColor: "#FFF"
+        },
+        border: {
+            color: "#FFF",
+            hoverColor: 'rgba(99,132,255,1)'
+        }
+    }
+}
+
+export const radarChartColorWheel = [
+    radarRedStyle,
+    radarGreenStyle,
+    radarBlueStyle
+];
 
 
 // Light mode chart colors
