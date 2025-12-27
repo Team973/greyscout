@@ -19,25 +19,26 @@ import { getThemeColors } from '@/lib/theme';
         <!-- Set :key in order to force remount. This needs to happen since box plot rendering is done in mounted() rather 
             than dynamically, and because dark/light mode switching requires data refresh. -->
         <!-- Show the relevant chart based on the data being shown -->
-        <BarChart :key="uniqueKey(0)" :data="chartData" :height="height" :is-horizontal="isHorizontal" :x-range="xRange"
-            :y-range="yRange" v-if="isBarChartView">
+        <BarChart :key="uniqueKey(0)" :data="chartData" :height="chartHeight" :is-horizontal="options.isHorizontal"
+            :x-range="options.xRange" :y-range="options.yRange" v-if="isBarChartView">
         </BarChart>
 
         <LineChart :key="uniqueKey(1)" :data="chartData" v-else-if="isLineChartView">
         </LineChart>
 
-        <ScatterChart :key="uniqueKey(2)" :data="chartData" :height="height" v-else-if="isScatterChartView">
+        <ScatterChart :key="uniqueKey(2)" :data="chartData" :height="chartHeight" v-else-if="isScatterChartView">
         </ScatterChart>
 
-        <BoxPlot :key="uniqueKey(3)" :data="chartData" :height="height" :max-labels="maxLabels"
-            :is-horizontal="isHorizontal" :x-range="xRange" :y-range="yRange" v-else-if="isBoxPlotView">
+        <BoxPlot :key="uniqueKey(3)" :data="chartData" :height="chartHeight" :max-labels="options.maxLabels"
+            :is-horizontal="options.isHorizontal" :x-range="options.xRange" :y-range="options.yRange"
+            v-else-if="isBoxPlotView">
         </BoxPlot>
 
-        <StackedBarChart :key="uniqueKey(4)" :data="chartData" :chart-style="chartStyle" :height="height"
+        <StackedBarChart :key="uniqueKey(4)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"
             v-else-if="isStackedBarChartView">
         </StackedBarChart>
 
-        <RadarChart :key="uniqueKey(5)" :data="chartData" :chart-style="chartStyle" :height="height"
+        <RadarChart :key="uniqueKey(5)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"
             v-else-if="isRadarChartView"></RadarChart>
     </div>
 </template>
@@ -57,21 +58,16 @@ export default {
         chartStyle: {
             default: []
         },
-        height: {
-            default: 500
+        options: {
+            default: {
+                height: null,
+                heightRatio: 0.5,
+                isHorizontal: false,
+                xRange: {},
+                yRange: {},
+                maxLabels: null
+            },
         },
-        isHorizontal: {
-            default: false
-        },
-        xRange: {
-            default: {}
-        },
-        yRange: {
-            default: {}
-        },
-        maxLabels: {
-            default: null
-        }
     },
     methods: {
         uniqueKey(id) {
@@ -79,10 +75,7 @@ export default {
             const key = JSON.stringify(this.chartType)
                 + JSON.stringify(this.chartStyle)
                 + JSON.stringify(this.data)
-                + JSON.stringify(this.xRange)
-                + JSON.stringify(this.yRange)
-                + JSON.stringify(this.height)
-                + JSON.stringify(this.isHorizontal)
+                + JSON.stringify(this.options)
                 + JSON.stringify(getThemeColors())
                 + id;
             return key;
@@ -116,6 +109,13 @@ export default {
         chartData() {
             return this.data;
         },
+        chartHeight() {
+            if (this.options.height) {
+                return this.options.height;
+            }
+
+            return this.options.heightRatio * window.innerHeight;
+        }
     }
 }
 </script>

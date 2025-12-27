@@ -14,9 +14,13 @@ import '@material/web/select/select-option';
 import "@material/web/button/filled-button";
 import FilterableGraph from "@/components/FilterableGraph.vue";
 import Dropdown from "@/components/Dropdown.vue";
-import RadarChart from "@/components/charts/RadarChart.vue";
+import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
+
 import { supabase } from "@/lib/supabase-client";
+import { getTeamAnalysisLayout } from "@/lib/2025/team-analysis-layout";
+import { getChartModel } from "@/lib/chart-model";
+import { queryTeamNumbers } from "@/lib/data-query";
 
 </script>
 
@@ -42,40 +46,15 @@ import { supabase } from "@/lib/supabase-client";
                             Image</md-filled-button>
                         <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
                     </div>
-                    <div class="data-tile">
-                        <StatHighlight :stats="teamHighlights" :is-vertical="true"></StatHighlight>
-                    </div>
-                    <div class="graph-tile">
-                        <RadarChart :data="getTeamRadar('likert')" :height="maxChartHeight"></RadarChart>
-                    </div>
-                    <!-- <div class="graph-tile">
-                        <h2>Reef Heatmap</h2>
-                        <FilterableGraph :data="getTeamReef" :graph-filters="reefFilters" max-height-ratio="0.5">
-                        </FilterableGraph>
-                    </div> -->
                 </div>
 
-                <div class="graph-tile match-progression-container">
-                    <h2>Match Analysis</h2>
-                    <FilterableGraph :data="getTeamMatches" :graph-filters="matchDataFilters">
-                    </FilterableGraph>
+                <div v-if="teamsLoaded">
+                    <div class="graph-tile" v-for="chartModel in chartModels">
+                        <Chart :chart-type="chartModel.options.type" :data="chartModel.data" :chart-style="chartModel.style"
+                            :options="chartModel.options">
+                        </Chart>
+                    </div>
                 </div>
-
-                <!-- <div class="data-tile">
-                    <h2>Comments</h2>
-                    <div v-for="comment in getComments">
-                        <div v-if="comment && comment.text.length > 0" class="comment-tile">
-                            Match {{ comment.match }} ({{ comment.scoutInfo }}): {{ comment.text }}
-                        </div>
-                    </div>
-                </div> -->
-
-                <!-- <div class="data-tile">
-                    <h2>Pit Scouting Report</h2>
-                    <div v-for="data, key in getTeamPitReport">
-                        {{ key }}: {{ data }}
-                    </div>
-                </div> -->
             </div>
         </div>
         <div v-else-if="teamsLoaded">
@@ -95,56 +74,59 @@ export default {
             teamPhotoAvailable: false,
             teamPhotoUrl: "",
             teamPhotoUploading: false,
-            teamsData: [{}],
-            pitData: [{}],
             teamFilters: [],
             currentTeamIndex: 0,
-            matchDataFilters: [
-                { text: "Breakdown", keyList: ['totalCoral', 'teleopNetCount', 'climbCount'], colorList: ['#ff55ecff', '#5dfc75ff', '#647afaff'], type: "stacked-bar" },
-                { text: "Auto: Coral", key1: "autoCoralCount", type: "line" },
-                { text: "Teleop: Coral", key1: "teleopCoralCount", type: "line" },
-                { text: "Teleop: Net Algae", key1: "teleopNetCount", type: "line" },
-                { text: "Climb", key1: "climbCount", type: "bar", isSorted: false },
-            ],
-            reefFilters: [
-                { text: "Auto Count", key1: "auto_count", type: "boxplot", isHorizontal: true, isSorted: false },
-                { text: "Teleop Count", key1: "teleop_count", type: "boxplot", isHorizontal: true, isSorted: false },
-            ]
+            chartModelList: []
         }
     },
     methods: {
-        async loadTeamsData() {
+        async loadLayout() {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
 
-            this.teamsData = await aggregateEventData(matchScoutTable, this.eventStore.eventId);
+            // Load all the team numbers for the event.
+            await this.loadTeamNumbers();
 
-            const { data, error } = await supabase.from(teamInfoTable).select("*").eq("event_id", this.eventStore.eventId);
-            let teamTextMap = {};
-            if (error) {
-                console.log(error);
-            } else {
-                for (var team of data) {
-                    teamTextMap[team.team_number] = String(team.team_number) + " - " + String(team.name);
-                }
-            }
-
-            this.teamFilters = [];
-            Object.keys(teamTextMap).forEach(element => {
-                let teamText = String(element);
-                if (Object.keys(teamTextMap).includes(element)) {
-                    teamText = teamTextMap[element];
-                }
-                this.teamFilters.push({ key: element, text: teamText });
-            })
-
-
-            // this.pitData = await getPitScoutData(pitScoutTable, this.eventStore.eventId);
+            // Load all the charts.
+            await this.loadCharts();
 
             // Mark the data as ready for the view to display.
             this.teamsLoaded = true;
 
+            // Load the robot photo.
             this.getRobotPhoto();
+        },
+        async loadTeamNumbers() {
+            const teamNumbersRows = await queryTeamNumbers(this.eventStore.eventId);
+
+            // Put the teams in a dictionary first in order to sort them by team number.
+            let teamMap = {};
+            teamNumbersRows.forEach(element => {
+                teamMap[element['team_number']] = (
+                    {
+                        "key": element['team_number'],
+                        "text": element['team_number'] + " - " + element['name']
+                    }
+                );
+            });
+
+            this.teamFilters = [];
+            Object.keys(teamMap).forEach(element => {
+                this.teamFilters.push(teamMap[element])
+            });
+
+            this.getRobotPhoto();
+        },
+        async loadCharts() {
+            let chartModelInputs = getTeamAnalysisLayout(this.getTeamNumber(), this.eventStore.eventId);
+            let chartModels = [];
+            for (var i = 0; i < chartModelInputs.length; i++) {
+                const input = chartModelInputs[i];
+                let chartModel = await getChartModel(input.queryInputs, input.chartInputs);
+                chartModels.push(chartModel);
+            }
+
+            this.chartModelList = chartModels;
         },
         async getRobotPhoto() {
             // This function can only work once teams are loaded due to the dependence on getTeamNumber.
@@ -188,30 +170,10 @@ export default {
         },
         setTeam(idx: int) {
             this.currentTeamIndex = idx;
+
+            // Reload team data.
+            this.loadCharts();
             this.getRobotPhoto();
-        },
-        getEventStats() {
-            // Downselect the event stats to only those relevant for comparing a team to the population.
-            let eventStats = {
-                rankings: this.teamsData.rankings,
-                distributions: this.teamsData.distributions
-            }
-
-            return eventStats;
-        },
-        getTeamRadar(radarType) {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-
-            if (radarType == "likert") {
-                return teamLikertRadar(teamInfo, this.getEventStats());
-            }
-
-            return {};
         },
         chooseFiles() {
             let fileInputElement = this.$refs.file;
@@ -244,6 +206,9 @@ export default {
         }
     },
     computed: {
+        chartModels() {
+            return this.chartModelList;
+        },
         isDataAvailable() {
             return this.teamFilters.length > 0;
         },
@@ -263,100 +228,11 @@ export default {
 
             return this.teamFilters[this.currentTeamIndex];
         },
-        getTeamMatches() {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-            if (!teamInfo) {
-                return {};
-            }
-
-            let teamMatches = {};
-            for (var i = 0; i < teamInfo.matchData.matchNumber.length; i++) {
-                let matchData = {};
-                Object.keys(teamInfo.matchData).forEach(key => {
-                    if (key != "matchNumber") {
-                        matchData[key] = teamInfo.matchData[key][i];
-                    }
-                });
-
-                const matchNumber = teamInfo.matchData.matchNumber[i];
-                teamMatches[matchNumber] = matchData;
-            }
-
-            return teamMatches;
-        },
-        teamHighlights() {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-            return getTeamOverview(teamInfo, teamNumber, this.getEventStats());
-        },
-        getTeamReef() {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-            const reefData = teamReefData(teamInfo);
-
-            return reefData;
-        },
-        getComments() {
-            if (this.teamFilters.length == 0) {
-                return [];
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamInfo = this.teamsData[teamNumber];
-            if (!teamInfo) {
-                return {};
-            }
-
-            let comments = teamInfo.matchData.comments;
-            let matchNumbers = teamInfo.matchData.matchNumber;
-            let scoutNames = teamInfo.matchData.scoutName;
-            let scoutTeams = teamInfo.matchData.scoutTeam;
-
-            let commentData = []
-            for (var i = 0; i < comments.length; i++) {
-                var scoutInfo = scoutNames[i];
-                if (scoutTeams && scoutTeams[i]) {
-                    scoutInfo += " - " + scoutTeams[i];
-                }
-                commentData.push({ text: comments[i], match: matchNumbers[i], scoutInfo: scoutInfo });
-            }
-
-            return commentData;
-        },
-        getTeamPitReport() {
-            if (this.teamFilters.length == 0) {
-                return {};
-            }
-
-            const teamNumber = this.teamFilters[this.currentTeamIndex].key;
-            const teamPit = this.pitData[teamNumber];
-            if (!teamPit) {
-                return {};
-            }
-
-            return teamPit;
-        },
-        maxChartHeight() {
-            return 0.5 * this.viewMode.windowHeight;
-        }
     },
     created() {
         this.viewMode = useViewModeStore();
         this.eventStore = useEventStore();
-        this.loadTeamsData();
+        this.loadLayout();
     }
 }
 </script>
