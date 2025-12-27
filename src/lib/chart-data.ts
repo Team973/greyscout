@@ -139,6 +139,7 @@ export function computeSampledDataSeries(data, keyColumn, valueColumn, isSorted 
     }
 
     let sampledDataSeries = {
+        name: valueColumn,
         labels: labels,
         values: values
     };

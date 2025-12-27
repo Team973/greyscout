@@ -16,7 +16,8 @@ import Chart from "@/components/charts/Chart.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
 
-import { getChartModel, QueryInputs, ChartInputs } from "@/lib/chart-model";
+import { getChartModel } from "@/lib/chart-model";
+import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
 import { queryTeamNumbers } from "@/lib/data-query";
 import { defaultTeamNumber } from "@/lib/constants";
 import { mean } from "simple-statistics";
@@ -103,8 +104,15 @@ import { mean } from "simple-statistics";
 
         <div>
             <Chart :chart-type="activeChartType" :data="activeChartData" :chart-style="activeChartStyle"
-                :height="maxChartHeight" :is-horizontal="isChartHorizontal" :x-scale="chartXScale" :y-scale="chartYScale">
+                :options="activeChartOptions">
             </Chart>
+        </div>
+        <div>
+            <md-filled-button v-on:click="copyChartModelInputs()" class="load-button">{{ copyButtonText
+            }}</md-filled-button>
+            <pre>
+                {{ chartModelInputText }}
+            </pre>
         </div>
     </div>
 </template>
@@ -157,16 +165,22 @@ export default {
                 isSorted: false,
                 isHorizontal: false,
                 maxDataPoints: null,
-                xScale: null,
-                yScale: null
+                xRange: null,
+                yRange: null,
+                height: null,
+                heightRatio: 0.5,
             },
-            maxHeightRatio: 0.7,
             activeData: {},
             stagedData: {},
             chartModel: {
                 data: [],
                 style: []
             },
+            chartModelInputs: {
+                queryInputs: {},
+                chartInputs: {}
+            },
+            copyButtonText: "Copy",
             isDataLoaded: false,
             isTeamNumbersReady: false,
             eventStore: null,
@@ -203,6 +217,19 @@ export default {
             const key = this.chips[index].key;
             this.chartOptions[key] = this.chips[index].value;
             this.loadNewData();
+        },
+        async copyChartModelInputs() {
+            try {
+                await navigator.clipboard.writeText(this.chartModelInputText);
+                this.copyButtonText = "Copied!";
+            } catch (err) {
+                this.copyButtonText = "Failed :(";
+                console.log(err);
+            }
+
+            setTimeout(() => {
+                this.copyButtonText = "Copy";
+            }, 2000);
         },
 
         // Expanding dropdown lists.
@@ -258,11 +285,10 @@ export default {
 
 
             this.isTeamNumbersReady = true;
-
             this.loadNewData();
         },
         async loadNewData() {
-            let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']].key);
+            let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']]?.key);
             let dimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
 
             let queryInputs: QueryInputs = {
@@ -271,6 +297,8 @@ export default {
                 eventId: this.eventStore.eventId,
                 aggregationFn: mean
             };
+            this.chartModelInputs.queryInputs = queryInputs;
+
             let chartInputs: ChartInputs = {
                 type: this.activeChartType,
                 independentColumn: this.activeIndependentColumn,
@@ -278,35 +306,18 @@ export default {
                 xSeries: this.activeSeriesX,
                 dimensions: dimensions,
                 comparisonItems: comparisonItems,
-                isSorted: this.isChartSorted
+                options: this.chartOptions
             };
+            this.chartModelInputs.chartInputs = chartInputs;
 
-            this.chartModel = await getChartModel(queryInputs, chartInputs);
-
+            this.chartModel = await getChartModel(this.chartModelInputs.queryInputs, this.chartModelInputs.chartInputs);
             this.isDataLoaded = true;
-
-            console.log(this.chartModel);
         }
     },
     computed: {
-        // Chart Options
-        maxChartHeight() {
-            return this.maxHeightRatio * this.viewMode.windowHeight;
-        },
-        maximumDataPoints() {
-            return this.chartOptions.maxDataPoints;
-        },
-        isChartSorted() {
-            return this.chartOptions.isSorted;
-        },
-        isChartHorizontal() {
-            return this.chartOptions.isHorizontal;
-        },
-        chartXScale() {
-            return this.chartOptions.xScale;
-        },
-        chartYScale() {
-            return this.chartOptions.yScale;
+        chartModelInputText() {
+            // Pretty print the chart model inputs so they can be used in the relevant page layouts.
+            return JSON.stringify(this.chartModelInputs, null, 4);
         },
 
         // View options
@@ -341,6 +352,9 @@ export default {
         },
         activeChartStyle() {
             return this.chartModel?.style;
+        },
+        activeChartOptions() {
+            return this.chartModel?.options;
         },
         activeQuery() {
             return this.queryTypes[this.activeQueryTypeIndex].key;

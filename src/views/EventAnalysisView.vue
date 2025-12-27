@@ -2,16 +2,15 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData } from "@/lib/2025/data-processing";
-import { eventStatisticsKeys } from "@/lib/compute-statistics";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from "@/stores/view-mode-store";
-import { matchScoutTable } from "@/lib/constants";
-import { filterOutKeys } from "@/lib/util";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
-import FilterableGraph from "@/components/FilterableGraph.vue";
+import Chart from "@/components/charts/Chart.vue";
+
+import { getEventAnalysisLayout } from "@/lib/2025/event-analysis-layout";
+import { getChartModel } from "@/lib/chart-model";
 </script>
 
 <template>
@@ -19,14 +18,15 @@ import FilterableGraph from "@/components/FilterableGraph.vue";
         <h1>Event Analysis</h1>
         <h2>Graph View</h2>
 
-
-        <div v-if="eventDataLoaded" class="graph-tile">
-            <!-- Data must be loaded before this div is shown -->
-            <FilterableGraph :data="teamEventData" :graphFilters="graphFilters" :max-data-points="maxDataPoints">
-            </FilterableGraph>
+        <div v-if="eventDataLoaded">
+            <div class="graph-tile" v-for="chartModel in chartModels">
+                <Chart :chart-type="chartModel.options.type" :data="chartModel.data" :chart-style="chartModel.style"
+                    :options="chartModel.options">
+                </Chart>
+            </div>
         </div>
 
-        <h2>Table View</h2>
+        <!-- <h2>Table View</h2>
         <div class="table-container" v-if="eventDataLoaded">
             <VTable :data="tableData">
                 <template #head>
@@ -42,7 +42,7 @@ import FilterableGraph from "@/components/FilterableGraph.vue";
                     </tr>
                 </template>
             </VTable>
-        </div>
+        </div> -->
     </div>
 </template>
 
@@ -52,63 +52,35 @@ export default {
         return {
             eventStore: null,
             viewMode: null,
-            tableHeaders: [
-                { name: "#", key: "teamNumber", isDiscrete: true },
-                { name: "Matches Played", key: "numMatches", isDiscrete: true },
-                { name: "Avg. Coral", key: "mean_totalCoral" },
-                { name: "Avg. Climb", key: "mean_climbCount" },
-            ],
-            // Expected schema:
-            // [{"team_number": 973, "metric_name_1": 3.0, "metric_name_2": 3.0}, ...]
-            tableData: [],
-            eventData: {},
             eventDataLoaded: false,
-            // Graphing
-            graphFilters: [
-                { text: "Match Coral", key1: "matchData", key2: "totalCoral", type: "boxplot" },
-                { text: "Auto Coral", key1: "matchData", key2: "autoCoralCount", type: "boxplot" },
-                { text: "Climb %", key1: "mean_climbCount", key2: "", type: "bar" },
-                { text: "Coral: Auto vs. Teleop", key1: "mean_autoCoralCount", key2: "mean_teleopCoralCount", type: "scatter" },
-            ]
+            chartModelList: []
         }
     },
     methods: {
-        async loadEventData() {
+        async loadLayout() {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
 
-            this.eventData = await aggregateEventData(matchScoutTable, this.eventStore.eventId);
-
-            console.log(this.eventData)
-
-            // Convert the data to a table.
-            this.tableData = [];
-
-            // Iterate over the keys in the dataset to populate the teams list.
-            Object.keys(this.eventData).forEach(stat => {
-                if (!eventStatisticsKeys.includes(stat)) {
-                    // Get the corresponding entry of aggregated data
-                    const teamData = this.eventData[stat];
-
-                    const row = {};
-                    this.tableHeaders.forEach(element => {
-                        row[element.key] = Number(teamData[element.key]);
-                        if (element.isDiscrete != true) {
-                            row[element.key] = row[element.key].toFixed(2);
-                        }
-                    });
-
-                    this.tableData.push(row);
-                }
-            });
+            await this.loadCharts();
 
             // Mark the table as loaded.
             this.eventDataLoaded = true;
-        }
+        },
+        async loadCharts() {
+            let chartModelInputs = getEventAnalysisLayout(this.eventStore.eventId);
+            let chartModels = [];
+            for (var i = 0; i < chartModelInputs.length; i++) {
+                const input = chartModelInputs[i];
+                let chartModel = await getChartModel(input.queryInputs, input.chartInputs);
+                chartModels.push(chartModel);
+            }
+
+            this.chartModelList = chartModels;
+        },
     },
     computed: {
-        teamEventData() {
-            return filterOutKeys(this.eventData, eventStatisticsKeys);
+        chartModels() {
+            return this.chartModelList;
         },
         maxDataPoints() {
             // Only show the top 6 bar graph items if this is on a phone.
@@ -121,7 +93,7 @@ export default {
     created() {
         this.eventStore = useEventStore();
         this.viewMode = useViewModeStore();
-        this.loadEventData();
+        this.loadLayout();
     }
 }
 </script>
