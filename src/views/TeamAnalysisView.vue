@@ -7,6 +7,7 @@ import { teamLikertRadar, getTeamOverview, teamReefData } from "@/lib/2025/data-
 import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
+import { useAuthStore } from "@/stores/auth-store";
 import { projectId, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
@@ -34,22 +35,29 @@ import { queryTeamNumbers } from "@/lib/data-query";
                 <div class="analysis-row-tile">
                     <input ref="file" type="file" v-on:change="uploadImage" hidden>
                     <div class="image-tile" v-if="isRobotPhotoAvailable">
+                        <h1>Robot Photo</h1>
                         <!-- Assuming a 4:3 aspect ratio for now -->
                         <img :src="getRobotPhotoUrl" width="300" height="400" />
-                        <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading">Upload a Different
-                            Image</md-filled-button>
-                        <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
+                        <div v-if="isUserLoggedIn">
+                            <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading && isUserLoggedIn">Upload a
+                                Different
+                                Image</md-filled-button>
+                            <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
+                        </div>
                     </div>
                     <div class="file-upload-tile" v-else>
-                        <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading">Upload
-                            Image</md-filled-button>
-                        <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
+                        <h1>No robot photo available</h1>
+                        <div v-if="isUserLoggedIn">
+                            <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading">Upload
+                                Image</md-filled-button>
+                            <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
+                        </div>
                     </div>
                 </div>
 
                 <div v-if="teamsLoaded">
                     <div v-for="tile in tileModels">
-                        <Tile :type="tile.type" :model="tile.model">
+                        <Tile :type="tile.type" :model="tile.model" :title="tile.title">
                         </Tile>
                     </div>
                 </div>
@@ -67,6 +75,7 @@ export default {
         return {
             viewMode: null,
             eventStore: null,
+            authStore: null,
             teamsLoaded: false,
             teamPhotoLoaded: false,
             teamPhotoAvailable: false,
@@ -171,6 +180,12 @@ export default {
             fileInputElement.click();
         },
         async uploadImage() {
+            await this.authStore.checkUser();
+            if (!this.authStore.isAuthorized) {
+                // Early exit if the user is not authorized to upload images.
+                return;
+            }
+
             let fileInputElement = this.$refs.file;
             if (fileInputElement.files.length > 0 && fileInputElement.files[0]) {
                 let selectedFile = fileInputElement.files[0];
@@ -219,10 +234,15 @@ export default {
 
             return this.teamFilters[this.currentTeamIndex];
         },
+        isUserLoggedIn() {
+            return this.authStore.isAuthorized;
+        }
     },
     created() {
         this.viewMode = useViewModeStore();
         this.eventStore = useEventStore();
+        this.authStore = useAuthStore();
+        this.authStore.checkUser();
         this.loadLayout();
     }
 }

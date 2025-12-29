@@ -8,6 +8,7 @@ export async function processLayout(tileLayout) {
     for (var i = 0; i < tileLayout.length; i++) {
         const input = tileLayout[i].inputs;
         const type = tileLayout[i].type;
+        const title = tileLayout[i].title;
 
         let tileModel = {};
         if (type == "chart") {
@@ -22,7 +23,8 @@ export async function processLayout(tileLayout) {
 
         tileModels.push({
             type: type,
-            model: tileModel
+            model: tileModel,
+            title: title
         });
     }
 

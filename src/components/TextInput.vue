@@ -4,7 +4,7 @@ import "@material/web/textfield/outlined-text-field";
 </script>
 
 <template>
-    <md-outlined-text-field v-on:input="updateText" type="text" v-bind:value="modelValue" :label="label"
+    <md-outlined-text-field v-on:input="updateText" :type="type" v-bind:value="modelValue" :label="label"
         :required="required" :error="error" error-text="This field is required"></md-outlined-text-field>
 </template>
 
@@ -22,6 +22,9 @@ export default {
         },
         error: {
             default: false
+        },
+        type: {
+            default: "text"
         }
     },
     computed: {

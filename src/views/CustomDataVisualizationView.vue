@@ -133,7 +133,6 @@ export default {
             queryTypes: [
                 { key: "team_match_timeseries", text: "Team Match Timeseries" },
                 { key: "event_rankings", text: "Event Rankings" },
-                { key: "team_comparison", text: "Team Comparison" },
             ],
             activeQueryTypeIndex: 0,
             teamNumbers: [],

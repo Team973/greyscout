@@ -3,6 +3,7 @@ import { RouterView } from "vue-router";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useEventStore } from '@/stores/event-store';
 import NavBar from "./components/NavBar.vue";
+import { useAuthStore } from "@/stores/auth-store";
 
 // Keep track of the view mode based on screen width.
 const viewMode = useViewModeStore();
@@ -17,6 +18,9 @@ viewMode.updateDarkMode();
 
 const eventStore = useEventStore();
 eventStore.updateEvent();
+
+const authStore = useAuthStore();
+authStore.checkUser();
 </script>
 
 <template>

@@ -11,6 +11,7 @@
     --header-color: #b05703;
     --header-hover-color: #cd8900;
     --header-text-color: #FFF;
+    --header-theme-toggle-text-color: #000;
 
     /* Tiles */
     --tile-background-color: #FFF;

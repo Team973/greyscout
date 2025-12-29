@@ -7,6 +7,7 @@ export function getEventAnalysisLayout(eventId) {
     return [
         {
             type: "chart",
+            title: "Teleop Coral Averages",
             inputs: {
                 "queryInputs": {
                     "type": "event_rankings",
@@ -35,6 +36,7 @@ export function getEventAnalysisLayout(eventId) {
         },
         {
             type: "chart",
+            title: "Auto Coral Averages",
             inputs: {
                 "queryInputs": {
                     "type": "event_rankings",
