@@ -7,19 +7,18 @@ import { teamLikertRadar, getTeamOverview, teamReefData } from "@/lib/2025/data-
 import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { projectId, matchScoutTable, pitScoutTable, teamInfoTable, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
+import { projectId, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import "@material/web/button/filled-button";
-import FilterableGraph from "@/components/FilterableGraph.vue";
 import Dropdown from "@/components/Dropdown.vue";
-import Chart from "@/components/charts/Chart.vue";
+import Tile from "@/components/Tile.vue";
 import StatHighlight from "@/components/StatHighlight.vue";
 
 import { supabase } from "@/lib/supabase-client";
 import { getTeamAnalysisLayout } from "@/lib/2025/team-analysis-layout";
-import { getChartModel } from "@/lib/chart-model";
+import { processLayout } from "@/lib/process-layout";
 import { queryTeamNumbers } from "@/lib/data-query";
 
 </script>
@@ -49,10 +48,9 @@ import { queryTeamNumbers } from "@/lib/data-query";
                 </div>
 
                 <div v-if="teamsLoaded">
-                    <div class="graph-tile" v-for="chartModel in chartModels">
-                        <Chart :chart-type="chartModel.options.type" :data="chartModel.data" :chart-style="chartModel.style"
-                            :options="chartModel.options">
-                        </Chart>
+                    <div v-for="tile in tileModels">
+                        <Tile :type="tile.type" :model="tile.model">
+                        </Tile>
                     </div>
                 </div>
             </div>
@@ -76,7 +74,7 @@ export default {
             teamPhotoUploading: false,
             teamFilters: [],
             currentTeamIndex: 0,
-            chartModelList: []
+            tileModelList: []
         }
     },
     methods: {
@@ -88,7 +86,7 @@ export default {
             await this.loadTeamNumbers();
 
             // Load all the charts.
-            await this.loadCharts();
+            await this.refreshTiles();
 
             // Mark the data as ready for the view to display.
             this.teamsLoaded = true;
@@ -117,16 +115,9 @@ export default {
 
             this.getRobotPhoto();
         },
-        async loadCharts() {
-            let chartModelInputs = getTeamAnalysisLayout(this.getTeamNumber(), this.eventStore.eventId);
-            let chartModels = [];
-            for (var i = 0; i < chartModelInputs.length; i++) {
-                const input = chartModelInputs[i];
-                let chartModel = await getChartModel(input.queryInputs, input.chartInputs);
-                chartModels.push(chartModel);
-            }
-
-            this.chartModelList = chartModels;
+        async refreshTiles() {
+            let layout = getTeamAnalysisLayout(this.getTeamNumber(), this.eventStore.eventId);
+            this.tileModelList = await processLayout(layout);
         },
         async getRobotPhoto() {
             // This function can only work once teams are loaded due to the dependence on getTeamNumber.
@@ -172,7 +163,7 @@ export default {
             this.currentTeamIndex = idx;
 
             // Reload team data.
-            this.loadCharts();
+            this.refreshTiles();
             this.getRobotPhoto();
         },
         chooseFiles() {
@@ -206,8 +197,8 @@ export default {
         }
     },
     computed: {
-        chartModels() {
-            return this.chartModelList;
+        tileModels() {
+            return this.tileModelList;
         },
         isDataAvailable() {
             return this.teamFilters.length > 0;
