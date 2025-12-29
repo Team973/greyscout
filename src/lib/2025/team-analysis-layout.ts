@@ -7,6 +7,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
     return [
         {
             type: "chart",
+            title: "Team Performance",
             inputs: {
                 "queryInputs": {
                     "type": "event_rankings",
@@ -43,6 +44,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
         },
         {
             type: "chart",
+            title: "Match Scoring Breakdown",
             inputs: {
                 "queryInputs": {
                     "type": "team_match_timeseries",
@@ -74,6 +76,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
         },
         {
             type: "filterable-chart",
+            title: "Match by Match Performance",
             inputs: {
                 choices: [
                     { key: "auto_coral", text: "Auto Coral" },
