@@ -7,10 +7,10 @@ import { useViewModeStore } from "@/stores/view-mode-store";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
-import Chart from "@/components/charts/Chart.vue";
+import Tile from "@/components/Tile.vue";
 
 import { getEventAnalysisLayout } from "@/lib/2025/event-analysis-layout";
-import { getChartModel } from "@/lib/chart-model";
+import { processLayout } from "@/lib/process-layout";
 </script>
 
 <template>
@@ -19,10 +19,9 @@ import { getChartModel } from "@/lib/chart-model";
         <h2>Graph View</h2>
 
         <div v-if="eventDataLoaded">
-            <div class="graph-tile" v-for="chartModel in chartModels">
-                <Chart :chart-type="chartModel.options.type" :data="chartModel.data" :chart-style="chartModel.style"
-                    :options="chartModel.options">
-                </Chart>
+            <div v-for="tile in tileModels">
+                <Tile :type="tile.type" :model="tile.model">
+                </Tile>
             </div>
         </div>
 
@@ -53,7 +52,7 @@ export default {
             eventStore: null,
             viewMode: null,
             eventDataLoaded: false,
-            chartModelList: []
+            tileModelList: []
         }
     },
     methods: {
@@ -61,26 +60,19 @@ export default {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
 
-            await this.loadCharts();
+            await this.refreshTiles();
 
             // Mark the table as loaded.
             this.eventDataLoaded = true;
         },
-        async loadCharts() {
-            let chartModelInputs = getEventAnalysisLayout(this.eventStore.eventId);
-            let chartModels = [];
-            for (var i = 0; i < chartModelInputs.length; i++) {
-                const input = chartModelInputs[i];
-                let chartModel = await getChartModel(input.queryInputs, input.chartInputs);
-                chartModels.push(chartModel);
-            }
-
-            this.chartModelList = chartModels;
+        async refreshTiles() {
+            let layout = getEventAnalysisLayout(this.eventStore.eventId);
+            this.tileModelList = await processLayout(layout);
         },
     },
     computed: {
-        chartModels() {
-            return this.chartModelList;
+        tileModels() {
+            return this.tileModelList;
         },
         maxDataPoints() {
             // Only show the top 6 bar graph items if this is on a phone.
