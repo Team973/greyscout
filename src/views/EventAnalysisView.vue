@@ -20,7 +20,7 @@ import { processLayout } from "@/lib/process-layout";
 
         <div v-if="eventDataLoaded">
             <div v-for="tile in tileModels">
-                <Tile :type="tile.type" :model="tile.model">
+                <Tile :type="tile.type" :model="tile.model" :title="tile.title">
                 </Tile>
             </div>
         </div>
