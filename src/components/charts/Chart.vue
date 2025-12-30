@@ -11,6 +11,7 @@ import RadarChart from "@/components/charts/RadarChart.vue";
 
 // Needed so the chart reloads if light/dark mode is changed.
 import { getThemeColors } from '@/lib/theme';
+import PieChart from "./PieChart.vue";
 
 </script>
 
@@ -40,6 +41,9 @@ import { getThemeColors } from '@/lib/theme';
 
         <RadarChart :key="uniqueKey(5)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"
             v-else-if="isRadarChartView"></RadarChart>
+
+        <PieChart :key="uniqueKey(6)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"
+            v-else-if="isPieChartView"></PieChart>
     </div>
 </template>
 
@@ -103,6 +107,9 @@ export default {
         },
         isRadarChartView() {
             return this.activeChartTypeKey() == "radar";
+        },
+        isPieChartView() {
+            return this.activeChartTypeKey() == "pie";
         },
 
         // Chart parameters

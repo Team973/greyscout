@@ -243,6 +243,7 @@ export default {
         this.eventStore = useEventStore();
         this.authStore = useAuthStore();
         this.authStore.checkUser();
+
         this.loadLayout();
     }
 }

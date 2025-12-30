@@ -16,8 +16,11 @@ export async function processLayout(tileLayout) {
         } else if (type == "filterable-chart") {
             tileModel['choices'] = input.choices;
             tileModel['models'] = [];
-            for (var i = 0; i < input.chartInputs.length; i++) {
-                tileModel.models.push(await getChartModel(input.chartInputs[i].queryInputs, input.chartInputs[i].chartInputs));
+            for (var j = 0; j < input.chartInputs.length; j++) {
+                const queryInput = input.chartInputs[j].queryInputs;
+                const chartInput = input.chartInputs[j].chartInputs;
+                const chartModel = await getChartModel(queryInput, chartInput);
+                tileModel.models.push(chartModel);
             }
         }
 
