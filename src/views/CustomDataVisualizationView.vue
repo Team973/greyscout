@@ -20,8 +20,6 @@ import { getChartModel } from "@/lib/chart-model";
 import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
 import { queryTeamNumbers } from "@/lib/data-query";
 import { defaultTeamNumber } from "@/lib/constants";
-import { mean } from "simple-statistics";
-
 
 </script>
 
@@ -34,6 +32,9 @@ import { mean } from "simple-statistics";
         </div>
         <div>
             Query: <Dropdown :choices="queryTypes" v-model="activeQueryTypeIndex" @update:modelValue="setQueryType">
+            </Dropdown>
+            Aggregation: <Dropdown :choices="aggregationTypes" v-model="activeAggregationTypeIndex"
+                @update:modelValue="setAggregationType">
             </Dropdown>
         </div>
         <div>
@@ -127,14 +128,21 @@ export default {
                 { key: "scatter", text: "Scatter Plot" },
                 { key: "boxplot", text: "Box Plot" },
                 { key: "stacked-bar", text: "Stacked Bar Graph" },
-                { key: "radar", text: "Radar" }
+                { key: "radar", text: "Radar" },
+                { key: "pie", text: "Pie Chart" }
             ],
             activeChartTypeIndex: 0,
             queryTypes: [
-                { key: "team_match_timeseries", text: "Team Match Timeseries" },
-                { key: "event_rankings", text: "Event Rankings" },
+                { key: "team_query", text: "Team" },
+                { key: "event_query", text: "Event" }
             ],
             activeQueryTypeIndex: 0,
+            aggregationTypes: [
+                { key: "none", text: "None" },
+                { key: "mean", text: "Mean" },
+                { key: "count", text: "Count" }
+            ],
+            activeAggregationTypeIndex: 0,
             teamNumbers: [],
             activeTeamNumberIndex: 0,
             independentColumns: [
@@ -205,6 +213,10 @@ export default {
         },
         setQueryType(index: int) {
             this.activeQueryTypeIndex = index;
+            this.loadNewData();
+        },
+        setAggregationType(index: int) {
+            this.activeAggregationTypeIndex = index;
             this.loadNewData();
         },
         setTeamNumber(index: int) {
@@ -294,7 +306,7 @@ export default {
                 type: this.activeQuery,
                 teamNumber: this.teamNumber,
                 eventId: this.eventStore.eventId,
-                aggregationFn: mean
+                aggregationFn: this.activeAggregationType
             };
             this.chartModelInputs.queryInputs = queryInputs;
 
@@ -324,7 +336,7 @@ export default {
             return this.chartTypes[this.activeChartTypeIndex]?.key;
         },
         isTeamNumberRequired() {
-            return this.activeQuery == "team_match_timeseries";
+            return this.activeQuery == "team_query";
         },
         filterChips() {
             return this.chips;
@@ -357,6 +369,9 @@ export default {
         },
         activeQuery() {
             return this.queryTypes[this.activeQueryTypeIndex].key;
+        },
+        activeAggregationType() {
+            return this.aggregationTypes[this.activeAggregationTypeIndex].key;
         },
         activeIndependentColumnChoices() {
             if (this.activeIndependentColumn == "prematch_team_number") {

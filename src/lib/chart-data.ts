@@ -39,11 +39,6 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
 }
 
 export function discreteDataSeriesToChartJSDatasets(data) {
-    let labels = [];
-    if (data.length > 0) {
-        labels = data[0].labels;
-    }
-
     let datasets = []
     data?.forEach(series => {
         const dataset = {
@@ -170,4 +165,37 @@ export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, 
     });
 
     return datasets;
+}
+
+export function computeCategoricalDataSeries(data, keyColumn, valueColumn) {
+    let dataSeriesList = [];
+
+    data.forEach(row => {
+        const series = {
+            'name': row[keyColumn],
+            'y': row[valueColumn]
+        };
+        dataSeriesList.push(series);
+    });
+
+    return dataSeriesList;
+}
+
+export function computeCategoricalCountedDataSeries(data, label, valueColumn) {
+    return dataseries = {
+        'name': label,
+        'y': data[valueColumn]
+    }
+}
+
+export function categoricalDataSeriesListToChartJSDataset(dataseriesList) {
+    let values = [];
+
+    dataseriesList.forEach(series => {
+        values.push(series.y);
+    });
+
+    return {
+        data: values
+    };
 }
