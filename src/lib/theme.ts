@@ -13,6 +13,9 @@ export const dataPointAccentColorTranslucent = "#00987980";
 
 
 export const randomColorWheel = [
+    '#f25d3fff', '#e0a43aff', '#faf757ff', '#74de62ff', '#6281deff', '#9364deff', '#de67e0ff', '#e0676fff'
+]
+export const reefscapeColorWheel = [
     '#ff55ecff', '#5dfc75ff', '#647afaff'
 ]
 

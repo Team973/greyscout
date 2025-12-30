@@ -10,10 +10,9 @@ export function getEventAnalysisLayout(eventId) {
             title: "Teleop Coral Averages",
             inputs: {
                 "queryInputs": {
-                    "type": "event_rankings",
+                    "type": "event_query",
                     "teamNumber": null,
                     "eventId": eventId,
-                    "aggregationFn": mean
                 },
                 "chartInputs": {
                     "type": "boxplot",
@@ -39,10 +38,9 @@ export function getEventAnalysisLayout(eventId) {
             title: "Auto Coral Averages",
             inputs: {
                 "queryInputs": {
-                    "type": "event_rankings",
+                    "type": "event_query",
                     "teamNumber": null,
                     "eventId": eventId,
-                    "aggregationFn": mean
                 },
                 "chartInputs": {
                     "type": "boxplot",

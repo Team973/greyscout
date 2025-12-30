@@ -4,28 +4,27 @@
 import { sum, mean } from 'simple-statistics';
 import { getNumberWithOrdinal } from "@/lib/util";
 
-export function getAllianceOverview(teamInfos, teamNumbers, eventStats) {
-    if (!eventStats.rankings || !teamInfos) {
+export function getAllianceOverview(teamNumbers, teamStats) {
+    if (!teamNumbers || !teamStats) {
         return {};
     }
 
     const highlightColumns = {
-        mean_totalCoral: "Avg. Total Coral",
-        mean_autoCoralCount: "Avg. Auto Coral",
-        mean_teleopCoralCount: "Avg. Teleop Coral",
-        mean_teleopNetCount: "Avg. Teleop Net",
-        mean_climbCount: "Climb %"
+        auto_coral: "Avg. Auto Coral",
+        teleop_coral: "Avg. Teleop Coral",
+        teleop_net: "Avg. Teleop Net",
+        endgame_climb: "Climb %"
     };
 
     const colKeys = Object.keys(highlightColumns);
 
-    let augmentedTeamNumbers = teamNumbers.slice();
-    augmentedTeamNumbers.push("Total");
+    // let augmentedTeamNumbers = teamStats.slice();
+    // augmentedTeamNumbers.push("Total");
     let allianceHighlight = {}
 
     for (var i = 0; i < colKeys.length; i++) {
         const col = colKeys[i];
-        const numTeams = eventStats.rankings[col].length;
+        // const numTeams = eventStats.rankings[col].length;
 
         const prettyColName = highlightColumns[col];
         let colData = {
@@ -36,31 +35,30 @@ export function getAllianceOverview(teamInfos, teamNumbers, eventStats) {
 
         for (var j = 0; j < teamNumbers.length; j++) {
             const teamNumber = teamNumbers[j];
-            const teamInfo = teamInfos[j];
+            const teamStat = teamStats[teamNumber];
 
-            if (!teamInfo) {
+            if (!teamStat) {
                 colData.rank.push(-1);
                 colData.normalized.push(-1);
                 colData.value.push(0);
                 continue;
             }
 
-            const teamRank = eventStats.rankings[col].indexOf(teamNumber) + 1;
-            const normalizedRank = teamRank / numTeams;
-            const teamValue = Number(teamInfo[col]);
+            // const teamRank = eventStats.rankings[col].indexOf(teamNumber) + 1;
+            // const normalizedRank = teamRank / numTeams;
+            const teamValue = Number(teamStat[col]);
 
-            colData.rank.push(teamRank);
-            colData.normalized.push(normalizedRank);
+            // colData.rank.push(teamRank);
+            // colData.normalized.push(normalizedRank);
             colData.value.push(teamValue);
         }
 
         const colTotal = sum(colData.value);
         colData.value.push(colTotal);
-        colData.normalized.push(-1);
-        colData.rank.push(-1);
+        // colData.normalized.push(-1);
+        // colData.rank.push(-1);
 
         allianceHighlight[prettyColName] = colData;
-
     }
 
     return allianceHighlight;

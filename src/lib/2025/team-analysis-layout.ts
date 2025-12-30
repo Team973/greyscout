@@ -1,8 +1,5 @@
 // @ts-nocheck
 
-import type { QueryInputs, ChartInputs } from "@/lib/chart-model"
-import { mean } from "simple-statistics";
-
 export function getTeamAnalysisLayout(teamNumber, eventId) {
     return [
         {
@@ -10,10 +7,10 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
             title: "Team Performance",
             inputs: {
                 "queryInputs": {
-                    "type": "event_rankings",
+                    "type": "event_query",
                     "teamNumber": teamNumber,
                     "eventId": eventId,
-                    "aggregationFn": mean
+                    "aggregationFn": "mean"
                 },
                 "chartInputs": {
                     "type": "radar",
@@ -47,7 +44,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
             title: "Match Scoring Breakdown",
             inputs: {
                 "queryInputs": {
-                    "type": "team_match_timeseries",
+                    "type": "team_query",
                     "teamNumber": teamNumber,
                     "eventId": eventId
                 },
@@ -75,6 +72,35 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
             }
         },
         {
+            type: "chart",
+            title: "Climb success rate",
+            inputs: {
+                "queryInputs": {
+                    "type": "team_query",
+                    "teamNumber": teamNumber,
+                    "eventId": eventId,
+                    "aggregationFn": "count"
+                },
+                "chartInputs": {
+                    "type": "pie",
+                    "independentColumn": "prematch_match_number",
+                    "ySeries": "endgame_climb",
+                    "xSeries": "auto_coral",
+                    "dimensions": [],
+                    "comparisonItems": [],
+                    "options": {
+                        "isSorted": false,
+                        "isHorizontal": false,
+                        "maxDataPoints": null,
+                        "xRange": null,
+                        "yRange": null,
+                        "height": null,
+                        "heightRatio": 0.5
+                    }
+                }
+            }
+        },
+        {
             type: "filterable-chart",
             title: "Match by Match Performance",
             inputs: {
@@ -85,7 +111,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                 chartInputs: [
                     {
                         "queryInputs": {
-                            "type": "team_match_timeseries",
+                            "type": "team_query",
                             "teamNumber": teamNumber,
                             "eventId": eventId
                         },
@@ -109,7 +135,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                     },
                     {
                         "queryInputs": {
-                            "type": "team_match_timeseries",
+                            "type": "team_query",
                             "teamNumber": teamNumber,
                             "eventId": eventId
                         },

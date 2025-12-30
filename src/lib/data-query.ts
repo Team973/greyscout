@@ -3,9 +3,6 @@
 
 
 import { supabase } from "@/lib/supabase-client";
-import { aggregateEventData, getPitScoutData } from "@/lib/2025/data-processing";
-import { teamLikertRadar, getTeamOverview, teamReefData } from "@/lib/2025/data-visualization";
-import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { projectId, matchScoutTable, pitScoutTable, teamInfoTable, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
 
 export async function queryTeamNumbers(eventId) {

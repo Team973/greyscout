@@ -6,12 +6,15 @@ import { aggregateEventData } from "@/lib/2025/data-processing";
 import { getAllianceOverview, getRankedStyle, getRanking } from "@/lib/2025/data-visualization";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { matchScoutTable, teamInfoTable } from "@/lib/constants";
+import { teamInfoTable } from "@/lib/constants";
+import { queryEventData } from "@/lib/data-query";
+import { aggregateData } from "@/lib/data-transforms";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import Dropdown from "@/components/Dropdown.vue";
 import { supabase } from "@/lib/supabase-client";
+import { mean } from "simple-statistics";
 
 </script>
 
@@ -40,10 +43,10 @@ import { supabase } from "@/lib/supabase-client";
                             <div v-for="team, idx in getTeamNumbers([0, 1, 2])" class="alliance-col-data">
                                 <u>{{ team }}</u>
                                 {{ data.value[idx].toFixed(2) }}
-                                <div v-if="data.rank[idx] > 0">
+                                <!-- <div v-if="data.rank[idx] > 0">
                                     <span :style="getRankedStyle(data.normalized[idx])">{{ getRanking(data.rank[idx])
                                     }}</span>
-                                </div>
+                                </div> -->
                             </div>
                         </div>
                     </div>
@@ -93,7 +96,7 @@ export default {
             viewMode: null,
             eventStore: null,
             teamsLoaded: false,
-            teamsData: [{}],
+            teamsData: {},
             teamFilters: [],
             teamIndices: [0, 0, 0, 0, 0, 0]
         }
@@ -103,7 +106,14 @@ export default {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
 
-            this.teamsData = await aggregateEventData(matchScoutTable, this.eventStore.eventId);
+            const teamNumberColumn = "prematch_team_number";
+            let dbData = await queryEventData(this.eventStore.eventId);
+            let aggregatedData = aggregateData(dbData, teamNumberColumn, mean);
+            this.teamsData = {};
+            aggregatedData.forEach(row => {
+                const teamNumber = row[teamNumberColumn];
+                this.teamsData[teamNumber] = row;
+            });
 
             const { data, error } = await supabase.from(teamInfoTable).select("*").eq("event_id", this.eventStore.eventId);
             let teamTextMap = {};
@@ -130,29 +140,18 @@ export default {
         setTeam(idx: int, data: int) {
             this.teamIndices[idx] = data;
         },
-        getEventStats() {
-            // Downselect the event stats to only those relevant for comparing a team to the population.
-            let eventStats = {
-                rankings: this.teamsData.rankings,
-                distributions: this.teamsData.distributions
-            }
-
-            return eventStats;
-        },
         allianceHighlights(teams) {
             // Get team information.
             let teamNumbers = [];
-            let teamInfos = [];
 
             for (var i = 0; i < teams.length; i++) {
                 const teamIndex = this.teamIndices[teams[i]];
                 const teamNumber = this.teamFilters[teamIndex].key;
-                const teamInfo = this.teamsData[teamNumber];
                 teamNumbers.push(teamNumber);
-                teamInfos.push(teamInfo);
             }
 
-            let overview = getAllianceOverview(teamInfos, teamNumbers, this.getEventStats());
+            let overview = getAllianceOverview(teamNumbers, this.teamsData);
+
             return overview;
         },
         getTeamNumbers(teams) {

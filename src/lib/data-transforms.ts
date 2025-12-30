@@ -34,7 +34,6 @@ export function aggregateData(data, groupByColumnName, fn) {
         groupedData[groupByColumnName] = key;
 
         const entry = resultDict[key];
-        // console.log(entry)
         dependentColumns.forEach(col => {
             var aggregatedValues = fn(entry[col])
             groupedData[col] = aggregatedValues;
@@ -44,4 +43,29 @@ export function aggregateData(data, groupByColumnName, fn) {
     });
 
     return resultData;
+}
+
+export function countDiscreteData(data, independentColumn, groupByColumnName) {
+    let dataDict = {}
+
+    data.forEach(row => {
+        const dataPoint = String(row[groupByColumnName]);
+
+        if (Object.keys(dataDict).includes(dataPoint)) {
+            dataDict[dataPoint] += 1;
+        } else {
+            dataDict[dataPoint] = 1;
+        }
+    });
+
+    let processedData = [];
+    Object.keys(dataDict).forEach(element => {
+        let row = {};
+        row[independentColumn] = element;
+        row[groupByColumnName] = dataDict[element];
+
+        processedData.push(row);
+    });
+
+    return processedData;
 }
