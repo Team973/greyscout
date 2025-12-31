@@ -33,6 +33,8 @@ import { defaultTeamNumber } from "@/lib/constants";
         <div>
             Query: <Dropdown :choices="queryTypes" v-model="activeQueryTypeIndex" @update:modelValue="setQueryType">
             </Dropdown>
+        </div>
+        <div>
             Aggregation: <Dropdown :choices="aggregationTypes" v-model="activeAggregationTypeIndex"
                 @update:modelValue="setAggregationType">
             </Dropdown>
@@ -396,6 +398,10 @@ export default {
         this.viewMode = useViewModeStore();
 
         this.initializePage();
+
+        this.viewMode.$subscribe((mutation, state) => {
+            this.loadNewData();
+        })
     }
 }
 </script>
