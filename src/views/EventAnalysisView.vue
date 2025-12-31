@@ -86,6 +86,11 @@ export default {
         this.eventStore = useEventStore();
         this.viewMode = useViewModeStore();
         this.loadLayout();
+
+        // Do this to handle color scheme changes in charts when switching light/dark mode.
+        this.viewMode.$subscribe((mutation, state) => {
+            this.refreshTiles();
+        })
     }
 }
 </script>
