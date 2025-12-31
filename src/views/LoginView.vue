@@ -12,18 +12,21 @@ import { useAuthStore } from "@/stores/auth-store";
 
 <template>
     <div class="main-content">
-        <div>
-            <TextInput :model-value="userEmail" @update:modelValue="updateEmail" label="Email" required="true"
-                :error="emailError">
-            </TextInput>
-        </div>
-        <div>
-            <TextInput :model-value="userPassword" @update:modelValue="updatePassword" label="Password" required="true"
-                :error="passwordError" type="password">
-            </TextInput>
-        </div>
-        <div>
-            <md-filled-button v-on:click="logInUser()" class="load-button">Log in</md-filled-button>
+        <div class="login-tile">
+            <h1 class="login-tile-element">Log in</h1>
+            <div class="login-tile-element">
+                <TextInput :model-value="userEmail" @update:modelValue="updateEmail" label="Email" required="true"
+                    :error="emailError">
+                </TextInput>
+            </div>
+            <div class="login-tile-element">
+                <TextInput :model-value="userPassword" @update:modelValue="updatePassword" label="Password" required="true"
+                    :error="passwordError" type="password">
+                </TextInput>
+            </div>
+            <div class="login-tile-element">
+                <md-filled-button v-on:click="logInUser()" class="load-button">Log in</md-filled-button>
+            </div>
         </div>
     </div>
 </template>
@@ -49,6 +52,13 @@ export default {
             this.passwordError = (this.userPassword == "");
         },
         async logInUser() {
+            this.emailError = (this.userEmail == "");
+            this.passwordError = (this.userPassword == "");
+            if (this.emailError || this.passwordError) {
+                return;
+            }
+
+
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: this.userEmail,
                 password: this.userPassword,
@@ -69,4 +79,8 @@ export default {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.login-tile-element {
+    padding: 15px;
+}
+</style>

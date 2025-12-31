@@ -38,8 +38,9 @@ import { queryTeamNumbers } from "@/lib/data-query";
                         <h1>Robot Photo</h1>
                         <!-- Assuming a 4:3 aspect ratio for now -->
                         <img :src="getRobotPhotoUrl" width="300" height="400" />
-                        <div v-if="isUserLoggedIn">
-                            <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading && isUserLoggedIn">Upload a
+                        <div v-if="isUserWriteAccess">
+                            <md-filled-button v-on:click="chooseFiles"
+                                v-if="!teamPhotoUploading && isUserWriteAccess">Upload a
                                 Different
                                 Image</md-filled-button>
                             <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
@@ -47,7 +48,7 @@ import { queryTeamNumbers } from "@/lib/data-query";
                     </div>
                     <div class="file-upload-tile" v-else>
                         <h1>No robot photo available</h1>
-                        <div v-if="isUserLoggedIn">
+                        <div v-if="isUserWriteAccess">
                             <md-filled-button v-on:click="chooseFiles" v-if="!teamPhotoUploading">Upload
                                 Image</md-filled-button>
                             <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
@@ -181,7 +182,7 @@ export default {
         },
         async uploadImage() {
             await this.authStore.checkUser();
-            if (!this.authStore.isAuthorized) {
+            if (!this.authStore.isUserWriteAccess) {
                 // Early exit if the user is not authorized to upload images.
                 return;
             }
@@ -234,8 +235,8 @@ export default {
 
             return this.teamFilters[this.currentTeamIndex];
         },
-        isUserLoggedIn() {
-            return this.authStore.isAuthorized;
+        isUserWriteAccess() {
+            return this.authStore.isWriteAuthorized;
         }
     },
     created() {

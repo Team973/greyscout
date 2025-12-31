@@ -12,8 +12,15 @@ import { useAuthStore } from "@/stores/auth-store";
 
 <template>
     <div class="main-content">
+        <div class="user-tile">
+            <h1>Access</h1>
+            <div>
+                Can Write: {{ authStore.isWriteAuthorized }}
+            </div>
+        </div>
 
-        <div>
+        <div class="user-tile">
+            <h1>Log Out</h1>
             <md-filled-button v-on:click="logOutUser()" class="load-button">Log out</md-filled-button>
         </div>
     </div>

@@ -1,4 +1,8 @@
 
+// Site visibility
+export const isSiteReadPrivate = true;
+export const isSiteWritePrivate = true;
+
 // Supabase project
 export const projectId = "ezliacqrdzidhlmqfmee";
 export const publicKey = "sb_publishable_s5t5ajQm1nTjO6BOGov-Ug_b1lWwq94";
@@ -9,6 +13,7 @@ export const pitScoutTable = "PitData";
 export const eventInfoTable = "Event";
 export const teamInfoTable = "Team";
 export const robotPhotoTable = "RobotPhoto";
+export const userTable = "User";
 
 // Storage buckets
 export const robotPhotoBucket = "robot-photos";
