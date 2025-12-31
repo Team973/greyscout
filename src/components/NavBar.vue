@@ -13,7 +13,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 <template>
     <!-- Mobile navigation bar (hamburger menu) -->
-    <div class="nav" v-if="viewMode?.isMobile">
+    <div class="nav" v-if="viewMode?.isMobile && isLoggedIn">
         <HamburgerMenu>
             <template v-slot:menu-title>
                 {{ eventName }}
@@ -31,14 +31,28 @@ import { useAuthStore } from "@/stores/auth-store";
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
                 <RouterLink to="/match" class="nav-link nav-link-mobile">Match Preview</RouterLink>
                 <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink>
-
-                <RouterLink to="/login" class="nav-link nav-link-mobile" v-if="!isLoggedIn">Login</RouterLink>
-                <RouterLink to="/account" class="nav-link nav-link-mobile" v-else>Account</RouterLink>
+                <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
             </template>
         </HamburgerMenu>
 
     </div>
-    <div class="nav" v-else>
+    <div class="nav" v-else-if="viewMode?.isMobile && !isLoggedIn">
+        <HamburgerMenu>
+            <template v-slot:menu-title>
+                <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
+            </template>
+            <template v-slot:theme-button>
+                <div class="nav-dark-mode nav-mobile-right" @click="toggleUserDarkMode">
+                    <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
+                    <md-icon slot="icon" v-else>light_mode</md-icon>
+                </div>
+            </template>
+            <template v-slot:menu-content>
+                <RouterLink to="/login" class="nav-link nav-link-mobile">Login</RouterLink>
+            </template>
+        </HamburgerMenu>
+    </div>
+    <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <!-- <RouterLink to="/scout" class="nav-link">Match Scouting</RouterLink> -->
         <!-- <RouterLink to="/pit-scout" class="nav-link">Pit Scouting</RouterLink> -->
         <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink>
@@ -54,6 +68,19 @@ import { useAuthStore } from "@/stores/auth-store";
         <div class="nav-dark-mode nav-right" @click="userLogin">
             <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
             <md-icon slot="icon" v-else>account_circle</md-icon>
+        </div>
+    </div>
+    <div class="nav" v-else>
+        <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
+
+        <div class="nav-dark-mode nav-right" @click="userLogin">
+            <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
+            <md-icon slot="icon" v-else>account_circle</md-icon>
+        </div>
+
+        <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
+            <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
+            <md-icon slot="icon" v-else>light_mode</md-icon>
         </div>
     </div>
 </template>
@@ -89,7 +116,7 @@ export default {
             return this.viewMode.isDarkMode;
         },
         isLoggedIn() {
-            return this.authStore?.isAuthorized;
+            return this.authStore?.isUserLoggedIn;
         }
     },
     methods: {
@@ -208,5 +235,9 @@ a.nav-link-mobile {
     background-color: var(--primary-color);
     color: var(--header-theme-toggle-text-color);
     cursor: pointer;
+}
+
+.nav-dark-mode:hover {
+    background-color: var(--header-auxillary-button-hover-color);
 }
 </style>
