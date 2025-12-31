@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // TODO: fix types
 // @ts-nocheck
-
 import { dataPointColorTranslucent, dataPointAccentColorTranslucent, getThemeColors } from '@/lib/theme';
 
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
@@ -16,7 +15,7 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 
 <template>
     <div :style="chartStyle">
-        <canvas id="myChart" />
+        <canvas ref="boxplotCanvas" />
     </div>
 </template>
 
@@ -117,15 +116,15 @@ export default {
             }
         },
         chartDataSetup() {
-            const data = this.chartData();
-            const labels = data.labels;
-            const values = data.values;
+            // const data = this.chartData();
+            const labels = this.data[0].labels;
+            const values = this.data[0].values;
 
             // Build the chart based on the processing above.
             const chart = {
                 labels: labels,
                 datasets: [{
-                    label: this.column,
+                    label: this.data[0].name,
                     borderColor: this.borderStyle?.color,
                     borderWidth: this.borderStyle?.width,
                     itemRadius: 2,
@@ -151,7 +150,10 @@ export default {
                         display: false
                     },
                     legend: {
-                        display: false
+                        display: true,
+                        labels: {
+                            color: getThemeColors().text.legend
+                        }
                     },
                     tooltip: {
                         displayColors: false,
@@ -201,10 +203,11 @@ export default {
             };
 
             return options;
-        },
+        }
     },
     mounted() {
-        const ctx = document.getElementById('myChart').getContext('2d');
+        const canvas = this.$refs.boxplotCanvas;
+        const ctx = canvas.getContext('2d');
         if (!ctx) {
             return;
         }

@@ -8,6 +8,7 @@ import HamburgerMenu from '@/components/HamburgerMenu.vue';
 
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useEventStore } from '@/stores/event-store';
+import { useAuthStore } from "@/stores/auth-store";
 </script>
 
 <template>
@@ -29,6 +30,10 @@ import { useEventStore } from '@/stores/event-store';
                 <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink>
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
                 <RouterLink to="/match" class="nav-link nav-link-mobile">Match Preview</RouterLink>
+                <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink>
+
+                <RouterLink to="/login" class="nav-link nav-link-mobile" v-if="!isLoggedIn">Login</RouterLink>
+                <RouterLink to="/account" class="nav-link nav-link-mobile" v-else>Account</RouterLink>
             </template>
         </HamburgerMenu>
 
@@ -39,12 +44,17 @@ import { useEventStore } from '@/stores/event-store';
         <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink>
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
         <RouterLink to="/match" class="nav-link">Match Preview</RouterLink>
+        <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink>
 
         <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
             <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
             <md-icon slot="icon" v-else>light_mode</md-icon>
         </div>
         <div class="nav-text nav-right">{{ eventName }}</div>
+        <div class="nav-dark-mode nav-right" @click="userLogin">
+            <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
+            <md-icon slot="icon" v-else>account_circle</md-icon>
+        </div>
     </div>
 </template>
 
@@ -60,12 +70,16 @@ export default {
         return {
             windowWidth: window.innerWidth,
             viewMode: null,
-            eventStore: null
+            eventStore: null,
+            authStore: null
         }
     },
     created() {
         this.viewMode = useViewModeStore();
         this.eventStore = useEventStore();
+
+        this.authStore = useAuthStore();
+        this.authStore.checkUser();
     },
     computed: {
         eventName() {
@@ -73,11 +87,22 @@ export default {
         },
         isDarkMode() {
             return this.viewMode.isDarkMode;
+        },
+        isLoggedIn() {
+            return this.authStore?.isAuthorized;
         }
     },
     methods: {
         toggleUserDarkMode() {
             this.viewMode.toggleUserDarkMode();
+        },
+        userLogin() {
+            if (this.isLoggedIn) {
+                this.$router.push("/account");
+                return;
+            }
+
+            this.$router.push("/login");
         }
     }
 }
@@ -181,7 +206,7 @@ a.nav-link-mobile {
 
 .nav-dark-mode {
     background-color: var(--primary-color);
-    color: var(--primary-text-color);
+    color: var(--header-theme-toggle-text-color);
     cursor: pointer;
 }
 </style>

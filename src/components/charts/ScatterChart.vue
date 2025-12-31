@@ -3,11 +3,11 @@
 // @ts-nocheck
 
 import { dataPointColor, getThemeColors } from '@/lib/theme';
+import { cartesianDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 import { Scatter } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, PointElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { useViewModeStore } from '@/stores/view-mode-store';
 
 ChartJS.register(Title, Tooltip, Legend, PointElement, CategoryScale, LinearScale, ChartJSPluginDatalabels);
 
@@ -24,7 +24,10 @@ export default {
     props: {
         columnX: "",
         columnY: "",
-        data: {},
+        data: Array,
+        series: {
+            default: ""
+        },
         pointColor: {
             default: dataPointColor
         },
@@ -52,7 +55,7 @@ export default {
                             weight: 'bold'
                         },
                         formatter: function (value, context) {
-                            return context.chart.data.labels[context.dataIndex];
+                            return context.chart.data?.labels[context.dataIndex];
                         }
                     }
                 }
@@ -61,31 +64,26 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);
         },
         chartData() {
-            // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+            let labels = [];
+            if (this.data.length > 0) {
+                labels = this.data[0].labels;
+            }
 
-            // Populate an array of values, which are x,y coordinates.
-            let values = [];
-            labels.forEach(element => {
-                const xVal = this.data[element][this.columnX];
-                const yVal = this.data[element][this.columnY];
-                values.push({ "x": xVal, "y": yVal });
-            });
+            let datasets = cartesianDataSeriesToChartJSDatasets(this.data);
+            datasets.forEach(series => {
+                series.backgroundColor = this.pointColor;
+                series.pointRadius = this.pointRadius;
+                series.pointHoverRadius = this.pointHoverRadius;
+                series.color = getThemeColors().text.axes;
+            })
 
             // Build the chart based on the processing above.
             const chart = {
                 labels: labels,
-                datasets: [{
-                    label: "data",
-                    backgroundColor: this.pointColor,
-                    data: values,
-                    pointRadius: this.pointRadius,
-                    pointHoverRadius: this.pointHoverRadius,
-                    color: getThemeColors().text.axes
-                }]
+                datasets: datasets
             };
 
             // Label the axes.

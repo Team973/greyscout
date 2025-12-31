@@ -2,7 +2,7 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { radarRedTheme, getThemeColors } from '@/lib/theme';
+import { getThemeColors } from '@/lib/theme';
 
 import {
     Chart as ChartJS,
@@ -22,7 +22,7 @@ ChartJS.register(Title, Tooltip, Legend, PointElement, RadialLinearScale, LineEl
 </script>
 
 <template>
-    <div :style="chartStyle">
+    <div :style="chartCssStyle">
         <Radar :options="chartOptions" :data="chartData" class="radar-chart" :key="uniqueKey" />
     </div>
 </template>
@@ -30,9 +30,8 @@ ChartJS.register(Title, Tooltip, Legend, PointElement, RadialLinearScale, LineEl
 <script lang="ts">
 export default {
     props: {
-        columnX: "",
-        columnY: "",
-        data: {},
+        data: Array,
+        chartStyle: Array,
         options: {
             default: {
                 responsive: true,
@@ -50,48 +49,54 @@ export default {
         pointHoverRadius: {
             default: 8
         },
-        colors: {
-            default: {
-                backgroundColors: [radarRedTheme.background],
-                borderColors: [radarRedTheme.border],
-                pointBackgroundColors: [radarRedTheme.pointBackground],
-                pointHoverBorderColors: [radarRedTheme.pointHoverBorder]
-            }
-        },
         height: {
             default: 200
         },
         range: {
-            default: {
-                min: 0,
-                max: 5
-            }
+            default: null
         }
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
+            if (!this.data
+                || this.data.length == 0
+                || !this.chartStyle
+                || this.chartStyle.length != this.data.length) {
+                return {
+                    labels: [],
+                    datasets: []
+                };
+            }
+
             // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+            let labels = this.data[0].labels;
 
             // Populate an array of values, which are x,y coordinates.
-            let values = Object.values(this.data);
+            let datasets = [];
+            for (var i = 0; i < this.data.length; i++) {
+                const series = this.data[i];
+                const style = this.chartStyle[i];
+
+                const dataset = {
+                    label: series.name,
+                    data: series.y,
+                    backgroundColor: style?.background?.color,
+                    borderColor: style?.border?.color,
+                    pointBackgroundColor: style?.point?.background?.color,
+                    pointHoverBackgroundColor: style?.point?.background?.hoverColor,
+                    pointBorderColor: style?.point?.border?.color,
+                    pointHoverBorderColor: style?.point?.border?.hoverColor,
+                };
+                datasets.push(dataset);
+            }
 
             // Build the chart based on the processing above.
             const chart = {
                 labels: labels,
-                datasets: [{
-                    backgroundColor: this.colors.backgroundColors[0],
-                    data: values,
-                    label: "Scoring Dimensions",
-                    borderColor: this.colors.borderColors[0],
-                    pointBackgroundColor: this.colors.pointBackgroundColors[0],
-                    pointBorderColor: '#fff',
-                    pointHoverBackgroundColor: '#fff',
-                    pointHoverBorderColor: this.colors.pointHoverBorderColors[0],
-                }]
+                datasets: datasets
             };
 
             this.options.plugins.legend = {
@@ -102,8 +107,6 @@ export default {
 
             this.options.scales = {
                 r: {
-                    min: this.range.min,
-                    max: this.range.max,
                     grid: {
                         color: getThemeColors().grid.lines
                     },
@@ -120,12 +123,17 @@ export default {
                 },
             }
 
+            if (this.range) {
+                this.options.scales.r[min] = this.range.min;
+                this.options.scales.r[max] = this.range.max;
+            }
+
             return chart;
         },
         chartOptions() {
             return this.options;
         },
-        chartStyle() {
+        chartCssStyle() {
             return {
                 "display": "flex",
                 "height": this.height + "px",

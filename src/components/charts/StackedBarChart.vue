@@ -7,14 +7,13 @@ import { getThemeColors } from '@/lib/theme';
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { sortKeyValueArrays } from "@/lib/util";
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartJSPluginDatalabels)
 
 </script>
 
 <template>
-    <div :style="chartStyle">
+    <div :style="chartCssStyle">
         <Bar :options="chartOptions" :data="chartData" :key="uniqueKey" />
     </div>
 </template>
@@ -25,15 +24,13 @@ export default {
         columns: {
             default: []
         },
-        data: {},
+        data: Array,
+        chartStyle: Array,
         isSorted: {
             default: true
         },
-        barColors: {
-            default: []
-        },
         height: {
-            default: 100
+            default: 500
         },
         maxLabels: {
             default: null
@@ -50,25 +47,26 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
-            // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+            if (!this.data || this.data?.length == 0 || !this.chartStyle || this.chartStyle?.length != this.data.length) {
+                return {
+                    labels: [],
+                    datasets: []
+                };
+            }
+
+            const labels = this.data[0].labels;
 
             let datasets = [];
-            for (var i = 0; i < this.columns.length; i++) {
-                const columnName = this.columns[i];
-
-                // Populate an array of values.
-                let values = [];
-                labels.forEach(element => {
-                    values.push(this.data[element][columnName])
-                });
+            for (var i = 0; i < this.data.length; i++) {
+                const label = this.data[i].name;
+                const values = this.data[i].y;
 
                 const dataset = {
-                    label: columnName,
-                    backgroundColor: this.barColors[i],
+                    label: label,
+                    backgroundColor: this.chartStyle[i].color,
                     data: values
                 };
                 datasets.push(dataset)
@@ -129,7 +127,7 @@ export default {
 
             return options;
         },
-        chartStyle() {
+        chartCssStyle() {
             return {
                 "display": "flex",
                 "height": this.height + "px",

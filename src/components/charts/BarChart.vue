@@ -3,11 +3,11 @@
 // @ts-nocheck
 
 import { dataPointColorTranslucent, getThemeColors } from '@/lib/theme';
+import { discreteDataSeriesToChartJSDatasets } from "@/lib/chart-data";
 
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import ChartJSPluginDatalabels from 'chartjs-plugin-datalabels'
-import { sortKeyValueArrays } from "@/lib/util";
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ChartJSPluginDatalabels)
 
@@ -22,19 +22,12 @@ ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale,
 <script lang="ts">
 export default {
     props: {
-        column: "",
-        data: {},
-        isSorted: {
-            default: true
-        },
+        data: Array,
         barColor: {
             default: dataPointColorTranslucent
         },
         height: {
             default: 100
-        },
-        maxLabels: {
-            default: null
         },
         isHorizontal: {
             default: false
@@ -48,45 +41,23 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
-            // Initialize the labels to the keys of the dictionary
-            let labels = Object.keys(this.data);
+            let labels = [];
+            if (this.data.length > 0) {
+                labels = this.data[0].labels;
+            }
 
-            // Populate an array of values.
-            let values = [];
-            labels.forEach(element => {
-                values.push(this.data[element][this.column])
+            let datasets = discreteDataSeriesToChartJSDatasets(this.data)
+            datasets.forEach(series => {
+                series.backgroundColor = this.barColor
             });
-
-            // Sort the data if requested.
-            if (this.isSorted) {
-                const sorted = sortKeyValueArrays(labels, values);
-
-                // Reconstruct a key array and a value array.
-                labels = [];
-                values = [];
-                for (const [key, val] of sorted) {
-                    labels.push(key);
-                    values.push(val);
-                }
-            }
-
-            // Limit the amount of data shown if requested.
-            if (this.maxLabels != null) {
-                labels = labels.slice(0, this.maxLabels);
-                values = values.slice(0, this.maxLabels);
-            }
 
             // Build the chart based on the processing above.
             const chart = {
                 labels: labels,
-                datasets: [{
-                    label: this.column,
-                    backgroundColor: this.barColor,
-                    data: values
-                }]
+                datasets: datasets
             };
             return chart;
         },
