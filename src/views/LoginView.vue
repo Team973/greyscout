@@ -20,8 +20,8 @@ import { useAuthStore } from "@/stores/auth-store";
                 </TextInput>
             </div>
             <div class="login-tile-element">
-                <TextInput :model-value="userPassword" @update:modelValue="updatePassword" label="Password" required="true"
-                    :error="passwordError" type="password">
+                <TextInput :model-value="userPassword" @update:modelValue="updatePassword" @keyup.enter="logInUser"
+                    label="Password" required="true" :error="passwordError" type="password">
                 </TextInput>
             </div>
             <div class="login-tile-element">
@@ -57,7 +57,6 @@ export default {
             if (this.emailError || this.passwordError) {
                 return;
             }
-
 
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: this.userEmail,
