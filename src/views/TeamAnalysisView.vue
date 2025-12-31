@@ -245,6 +245,11 @@ export default {
         this.authStore.checkUser();
 
         this.loadLayout();
+
+        // Do this to handle color scheme changes in charts when switching light/dark mode.
+        this.viewMode.$subscribe((mutation, state) => {
+            this.refreshTiles();
+        })
     }
 }
 </script>

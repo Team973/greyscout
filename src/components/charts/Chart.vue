@@ -75,6 +75,10 @@ export default {
     },
     methods: {
         uniqueKey(id) {
+            // Some charts still depend on the theme rather than the data 
+            // to do colors for things like labels, so must be manually reloaded 
+            // at this level of abstraction for now.
+
             // TODO: make this better. This is a hack to ensure plots reload if data or filters change.
             const key = JSON.stringify(this.chartType)
                 + JSON.stringify(this.chartStyle)

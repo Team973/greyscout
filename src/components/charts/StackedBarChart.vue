@@ -47,7 +47,7 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
             if (!this.data || this.data?.length == 0 || !this.chartStyle || this.chartStyle?.length != this.data.length) {

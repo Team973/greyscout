@@ -30,7 +30,7 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
             if (!this.data || this.data.length == 0 || !this.data[0].y || this.data[0].y.length == 0 || !this.chartStyle || this.chartStyle?.length != this.data[0].y.length) {
@@ -62,7 +62,15 @@ export default {
                 maintainAspectRatio: false,
                 plugins: {
                     datalabels: {
-                        display: false
+                        color: getThemeColors().text.dataLabels,
+                        offset: 8,
+                        font: {
+                            weight: 'bold'
+                        },
+                        formatter: function (value, context) {
+                            const roundedValue = Math.round(value * 100) / 100;
+                            return roundedValue;
+                        }
                     },
                     legend: {
                         labels: {

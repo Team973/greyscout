@@ -41,7 +41,7 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data) + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
         },
         chartData() {
             let labels = [];

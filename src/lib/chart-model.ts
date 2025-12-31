@@ -6,7 +6,7 @@ import { computeDiscreteDataSeries, computeCartesianDataSeries, computeSampledDa
 import { queryTeamMatchData, queryEventData } from "@/lib/data-query";
 
 import { aggregateData, countDiscreteData } from "@/lib/data-transforms";
-import { randomColorWheel, radarChartColorWheel } from '@/lib/theme';
+import { getThemeColors } from '@/lib/theme';
 
 import { mean } from "simple-statistics";
 
@@ -91,6 +91,8 @@ export async function getChartModel(queryInputs: QueryInputs, chartInputs: Chart
     } else if (chartInputs.type == "boxplot") {
         chartModel.data = computeSampledDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted);
     } else if (chartInputs.type == "stacked-bar") {
+        const randomColorWheel = getThemeColors().wheels.random;
+
         for (var i = 0; i < chartInputs.dimensions.length; i++) {
             chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.dimensions[i]));
             chartModel.style.push({
@@ -100,12 +102,14 @@ export async function getChartModel(queryInputs: QueryInputs, chartInputs: Chart
     } else if (chartInputs.type == "radar") {
         chartModel.data = computeRadarDataSeries(processedData, chartInputs.independentColumn, chartInputs.comparisonItems, chartInputs.dimensions);
 
+        const radarChartColorWheel = getThemeColors().wheels.radar;
         for (var i = 0; i < chartInputs.comparisonItems.length; i++) {
             chartModel.style.push(radarChartColorWheel[i % radarChartColorWheel.length]);
         }
     } else if (chartInputs.type == "pie") {
         chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted, chartInputs.options.isNormalized));
 
+        const randomColorWheel = getThemeColors().wheels.random;
         for (var i = 0; i < chartModel.data[0].y.length; i++) {
             chartModel.style.push({
                 "color": randomColorWheel[i % randomColorWheel.length]
