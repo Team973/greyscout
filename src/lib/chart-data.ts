@@ -3,7 +3,7 @@
 
 import { sortKeyValueArrays } from "@/lib/util";
 
-export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSorted = false, maxDataPoints = null) {
+export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSorted = false, isNormalized = false, maxDataPoints = null) {
     // This function assumes the keys of "data" are the labels.
     var dataSeries = {
         "name": valueColumn,
@@ -11,10 +11,19 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
         "y": []
     };
 
+    let totalValue = 0;
     data.forEach(row => {
         dataSeries.labels.push(row[labelColumn]);
         dataSeries.y.push(row[valueColumn]);
+        totalValue += row[valueColumn];
     });
+
+    // Normalize the data if requested.
+    if (isNormalized && Math.abs(totalValue) > 1e-10) {
+        for (var i = 0; i < dataSeries.y.length; i++) {
+            dataSeries.y[i] = dataSeries.y[i] / totalValue;
+        }
+    }
 
     // Sort the data if requested.
     if (isSorted) {
