@@ -90,6 +90,7 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                     "comparisonItems": [],
                     "options": {
                         "isSorted": false,
+                        "isNormalized": true,
                         "isHorizontal": false,
                         "maxDataPoints": null,
                         "xRange": null,

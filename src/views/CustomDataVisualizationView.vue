@@ -166,10 +166,12 @@ export default {
             radarDropdownList: [],
             chips: [
                 { key: "isSorted", label: "Sorted?", value: false, isDisabled: false },
+                { key: "isNormalized", label: "Normalized?", value: false, isDisabled: false },
                 { key: "isHorizontal", label: "Horizontal?", value: false, isDisabled: false }
             ],
             chartOptions: {
                 isSorted: false,
+                isNormalized: false,
                 isHorizontal: false,
                 maxDataPoints: null,
                 xRange: null,
