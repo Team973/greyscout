@@ -80,9 +80,24 @@ export default {
             return chart;
         },
         chartOptions() {
+            let valueColumnLabel = "";
+            let labelColumnLabel = "";
+            if (this.data.length > 0) {
+                this.data?.forEach(series => {
+                    valueColumnLabel += series.name + ",";
+                });
+                valueColumnLabel = valueColumnLabel.slice(0, valueColumnLabel.length - 1);
+
+                labelColumnLabel = this.data[0].label;
+            }
+
             let indexAxis = 'x';
+            let yAxisLabel = valueColumnLabel;
+            let xAxisLabel = labelColumnLabel;
             if (this.isHorizontal) {
                 indexAxis = 'y';
+                xAxisLabel = valueColumnLabel;
+                yAxisLabel = labelColumnLabel;
             }
 
             let options = {
@@ -109,7 +124,12 @@ export default {
                         },
                         ticks: {
                             color: getThemeColors().text.axesText
-                        }
+                        },
+                        title: {
+                            text: xAxisLabel,
+                            display: true,
+                            color: getThemeColors().text.axesText
+                        },
                     },
                     y: {
                         min: this.yRange?.min,
@@ -120,7 +140,12 @@ export default {
                         },
                         ticks: {
                             color: getThemeColors().text.axesText
-                        }
+                        },
+                        title: {
+                            text: yAxisLabel,
+                            display: true,
+                            color: getThemeColors().text.axesText
+                        },
                     },
                 }
             };

@@ -2,8 +2,7 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData } from "@/lib/2025/data-processing";
-import { getAllianceOverview, getRankedStyle, getRanking } from "@/lib/2025/data-visualization";
+import { getAllianceOverview } from "@/lib/2025/alliance-overview";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { teamInfoTable } from "@/lib/constants";
@@ -43,10 +42,6 @@ import { mean } from "simple-statistics";
                             <div v-for="team, idx in getTeamNumbers([0, 1, 2])" class="alliance-col-data">
                                 <u>{{ team }}</u>
                                 {{ data.value[idx].toFixed(2) }}
-                                <!-- <div v-if="data.rank[idx] > 0">
-                                    <span :style="getRankedStyle(data.normalized[idx])">{{ getRanking(data.rank[idx])
-                                    }}</span>
-                                </div> -->
                             </div>
                         </div>
                     </div>
@@ -73,10 +68,6 @@ import { mean } from "simple-statistics";
                             <div v-for="team, idx in getTeamNumbers([3, 4, 5])" class="alliance-col-data">
                                 <u>{{ team }}</u>
                                 {{ data.value[idx].toFixed(2) }}
-                                <div v-if="data.rank[idx] > 0">
-                                    <span :style="getRankedStyle(data.normalized[idx])">{{ getRanking(data.rank[idx])
-                                    }}</span>
-                                </div>
                             </div>
                         </div>
                     </div>
