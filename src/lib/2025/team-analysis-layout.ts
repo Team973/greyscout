@@ -14,15 +14,15 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                 },
                 "chartInputs": {
                     "type": "radar",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "auto_coral",
-                    "xSeries": "auto_coral",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "auto_coral" },
+                    "xSeries": { name: "auto_coral" },
                     "dimensions": [
-                        "auto_coral",
-                        "teleop_net",
-                        "teleop_coral",
-                        "endgame_climb",
-                        "postmatch_defense"
+                        { name: "auto_coral" },
+                        { name: "teleop_net" },
+                        { name: "teleop_coral" },
+                        { name: "endgame_climb" },
+                        { name: "postmatch_defense" }
                     ],
                     "comparisonItems": [
                         teamNumber
@@ -50,13 +50,13 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                 },
                 "chartInputs": {
                     "type": "stacked-bar",
-                    "independentColumn": "prematch_match_number",
-                    "ySeries": "auto_coral",
-                    "xSeries": "auto_coral",
+                    "independentColumn": { name: "prematch_match_number" },
+                    "ySeries": { name: "auto_coral" },
+                    "xSeries": { name: "auto_coral" },
                     "dimensions": [
-                        "auto_coral",
-                        "teleop_net",
-                        "teleop_coral"
+                        { name: "auto_coral" },
+                        { name: "teleop_net" },
+                        { name: "teleop_coral" }
                     ],
                     "comparisonItems": [],
                     "options": {
@@ -83,9 +83,9 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                 },
                 "chartInputs": {
                     "type": "pie",
-                    "independentColumn": "prematch_match_number",
-                    "ySeries": "endgame_climb",
-                    "xSeries": "auto_coral",
+                    "independentColumn": { name: "prematch_match_number" },
+                    "ySeries": { name: "endgame_climb" },
+                    "xSeries": { name: "auto_coral" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
@@ -118,9 +118,9 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                         },
                         "chartInputs": {
                             "type": "bar",
-                            "independentColumn": "prematch_match_number",
-                            "ySeries": "auto_coral",
-                            "xSeries": "auto_coral",
+                            "independentColumn": { name: "prematch_match_number" },
+                            "ySeries": { name: "auto_coral" },
+                            "xSeries": { name: "auto_coral" },
                             "dimensions": [],
                             "comparisonItems": [],
                             "options": {
@@ -142,9 +142,9 @@ export function getTeamAnalysisLayout(teamNumber, eventId) {
                         },
                         "chartInputs": {
                             "type": "bar",
-                            "independentColumn": "prematch_match_number",
-                            "ySeries": "teleop_coral",
-                            "xSeries": "teleop_coral",
+                            "independentColumn": { name: "prematch_match_number" },
+                            "ySeries": { name: "teleop_coral" },
+                            "xSeries": { name: "teleop_coral" },
                             "dimensions": [],
                             "comparisonItems": [],
                             "options": {

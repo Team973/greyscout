@@ -2,8 +2,6 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { aggregateEventData, getPitScoutData } from "@/lib/2025/data-processing";
-import { teamLikertRadar, getTeamOverview, teamReefData } from "@/lib/2025/data-visualization";
 import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
@@ -16,7 +14,6 @@ import "@material/web/button/filled-button";
 import draggable from 'vuedraggable'
 import Dropdown from "@/components/Dropdown.vue";
 import Tile from "@/components/Tile.vue";
-import StatHighlight from "@/components/StatHighlight.vue";
 
 import { supabase } from "@/lib/supabase-client";
 import { getTeamAnalysisLayout } from "@/lib/2025/team-analysis-layout";

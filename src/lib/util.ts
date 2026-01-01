@@ -66,3 +66,32 @@ export function getNumberWithOrdinal(n) {
     const v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+export function getRanking(ranking) {
+    return getNumberWithOrdinal(ranking);
+}
+
+export function getRankedStyle(normalizedRank) {
+    const greenLimit = 0.33;
+    const redLimit = 0.6;
+    const baseColor = 100;
+    const maxColor = 255;
+    const multiplier = maxColor - baseColor;
+
+    let style = {};
+
+    // Teams in the top part get a increasingly dark green number as they get closer to the top.
+    if (normalizedRank < greenLimit) {
+        let greenColor = multiplier * ((greenLimit - normalizedRank) / greenLimit) + baseColor;
+        style.color = "rgb(0, " + greenColor + ", 0)";
+        style["font-weight"] = "bold";
+
+    } else if (normalizedRank > redLimit) {
+        // Teams in the bottom part get an increasingly dark red number as they get closer to the bottom.
+        let redColor = multiplier * (normalizedRank - redLimit) / (1.0 - redLimit) + baseColor;
+        style.color = "rgb(" + redColor + ", 0, 0)";
+        style["font-weight"] = "bold";
+    }
+
+    return style;
+}

@@ -13,13 +13,12 @@ import "@material/web/chips/filter-chip";
 import Dropdown from "@/components/Dropdown.vue";
 import ResizableList from "@/components/ResizableList.vue";
 import Chart from "@/components/charts/Chart.vue";
-import StatHighlight from "@/components/StatHighlight.vue";
 
 
 import { getChartModel } from "@/lib/chart-model";
 import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
 import { queryTeamNumbers } from "@/lib/data-query";
-import { defaultTeamNumber } from "@/lib/constants";
+import { defaultTeamNumber, minWidthForDesktop } from "@/lib/constants";
 
 </script>
 
@@ -304,7 +303,7 @@ export default {
         },
         async loadNewData() {
             let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']]?.key);
-            let dimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
+            let dimensions = this.seriesDropdownList.map(item => ({ name: this.dataColumns[item['series']].key }));
 
             let queryInputs: QueryInputs = {
                 type: this.activeQuery,
@@ -348,16 +347,16 @@ export default {
 
         // Data
         activeIndependentColumn() {
-            return this.independentColumns[this.activeIndependentColumnIndex].key;
+            return { name: this.independentColumns[this.activeIndependentColumnIndex].key };
         },
         activeIndependentColumnText() {
             return this.independentColumns[this.activeIndependentColumnIndex].text;
         },
         activeSeriesY() {
-            return this.dataColumns[this.activeDataYColumnIndex].key;
+            return { name: this.dataColumns[this.activeDataYColumnIndex].key };
         },
         activeSeriesX() {
-            return this.dataColumns[this.activeDataXColumnIndex].key;
+            return { name: this.dataColumns[this.activeDataXColumnIndex].key };
         },
         activeChartData() {
             if (!this.isDataLoaded) {
@@ -378,7 +377,7 @@ export default {
             return this.aggregationTypes[this.activeAggregationTypeIndex].key;
         },
         activeIndependentColumnChoices() {
-            if (this.activeIndependentColumn == "prematch_team_number") {
+            if (this.activeIndependentColumn.name == "prematch_team_number") {
                 return this.teamNumbers;
             }
             return [];
@@ -400,7 +399,14 @@ export default {
         this.initializePage();
 
         this.viewMode.$subscribe((mutation, state) => {
-            this.loadNewData();
+            const isScreenWidth = mutation?.events?.key == 'screenWidth';
+            const isOldWidthMobile = mutation?.events?.oldValue <= minWidthForDesktop;
+            const isNewWidthMobile = mutation?.events?.newValue <= minWidthForDesktop;
+            const didCrossMobileThreshold = isScreenWidth && (isOldWidthMobile != isNewWidthMobile);
+
+            if (mutation?.events.key == 'darkMode' || didCrossMobileThreshold) {
+                this.loadNewData();
+            }
         })
     }
 }

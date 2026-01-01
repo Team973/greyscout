@@ -7,6 +7,7 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
     // This function assumes the keys of "data" are the labels.
     var dataSeries = {
         "name": valueColumn,
+        "label": labelColumn,
         "labels": [],
         "y": []
     };
@@ -145,6 +146,7 @@ export function computeSampledDataSeries(data, keyColumn, valueColumn, isSorted 
 
     let sampledDataSeries = {
         name: valueColumn,
+        label: keyColumn,
         labels: labels,
         values: values
     };
@@ -159,15 +161,20 @@ export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, 
         return datasets;
     }
 
+    let columnLabels = [];
+    dimensionColumns.forEach(col => {
+        columnLabels.push(col.name);
+    });
+
     data.forEach(row => {
         if (comparisonItems.includes(row[comparisonColumn])) {
             let itemValues = []
             dimensionColumns.forEach(col => {
-                itemValues.push(row[col]);
+                itemValues.push(row[col.name]);
             });
 
             datasets.push({
-                'labels': dimensionColumns,
+                'labels': columnLabels,
                 'name': row[comparisonColumn],
                 'y': itemValues
             });

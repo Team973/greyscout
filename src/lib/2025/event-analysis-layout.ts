@@ -16,9 +16,9 @@ export function getEventAnalysisLayout(eventId) {
                 },
                 "chartInputs": {
                     "type": "boxplot",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "teleop_coral",
-                    "xSeries": "teleop_coral",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "teleop_coral" },
+                    "xSeries": { name: "teleop_coral" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
@@ -44,9 +44,9 @@ export function getEventAnalysisLayout(eventId) {
                 },
                 "chartInputs": {
                     "type": "boxplot",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "auto_coral",
-                    "xSeries": "auto_coral",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "auto_coral" },
+                    "xSeries": { name: "auto_coral" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
@@ -73,9 +73,9 @@ export function getEventAnalysisLayout(eventId) {
                 },
                 "chartInputs": {
                     "type": "scatter",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "teleop_net",
-                    "xSeries": "teleop_processor",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "teleop_net" },
+                    "xSeries": { name: "teleop_processor" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
