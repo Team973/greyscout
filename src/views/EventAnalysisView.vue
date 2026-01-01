@@ -29,9 +29,10 @@ import { minWidthForDesktop } from "@/lib/constants";
         </div> -->
 
         <div v-if="eventDataLoaded">
-            <draggable v-model="tileModelList" group="graphs" item-key="id" @end="updateLayout">
+            <draggable v-model="tileModelList" group="graphs" item-key="id" @end="updateLayout" handle=".handle">
                 <template #item="{ element }">
-                    <Tile :type="element.type" :model="element.model" :title="element.title" class="draggable-tile">
+                    <Tile :type="element.type" :model="element.model" :title="element.title" class="draggable-tile"
+                        can-drag="true">
                     </Tile>
                 </template>
             </draggable>
