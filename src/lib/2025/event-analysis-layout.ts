@@ -60,6 +60,36 @@ export function getEventAnalysisLayout(eventId) {
                     }
                 }
             }
+        },
+        {
+            type: "chart",
+            title: "Algae Scoring",
+            inputs: {
+                "queryInputs": {
+                    "type": "event_query",
+                    "teamNumber": null,
+                    "eventId": eventId,
+                    "aggregationFn": "mean"
+                },
+                "chartInputs": {
+                    "type": "scatter",
+                    "independentColumn": "prematch_team_number",
+                    "ySeries": "teleop_net",
+                    "xSeries": "teleop_processor",
+                    "dimensions": [],
+                    "comparisonItems": [],
+                    "options": {
+                        "isSorted": false,
+                        "isNormalized": false,
+                        "isHorizontal": false,
+                        "maxDataPoints": null,
+                        "xRange": null,
+                        "yRange": null,
+                        "height": null,
+                        "heightRatio": 0.5
+                    }
+                }
+            }
         }
     ];
 }
