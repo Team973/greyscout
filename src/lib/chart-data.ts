@@ -40,8 +40,8 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
 
     // Limit the amount of data shown if requested.
     if (maxDataPoints != null) {
-        dataSeries.labels = labels.slice(0, maxDataPoints);
-        dataSeries.y = y.slice(0, maxDataPoints);
+        dataSeries.labels = dataSeries.labels.slice(0, maxDataPoints);
+        dataSeries.y = dataSeries.y.slice(0, maxDataPoints);
     }
 
     return dataSeries;

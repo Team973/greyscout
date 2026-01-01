@@ -25,3 +25,7 @@ export const defaultTeamNumber = 973;
 export const defaultEventId = "2025cafr";
 // Flag to force override to the default event. Useful if you are playing two tournaments on the same day.
 export const useDefaultEvent = true;
+
+
+// View mode options.
+export const minWidthForDesktop = 820;

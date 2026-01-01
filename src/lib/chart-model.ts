@@ -18,7 +18,8 @@ export type ChartOptions = {
     xRange: Object,
     yRange: Object,
     height: Number,
-    heightRatio: Number
+    heightRatio: Number,
+    maxDataPoints: Number,
 }
 
 export type ChartInputs = {
@@ -84,17 +85,19 @@ export async function getChartModel(queryInputs: QueryInputs, chartInputs: Chart
     }
 
     // Compute the chart data series.
-    if (chartInputs.type == "bar" || chartInputs.type == "line") {
+    if (chartInputs.type == "bar") {
+        chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted, chartInputs.options.isNormalized, chartInputs.options.maxDataPoints));
+    } else if (chartInputs.type == "line") {
         chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted, chartInputs.options.isNormalized));
     } else if (chartInputs.type == "scatter") {
         chartModel.data.push(computeCartesianDataSeries(processedData, chartInputs.xSeries, chartInputs.ySeries, chartInputs.independentColumn))
     } else if (chartInputs.type == "boxplot") {
-        chartModel.data = computeSampledDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted);
+        chartModel.data = computeSampledDataSeries(processedData, chartInputs.independentColumn, chartInputs.ySeries, chartInputs.options.isSorted, chartInputs.options.maxDataPoints);
     } else if (chartInputs.type == "stacked-bar") {
         const randomColorWheel = getThemeColors().wheels.random;
 
         for (var i = 0; i < chartInputs.dimensions.length; i++) {
-            chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.dimensions[i]));
+            chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn, chartInputs.dimensions[i], chartInputs.options.isSorted, chartInputs.options.isNormalized, chartInputs.options.maxDataPoints));
             chartModel.style.push({
                 "color": randomColorWheel[i % randomColorWheel.length]
             });
