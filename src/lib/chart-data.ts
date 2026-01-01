@@ -64,6 +64,7 @@ export function computeCartesianDataSeries(data, xColumn, yColumn, labelColumn) 
     // The labels in this data series are the values that would show up in a chart tooltip.
     var dataSeries = {
         "name": yColumn,
+        'xAxis': xColumn,
         "labels": [],
         "x": [],
         "y": []
