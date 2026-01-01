@@ -1,5 +1,7 @@
 import { defineStore } from "pinia";
 
+import { minWidthForDesktop } from '@/lib/constants';
+
 export const useViewModeStore = defineStore('viewMode', {
     state() {
         return {
@@ -10,7 +12,7 @@ export const useViewModeStore = defineStore('viewMode', {
     },
     getters: {
         isMobile(): boolean {
-            return this.screenWidth <= 820;
+            return this.screenWidth <= minWidthForDesktop;
         },
         windowHeight(): number {
             return this.screenHeight;

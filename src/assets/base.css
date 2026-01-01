@@ -90,6 +90,10 @@ tbody tr:last-of-type {
   border-bottom: thick solid var(--accent-color);
 }
 
+.draggable-tile {
+  cursor: grab;
+}
+
 .login-tile {
   display: flex;
   flex-direction: column;

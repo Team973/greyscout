@@ -7,10 +7,13 @@ import { useViewModeStore } from "@/stores/view-mode-store";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
+import draggable from 'vuedraggable'
+
 import Tile from "@/components/Tile.vue";
 
 import { getEventAnalysisLayout } from "@/lib/2025/event-analysis-layout";
 import { processLayout } from "@/lib/process-layout";
+import { minWidthForDesktop } from "@/lib/constants";
 </script>
 
 <template>
@@ -18,11 +21,20 @@ import { processLayout } from "@/lib/process-layout";
         <h1>Event Analysis</h1>
         <h2>Graph View</h2>
 
-        <div v-if="eventDataLoaded">
+        <!-- <div v-if="eventDataLoaded">
             <div v-for="tile in tileModels">
                 <Tile :type="tile.type" :model="tile.model" :title="tile.title">
                 </Tile>
             </div>
+        </div> -->
+
+        <div v-if="eventDataLoaded">
+            <draggable v-model="tileModelList" group="graphs" item-key="id" @end="updateLayout">
+                <template #item="{ element }">
+                    <Tile :type="element.type" :model="element.model" :title="element.title" class="draggable-tile">
+                    </Tile>
+                </template>
+            </draggable>
         </div>
 
         <!-- <h2>Table View</h2>
@@ -52,13 +64,16 @@ export default {
             eventStore: null,
             viewMode: null,
             eventDataLoaded: false,
-            tileModelList: []
+            tileModelList: [],
+            currentLayout: [],
+            currentFromIndex: 0
         }
     },
     methods: {
         async loadLayout() {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
+            this.currentLayout = getEventAnalysisLayout(this.eventStore.eventId);
 
             await this.refreshTiles();
 
@@ -66,9 +81,28 @@ export default {
             this.eventDataLoaded = true;
         },
         async refreshTiles() {
-            let layout = getEventAnalysisLayout(this.eventStore.eventId);
-            this.tileModelList = await processLayout(layout);
+            // Only show the top chart items if this is on a phone (for applicable chart types).
+            const maxItems = this.viewMode.isMobile ? 6 : null;
+            this.currentLayout.forEach(model => {
+                if (model.type == 'chart') {
+                    model.inputs.chartInputs.options.maxDataPoints = maxItems;
+                } else if (model.type == 'filterable-chart') {
+                    model.inputs.chartInputs.forEach(chartInput => {
+                        chartInput.options.maxDataPoints = maxItems;
+                    });
+                }
+            });
+
+            this.tileModelList = await processLayout(this.currentLayout);
         },
+        updateLayout() {
+            let newLayout = [];
+            this.tileModelList.forEach(model => {
+                const tile = this.currentLayout[model.id];
+                newLayout.push(tile);
+            });
+            this.currentLayout = newLayout;
+        }
     },
     computed: {
         tileModels() {
@@ -89,13 +123,20 @@ export default {
 
         // Do this to handle color scheme changes in charts when switching light/dark mode.
         this.viewMode.$subscribe((mutation, state) => {
-            this.refreshTiles();
+            const isScreenWidth = mutation?.events?.key == 'screenWidth';
+            const isOldWidthMobile = mutation?.events?.oldValue <= minWidthForDesktop;
+            const isNewWidthMobile = mutation?.events?.newValue <= minWidthForDesktop;
+            const didCrossMobileThreshold = isScreenWidth && (isOldWidthMobile != isNewWidthMobile);
+
+            if (mutation?.events.key == 'darkMode' || didCrossMobileThreshold) {
+                this.refreshTiles();
+            }
         })
     }
 }
 </script>
   
-<style>
+<style scoped>
 .table-container {
     display: flex;
     overflow: scroll;

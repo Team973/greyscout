@@ -28,7 +28,7 @@ export function getEventAnalysisLayout(eventId) {
                         "xRange": null,
                         "yRange": null,
                         "height": null,
-                        "heightRatio": 0.75
+                        "heightRatio": 0.5
                     }
                 }
             }
@@ -56,7 +56,7 @@ export function getEventAnalysisLayout(eventId) {
                         "xRange": null,
                         "yRange": null,
                         "height": null,
-                        "heightRatio": 0.75
+                        "heightRatio": 0.5
                     }
                 }
             }

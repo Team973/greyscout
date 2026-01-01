@@ -7,15 +7,17 @@ import FilterableChart from "@/components/charts/FilterableChart.vue";
 </script>
 
 <template>
-    <div class="graph-tile" v-if="isChartTile">
-        <h1 v-if="title">{{ title }}</h1>
-        <Chart :chart-type="model.options.type" :data="model.data" :chart-style="model.style" :options="model.options">
-        </Chart>
-    </div>
-    <div class="graph-tile" v-if="isFilterableChartTile">
-        <h1 v-if="title">{{ title }}</h1>
-        <FilterableChart :chart-models="model.models" :choices="model.choices">
-        </FilterableChart>
+    <div>
+        <div class="graph-tile" v-if="isChartTile">
+            <h1 v-if="title">{{ title }}</h1>
+            <Chart :chart-type="model.options.type" :data="model.data" :chart-style="model.style" :options="model.options">
+            </Chart>
+        </div>
+        <div class="graph-tile" v-if="isFilterableChartTile">
+            <h1 v-if="title">{{ title }}</h1>
+            <FilterableChart :chart-models="model.models" :choices="model.choices">
+            </FilterableChart>
+        </div>
     </div>
 </template>
 
