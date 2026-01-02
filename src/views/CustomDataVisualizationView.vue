@@ -68,6 +68,9 @@ import { defaultTeamNumber, minWidthForDesktop } from "@/lib/constants";
                         <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
                             @update:modelValue="setSeriesDropdownValue($event, index)">
                         </Dropdown>
+                        <Dropdown :choices="colorOptions" v-model="seriesDropdownList[index]['color']"
+                            @update:modelValue="setSeriesColorDropdownValue($event, index)">
+                        </Dropdown>
                     </template>
                 </ResizableList>
             </div>
@@ -181,7 +184,6 @@ export default {
                 heightRatio: 0.5,
             },
             activeData: {},
-            stagedData: {},
             chartModel: {
                 data: [],
                 style: []
@@ -193,6 +195,17 @@ export default {
             copyButtonText: "Copy",
             isDataLoaded: false,
             isTeamNumbersReady: false,
+            colorOptions: [
+                { key: "default", text: "Default" },
+                { key: "red", text: "Red" },
+                { key: "orange", text: "Orange" },
+                { key: "yellow", text: "Yellow" },
+                { key: "green", text: "Green" },
+                { key: "blue", text: "Blue" },
+                { key: "purple", text: "Purple" },
+                { key: "pink", text: "Pink" },
+            ],
+            yColorIndex: 0,
             eventStore: null,
             viewMode: null
         }
@@ -251,8 +264,12 @@ export default {
             this.seriesDropdownList[dropdownIndex]['series'] = index;
             this.loadNewData();
         },
+        setSeriesColorDropdownValue(index: number, dropdownIndex: number) {
+            this.seriesDropdownList[dropdownIndex]['color'] = index;
+            this.loadNewData();
+        },
         addSeriesDropdownListItem() {
-            const defaultItem = { 'series': 0 };
+            const defaultItem = { 'series': 0, color: 0 };
             this.seriesDropdownList.push(defaultItem);
             this.loadNewData();
         },
@@ -265,7 +282,7 @@ export default {
             this.loadNewData();
         },
         addRadarListDropdownListItem() {
-            const defaultItem = { 'comp': 0 };
+            const defaultItem = { 'comp': 0, 'color': 0 };
             this.radarDropdownList.push(defaultItem);
             this.loadNewData();
         },
@@ -303,7 +320,10 @@ export default {
         },
         async loadNewData() {
             let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']]?.key);
-            let dimensions = this.seriesDropdownList.map(item => ({ name: this.dataColumns[item['series']].key }));
+            let dimensions = this.seriesDropdownList.map(item => ({
+                name: this.dataColumns[item['series']].key,
+                color: this.colorOptions[item['color']].key
+            }));
 
             let queryInputs: QueryInputs = {
                 type: this.activeQuery,

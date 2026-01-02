@@ -103,15 +103,18 @@ export async function getChartModel(queryInputs: QueryInputs, chartInputs: Chart
         for (var i = 0; i < chartInputs.dimensions.length; i++) {
             chartModel.data.push(computeDiscreteDataSeries(processedData, chartInputs.independentColumn.name, chartInputs.dimensions[i]?.name, chartInputs.options.isSorted, chartInputs.options.isNormalized, chartInputs.options.maxDataPoints));
 
+            let barColor = randomColorWheel[i % randomColorWheel.length];
             if (chartInputs.dimensions[i]?.color) {
-                chartModel.style.push({
-                    "color": chartInputs.dimensions[i]?.color
-                });
-            } else {
-                chartModel.style.push({
-                    "color": randomColorWheel[i % randomColorWheel.length]
-                });
+                const colorInput = chartInputs.dimensions[i]?.color;
+                const themeColors = getThemeColors().colors;
+                if (Object.keys(themeColors).includes(colorInput)) {
+                    barColor = themeColors[colorInput];
+                }
             }
+
+            chartModel.style.push({
+                "color": barColor
+            });
         }
     } else if (chartInputs.type == "radar") {
         chartModel.data = computeRadarDataSeries(processedData, chartInputs.independentColumn.name, chartInputs.comparisonItems, chartInputs.dimensions);
