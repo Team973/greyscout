@@ -11,12 +11,42 @@ export const dataPointColorTranslucent = "#c7800080";
 export const dataPointAccentColor = "#009879";
 export const dataPointAccentColorTranslucent = "#00987980";
 
-
+const lightModeColors = {
+    red: '#f25d3fff',
+    orange: '#e0a43aff',
+    yellow: '#faf757ff',
+    green: '#74de62ff',
+    blue: '#6281deff',
+    purple: '#9364deff',
+    pink: '#d058e0ff',
+};
 export const randomColorWheelLightMode = [
-    '#f25d3fff', '#e0a43aff', '#faf757ff', '#74de62ff', '#6281deff', '#9364deff', '#de67e0ff', '#e0676fff'
+    lightModeColors['red'],
+    lightModeColors['orange'],
+    lightModeColors['yellow'],
+    lightModeColors['green'],
+    lightModeColors['blue'],
+    lightModeColors['purple'],
+    lightModeColors['pink']
 ]
+
+const darkModeColors = {
+    red: '#963724ff',
+    orange: '#9c6403ff',
+    yellow: '#9e9b0bff',
+    green: '#2e6924ff',
+    blue: '#213266ff',
+    purple: '#472c73ff',
+    pink: '#9d33abff',
+};
 export const randomColorWheelDarkMode = [
-    '#963724ff', '#9c6403ff', '#9e9b0bff', '#2e6924ff', '#213266ff', '#472c73ff', '#833685ff', '#75262bff'
+    darkModeColors['red'],
+    darkModeColors['orange'],
+    darkModeColors['yellow'],
+    darkModeColors['green'],
+    darkModeColors['blue'],
+    darkModeColors['purple'],
+    darkModeColors['pink']
 ]
 
 export const reefscapeColorWheel = [
@@ -110,7 +140,8 @@ const lightThemeColors = {
     text: chartTextColorLightMode,
     grid: chartGridColorLightMode,
     background: 'rgba(255, 255, 255, 0)',
-    wheels: colorWheelsLightMode
+    wheels: colorWheelsLightMode,
+    colors: lightModeColors
 }
 
 // Dark mode chart colors
@@ -133,7 +164,8 @@ const darkThemeColors = {
     text: chartTextColorDarkMode,
     grid: chartGridColorDarkMode,
     background: "#27272700",
-    wheels: colorWheelsDarkMode
+    wheels: colorWheelsDarkMode,
+    colors: darkModeColors
 }
 
 
