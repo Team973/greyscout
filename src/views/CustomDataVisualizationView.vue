@@ -13,13 +13,12 @@ import "@material/web/chips/filter-chip";
 import Dropdown from "@/components/Dropdown.vue";
 import ResizableList from "@/components/ResizableList.vue";
 import Chart from "@/components/charts/Chart.vue";
-import StatHighlight from "@/components/StatHighlight.vue";
 
 
 import { getChartModel } from "@/lib/chart-model";
 import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
-import { queryTeamNumbers } from "@/lib/data-query";
-import { defaultTeamNumber } from "@/lib/constants";
+import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
+import { defaultTeamNumber, minWidthForDesktop } from "@/lib/constants";
 
 </script>
 
@@ -68,6 +67,9 @@ import { defaultTeamNumber } from "@/lib/constants";
                     <template v-slot:item-content="{ index }">
                         <Dropdown :choices="dataColumns" v-model="seriesDropdownList[index]['series']"
                             @update:modelValue="setSeriesDropdownValue($event, index)">
+                        </Dropdown>
+                        <Dropdown :choices="colorOptions" v-model="seriesDropdownList[index]['color']"
+                            @update:modelValue="setSeriesColorDropdownValue($event, index)">
                         </Dropdown>
                     </template>
                 </ResizableList>
@@ -146,6 +148,7 @@ export default {
             ],
             activeAggregationTypeIndex: 0,
             teamNumbers: [],
+            matchNumbers: [],
             activeTeamNumberIndex: 0,
             independentColumns: [
                 { key: "prematch_match_number", text: "Match Number" },
@@ -182,7 +185,6 @@ export default {
                 heightRatio: 0.5,
             },
             activeData: {},
-            stagedData: {},
             chartModel: {
                 data: [],
                 style: []
@@ -194,6 +196,17 @@ export default {
             copyButtonText: "Copy",
             isDataLoaded: false,
             isTeamNumbersReady: false,
+            colorOptions: [
+                { key: "default", text: "Default" },
+                { key: "red", text: "Red" },
+                { key: "orange", text: "Orange" },
+                { key: "yellow", text: "Yellow" },
+                { key: "green", text: "Green" },
+                { key: "blue", text: "Blue" },
+                { key: "purple", text: "Purple" },
+                { key: "pink", text: "Pink" },
+            ],
+            yColorIndex: 0,
             eventStore: null,
             viewMode: null
         }
@@ -252,8 +265,12 @@ export default {
             this.seriesDropdownList[dropdownIndex]['series'] = index;
             this.loadNewData();
         },
+        setSeriesColorDropdownValue(index: number, dropdownIndex: number) {
+            this.seriesDropdownList[dropdownIndex]['color'] = index;
+            this.loadNewData();
+        },
         addSeriesDropdownListItem() {
-            const defaultItem = { 'series': 0 };
+            const defaultItem = { 'series': 0, color: 0 };
             this.seriesDropdownList.push(defaultItem);
             this.loadNewData();
         },
@@ -266,7 +283,7 @@ export default {
             this.loadNewData();
         },
         addRadarListDropdownListItem() {
-            const defaultItem = { 'comp': 0 };
+            const defaultItem = { 'comp': 0, 'color': 0 };
             this.radarDropdownList.push(defaultItem);
             this.loadNewData();
         },
@@ -297,14 +314,38 @@ export default {
             Object.keys(teamMap).forEach(element => {
                 this.teamNumbers.push(teamMap[element])
             });
-
-
             this.isTeamNumbersReady = true;
+
             this.loadNewData();
         },
         async loadNewData() {
+            let matchNums = [];
+            if (this.activeQuery == "team_query") {
+                let data = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
+                data.forEach(row => {
+                    matchNums.push({ key: row['prematch_match_number'], text: "Match " + row['prematch_match_number'] });
+                });
+            } else {
+                let data = await queryEventData(this.eventStore.eventId);
+                let matchMap = {}
+                for (var i = 0; i < data.length; i++) {
+                    const row = data[i];
+                    const matchNum = String(row['prematch_match_number']);
+
+                    if (!Object.keys(matchMap).includes(matchNum)) {
+                        matchNums.push({ key: matchNum, text: "Match " + matchNum });
+                        matchMap[matchNum] = 1;
+                    }
+                }
+            }
+            this.matchNumbers = matchNums;
+
+
             let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']]?.key);
-            let dimensions = this.seriesDropdownList.map(item => this.dataColumns[item['series']].key);
+            let dimensions = this.seriesDropdownList.map(item => ({
+                name: this.dataColumns[item['series']].key,
+                color: this.colorOptions[item['color']].key
+            }));
 
             let queryInputs: QueryInputs = {
                 type: this.activeQuery,
@@ -348,16 +389,16 @@ export default {
 
         // Data
         activeIndependentColumn() {
-            return this.independentColumns[this.activeIndependentColumnIndex].key;
+            return { name: this.independentColumns[this.activeIndependentColumnIndex].key };
         },
         activeIndependentColumnText() {
             return this.independentColumns[this.activeIndependentColumnIndex].text;
         },
         activeSeriesY() {
-            return this.dataColumns[this.activeDataYColumnIndex].key;
+            return { name: this.dataColumns[this.activeDataYColumnIndex].key };
         },
         activeSeriesX() {
-            return this.dataColumns[this.activeDataXColumnIndex].key;
+            return { name: this.dataColumns[this.activeDataXColumnIndex].key };
         },
         activeChartData() {
             if (!this.isDataLoaded) {
@@ -378,9 +419,12 @@ export default {
             return this.aggregationTypes[this.activeAggregationTypeIndex].key;
         },
         activeIndependentColumnChoices() {
-            if (this.activeIndependentColumn == "prematch_team_number") {
+            if (this.activeIndependentColumn.name == "prematch_team_number") {
                 return this.teamNumbers;
+            } else if (this.activeIndependentColumn.name == "prematch_match_number") {
+                return this.matchNumbers;
             }
+
             return [];
         },
 
@@ -400,7 +444,14 @@ export default {
         this.initializePage();
 
         this.viewMode.$subscribe((mutation, state) => {
-            this.loadNewData();
+            const isScreenWidth = mutation?.events?.key == 'screenWidth';
+            const isOldWidthMobile = mutation?.events?.oldValue <= minWidthForDesktop;
+            const isNewWidthMobile = mutation?.events?.newValue <= minWidthForDesktop;
+            const didCrossMobileThreshold = isScreenWidth && (isOldWidthMobile != isNewWidthMobile);
+
+            if (mutation?.events.key == 'darkMode' || didCrossMobileThreshold) {
+                this.loadNewData();
+            }
         })
     }
 }

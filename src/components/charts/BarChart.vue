@@ -41,7 +41,7 @@ export default {
     },
     computed: {
         uniqueKey() {
-            return JSON.stringify(this.data);// + JSON.stringify(getThemeColors());
+            return JSON.stringify(this.data);
         },
         chartData() {
             let labels = [];
@@ -62,9 +62,20 @@ export default {
             return chart;
         },
         chartOptions() {
+            let valueColumnLabel = "";
+            let labelColumnLabel = "";
+            if (this.data.length > 0) {
+                valueColumnLabel = this.data[0].name;
+                labelColumnLabel = this.data[0].label;
+            }
+
             let indexAxis = 'x';
+            let yAxisLabel = valueColumnLabel;
+            let xAxisLabel = labelColumnLabel;
             if (this.isHorizontal) {
                 indexAxis = 'y';
+                xAxisLabel = valueColumnLabel;
+                yAxisLabel = labelColumnLabel;
             }
 
             let options = {
@@ -90,7 +101,12 @@ export default {
                         },
                         ticks: {
                             color: getThemeColors().text.axesText
-                        }
+                        },
+                        title: {
+                            text: xAxisLabel,
+                            display: true,
+                            color: getThemeColors().text.axesText
+                        },
                     },
                     y: {
                         min: this.yRange?.min,
@@ -100,7 +116,12 @@ export default {
                         },
                         ticks: {
                             color: getThemeColors().text.axesText
-                        }
+                        },
+                        title: {
+                            text: yAxisLabel,
+                            display: true,
+                            color: getThemeColors().text.axesText
+                        },
                     },
                 }
             };

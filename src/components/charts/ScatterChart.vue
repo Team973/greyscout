@@ -22,8 +22,6 @@ ChartJS.register(Title, Tooltip, Legend, PointElement, CategoryScale, LinearScal
 <script lang="ts">
 export default {
     props: {
-        columnX: "",
-        columnY: "",
         data: Array,
         series: {
             default: ""
@@ -87,10 +85,12 @@ export default {
             };
 
             // Label the axes.
+            const columnX = this.data[0].xAxis;
+            const columnY = this.data[0].name;
             this.options.scales = {
                 x: {
                     title: {
-                        text: this.columnX,
+                        text: columnX,
                         display: true,
                         color: getThemeColors().text.axesText
                     },
@@ -103,7 +103,7 @@ export default {
                 },
                 y: {
                     title: {
-                        text: this.columnY,
+                        text: columnY,
                         display: true,
                         color: getThemeColors().text.axesText
                     },

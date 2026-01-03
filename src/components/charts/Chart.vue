@@ -36,7 +36,7 @@ import PieChart from "./PieChart.vue";
         </BoxPlot>
 
         <StackedBarChart :key="uniqueKey(4)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"
-            v-else-if="isStackedBarChartView">
+            :is-horizontal="options.isHorizontal" v-else-if="isStackedBarChartView">
         </StackedBarChart>
 
         <RadarChart :key="uniqueKey(5)" :data="chartData" :chart-style="chartStyle" :height="chartHeight"

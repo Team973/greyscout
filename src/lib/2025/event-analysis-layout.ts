@@ -16,9 +16,9 @@ export function getEventAnalysisLayout(eventId) {
                 },
                 "chartInputs": {
                     "type": "boxplot",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "teleop_coral",
-                    "xSeries": "teleop_coral",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "teleop_coral" },
+                    "xSeries": { name: "teleop_coral" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
@@ -28,7 +28,7 @@ export function getEventAnalysisLayout(eventId) {
                         "xRange": null,
                         "yRange": null,
                         "height": null,
-                        "heightRatio": 0.75
+                        "heightRatio": 0.5
                     }
                 }
             }
@@ -44,9 +44,9 @@ export function getEventAnalysisLayout(eventId) {
                 },
                 "chartInputs": {
                     "type": "boxplot",
-                    "independentColumn": "prematch_team_number",
-                    "ySeries": "auto_coral",
-                    "xSeries": "auto_coral",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "auto_coral" },
+                    "xSeries": { name: "auto_coral" },
                     "dimensions": [],
                     "comparisonItems": [],
                     "options": {
@@ -56,7 +56,37 @@ export function getEventAnalysisLayout(eventId) {
                         "xRange": null,
                         "yRange": null,
                         "height": null,
-                        "heightRatio": 0.75
+                        "heightRatio": 0.5
+                    }
+                }
+            }
+        },
+        {
+            type: "chart",
+            title: "Algae Scoring",
+            inputs: {
+                "queryInputs": {
+                    "type": "event_query",
+                    "teamNumber": null,
+                    "eventId": eventId,
+                    "aggregationFn": "mean"
+                },
+                "chartInputs": {
+                    "type": "scatter",
+                    "independentColumn": { name: "prematch_team_number" },
+                    "ySeries": { name: "teleop_net" },
+                    "xSeries": { name: "teleop_processor" },
+                    "dimensions": [],
+                    "comparisonItems": [],
+                    "options": {
+                        "isSorted": false,
+                        "isNormalized": false,
+                        "isHorizontal": false,
+                        "maxDataPoints": null,
+                        "xRange": null,
+                        "yRange": null,
+                        "height": null,
+                        "heightRatio": 0.5
                     }
                 }
             }
