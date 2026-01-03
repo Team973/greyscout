@@ -25,6 +25,7 @@ export async function processLayout(tileLayout) {
         }
 
         tileModels.push({
+            id: i,
             type: type,
             model: tileModel,
             title: title

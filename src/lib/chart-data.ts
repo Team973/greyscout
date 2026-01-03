@@ -7,6 +7,7 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
     // This function assumes the keys of "data" are the labels.
     var dataSeries = {
         "name": valueColumn,
+        "label": labelColumn,
         "labels": [],
         "y": []
     };
@@ -40,8 +41,8 @@ export function computeDiscreteDataSeries(data, labelColumn, valueColumn, isSort
 
     // Limit the amount of data shown if requested.
     if (maxDataPoints != null) {
-        dataSeries.labels = labels.slice(0, maxDataPoints);
-        dataSeries.y = y.slice(0, maxDataPoints);
+        dataSeries.labels = dataSeries.labels.slice(0, maxDataPoints);
+        dataSeries.y = dataSeries.y.slice(0, maxDataPoints);
     }
 
     return dataSeries;
@@ -64,6 +65,7 @@ export function computeCartesianDataSeries(data, xColumn, yColumn, labelColumn) 
     // The labels in this data series are the values that would show up in a chart tooltip.
     var dataSeries = {
         "name": yColumn,
+        'xAxis': xColumn,
         "labels": [],
         "x": [],
         "y": []
@@ -144,6 +146,7 @@ export function computeSampledDataSeries(data, keyColumn, valueColumn, isSorted 
 
     let sampledDataSeries = {
         name: valueColumn,
+        label: keyColumn,
         labels: labels,
         values: values
     };
@@ -158,15 +161,20 @@ export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, 
         return datasets;
     }
 
+    let columnLabels = [];
+    dimensionColumns.forEach(col => {
+        columnLabels.push(col.name);
+    });
+
     data.forEach(row => {
         if (comparisonItems.includes(row[comparisonColumn])) {
             let itemValues = []
             dimensionColumns.forEach(col => {
-                itemValues.push(row[col]);
+                itemValues.push(row[col.name]);
             });
 
             datasets.push({
-                'labels': dimensionColumns,
+                'labels': columnLabels,
                 'name': row[comparisonColumn],
                 'y': itemValues
             });

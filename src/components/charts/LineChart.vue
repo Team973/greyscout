@@ -52,8 +52,12 @@ export default {
         },
         chartData() {
             let labels = [];
+            let valueColumnLabel = "";
+            let labelColumnLabel = "";
             if (this.data.length > 0) {
                 labels = this.data[0].labels;
+                valueColumnLabel = this.data[0].name;
+                labelColumnLabel = this.data[0].label;
             }
 
             let datasets = discreteDataSeriesToChartJSDatasets(this.data);
@@ -73,7 +77,12 @@ export default {
                     },
                     ticks: {
                         color: getThemeColors().text.axesText
-                    }
+                    },
+                    title: {
+                        text: labelColumnLabel,
+                        display: true,
+                        color: getThemeColors().text.axesText
+                    },
                 },
                 y: {
                     grid: {
@@ -81,7 +90,12 @@ export default {
                     },
                     ticks: {
                         color: getThemeColors().text.axesText
-                    }
+                    },
+                    title: {
+                        text: valueColumnLabel,
+                        display: true,
+                        color: getThemeColors().text.axesText
+                    },
                 }
             };
 

@@ -4,18 +4,26 @@
 
 import Chart from "@/components/charts/Chart.vue";
 import FilterableChart from "@/components/charts/FilterableChart.vue";
+
+
+import '@material/web/icon/icon';
 </script>
 
 <template>
-    <div class="graph-tile" v-if="isChartTile">
-        <h1 v-if="title">{{ title }}</h1>
-        <Chart :chart-type="model.options.type" :data="model.data" :chart-style="model.style" :options="model.options">
-        </Chart>
-    </div>
-    <div class="graph-tile" v-if="isFilterableChartTile">
-        <h1 v-if="title">{{ title }}</h1>
-        <FilterableChart :chart-models="model.models" :choices="model.choices">
-        </FilterableChart>
+    <div class="tile-container">
+        <div v-if="canDrag" class="drag-indicator handle">
+            <md-icon slot="icon">drag_indicator</md-icon>
+        </div>
+        <div v-if="isChartTile" class="tile-body">
+            <h1 v-if="title">{{ title }}</h1>
+            <Chart :chart-type="model.options.type" :data="model.data" :chart-style="model.style" :options="model.options">
+            </Chart>
+        </div>
+        <div v-if="isFilterableChartTile" class="tile-body">
+            <h1 v-if="title">{{ title }}</h1>
+            <FilterableChart :chart-models="model.models" :choices="model.choices">
+            </FilterableChart>
+        </div>
     </div>
 </template>
 
@@ -30,6 +38,9 @@ export default {
         },
         title: {
             default: null
+        },
+        canDrag: {
+            default: false
         }
     },
     computed: {
@@ -43,4 +54,9 @@ export default {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.drag-indicator {
+    text-align: left;
+    cursor: move;
+}
+</style>
