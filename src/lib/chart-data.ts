@@ -161,6 +161,9 @@ export function computeRadarDataSeries(data, comparisonColumn, comparisonItems, 
         return datasets;
     }
 
+    console.log(comparisonColumn);
+    console.log(comparisonItems)
+
     let columnLabels = [];
     dimensionColumns.forEach(col => {
         columnLabels.push(col.name);

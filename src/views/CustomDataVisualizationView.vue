@@ -17,7 +17,7 @@ import Chart from "@/components/charts/Chart.vue";
 
 import { getChartModel } from "@/lib/chart-model";
 import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
-import { queryTeamNumbers } from "@/lib/data-query";
+import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
 import { defaultTeamNumber, minWidthForDesktop } from "@/lib/constants";
 
 </script>
@@ -148,6 +148,7 @@ export default {
             ],
             activeAggregationTypeIndex: 0,
             teamNumbers: [],
+            matchNumbers: [],
             activeTeamNumberIndex: 0,
             independentColumns: [
                 { key: "prematch_match_number", text: "Match Number" },
@@ -313,12 +314,33 @@ export default {
             Object.keys(teamMap).forEach(element => {
                 this.teamNumbers.push(teamMap[element])
             });
-
-
             this.isTeamNumbersReady = true;
+
             this.loadNewData();
         },
         async loadNewData() {
+            let matchNums = [];
+            if (this.activeQuery == "team_query") {
+                let data = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
+                data.forEach(row => {
+                    matchNums.push({ key: row['prematch_match_number'], text: "Match " + row['prematch_match_number'] });
+                });
+            } else {
+                let data = await queryEventData(this.eventStore.eventId);
+                let matchMap = {}
+                for (var i = 0; i < data.length; i++) {
+                    const row = data[i];
+                    const matchNum = String(row['prematch_match_number']);
+
+                    if (!Object.keys(matchMap).includes(matchNum)) {
+                        matchNums.push({ key: matchNum, text: "Match " + matchNum });
+                        matchMap[matchNum] = 1;
+                    }
+                }
+            }
+            this.matchNumbers = matchNums;
+
+
             let comparisonItems = this.radarDropdownList.map(item => this.activeIndependentColumnChoices[item['comp']]?.key);
             let dimensions = this.seriesDropdownList.map(item => ({
                 name: this.dataColumns[item['series']].key,
@@ -399,7 +421,10 @@ export default {
         activeIndependentColumnChoices() {
             if (this.activeIndependentColumn.name == "prematch_team_number") {
                 return this.teamNumbers;
+            } else if (this.activeIndependentColumn.name == "prematch_match_number") {
+                return this.matchNumbers;
             }
+
             return [];
         },
 
