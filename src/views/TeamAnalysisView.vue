@@ -26,7 +26,7 @@ import { minWidthForDesktop } from "@/lib/constants";
 <template>
     <div class="main-content">
         <h1>Team Analysis</h1>
-        <div v-if="teamsLoaded && isDataAvailable">
+        <div v-if="teamLoaded && isDataAvailable">
             <!-- Only show this if the team data is loaded. -->
             <Dropdown :choices="teamFilters" v-model="currentTeamIndex" @update:modelValue="setTeam"></Dropdown>
 
@@ -55,12 +55,13 @@ import { minWidthForDesktop } from "@/lib/constants";
                     </div>
                 </div>
 
-                <div v-if="teamsLoaded">
+                <div v-if="teamLoaded">
                     <!-- <div v-for="tile in tileModels">
                         <Tile :type="tile.type" :model="tile.model" :title="tile.title">
                         </Tile>
                     </div> -->
-                    <draggable v-model="tileModelList" group="graphs" item-key="id" @end="updateLayout" handle=".handle">
+                    <draggable v-model="tileModelList" group="graphs" item-key="id" @end="updateLayout" handle=".handle"
+                        :key="teamNumber">
                         <template #item="{ element }">
                             <Tile :type="element.type" :model="element.model" :title="element.title" class="draggable-tile"
                                 can-drag="true">
@@ -70,7 +71,7 @@ import { minWidthForDesktop } from "@/lib/constants";
                 </div>
             </div>
         </div>
-        <div v-else-if="teamsLoaded">
+        <div v-else-if="teamLoaded">
             <h2>No Data Available</h2>
         </div>
     </div>
@@ -83,7 +84,7 @@ export default {
             viewMode: null,
             eventStore: null,
             authStore: null,
-            teamsLoaded: false,
+            teamLoaded: false,
             teamPhotoLoaded: false,
             teamPhotoAvailable: false,
             teamPhotoUrl: "",
@@ -102,13 +103,8 @@ export default {
             // Load all the team numbers for the event.
             await this.loadTeamNumbers();
 
-            this.currentLayout = getTeamAnalysisLayout(this.getTeamNumber(), this.eventStore.eventId);
-
             // Load all the charts.
             await this.refreshTiles();
-
-            // Mark the data as ready for the view to display.
-            this.teamsLoaded = true;
 
             // Load the robot photo.
             this.getRobotPhoto();
@@ -135,6 +131,9 @@ export default {
             this.getRobotPhoto();
         },
         async refreshTiles() {
+            this.teamLoaded = false;
+            this.currentLayout = getTeamAnalysisLayout(this.getTeamNumber(), this.eventStore.eventId);
+
             // Only show the top chart items if this is on a phone (for applicable chart types).
             const maxItems = this.viewMode.isMobile ? 6 : null;
             this.currentLayout.forEach(model => {
@@ -148,6 +147,7 @@ export default {
             });
 
             this.tileModelList = await processLayout(this.currentLayout);
+            this.teamLoaded = true;
         },
         async getRobotPhoto() {
             // This function can only work once teams are loaded due to the dependence on getTeamNumber.
@@ -265,6 +265,13 @@ export default {
         },
         isUserWriteAccess() {
             return this.authStore.isWriteAuthorized;
+        },
+        teamNumber() {
+            if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
+                return -1;
+            }
+
+            return this.teamFilters[this.currentTeamIndex].key;
         }
     },
     created() {
