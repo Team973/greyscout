@@ -290,25 +290,4 @@ export default {
 }
 </script>
 
-<style>
-.radar-graph-container {
-    /* height: 60vh; */
-    min-width: 30vw;
-}
-
-.match-progression-container {
-    min-height: 60vh;
-}
-
-.quarter-page-width {
-    min-width: 25vw;
-}
-
-.half-page-width {
-    min-width: 50vw;
-}
-
-.three-quarter-page-width {
-    min-width: 75vw;
-}
-</style>
+<style scoped></style>

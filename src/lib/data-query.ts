@@ -3,7 +3,7 @@
 
 
 import { supabase } from "@/lib/supabase-client";
-import { projectId, matchScoutTable, pitScoutTable, teamInfoTable, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
+import { matchScoutTable, teamInfoTable, teamNumberColumn } from "@/lib/constants";
 
 export async function queryTeamNumbers(eventId) {
     const { data, error } = await supabase.from(teamInfoTable).select().eq('event_id', eventId);
@@ -17,7 +17,7 @@ export async function queryTeamNumbers(eventId) {
 }
 
 export async function queryTeamMatchData(teamNumber, eventId) {
-    const { data, error } = await supabase.from(matchScoutTable).select().eq('event', eventId).eq("prematch_team_number", teamNumber);
+    const { data, error } = await supabase.from(matchScoutTable).select().eq('event', eventId).eq(teamNumberColumn, teamNumber);
 
     if (error) {
         console.log(error);

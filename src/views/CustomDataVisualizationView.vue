@@ -18,7 +18,7 @@ import Chart from "@/components/charts/Chart.vue";
 import { getChartModel } from "@/lib/chart-model";
 import type { QueryInputs, ChartInputs } from "@/lib/chart-model";
 import { queryTeamMatchData, queryTeamNumbers, queryEventData } from "@/lib/data-query";
-import { defaultTeamNumber, minWidthForDesktop } from "@/lib/constants";
+import { defaultTeamNumber, minWidthForDesktop, teamNumberColumn, matchNumberColumn } from "@/lib/constants";
 
 </script>
 
@@ -151,8 +151,8 @@ export default {
             matchNumbers: [],
             activeTeamNumberIndex: 0,
             independentColumns: [
-                { key: "prematch_match_number", text: "Match Number" },
-                { key: "prematch_team_number", text: "Team Number" }
+                { key: matchNumberColumn, text: "Match Number" },
+                { key: teamNumberColumn, text: "Team Number" }
             ],
             activeIndependentColumnIndex: 0,
             dataColumns: [
@@ -323,14 +323,14 @@ export default {
             if (this.activeQuery == "team_query") {
                 let data = await queryTeamMatchData(this.teamNumber, this.eventStore.eventId);
                 data.forEach(row => {
-                    matchNums.push({ key: row['prematch_match_number'], text: "Match " + row['prematch_match_number'] });
+                    matchNums.push({ key: row[matchNumberColumn], text: "Match " + row[matchNumberColumn] });
                 });
             } else {
                 let data = await queryEventData(this.eventStore.eventId);
                 let matchMap = {}
                 for (var i = 0; i < data.length; i++) {
                     const row = data[i];
-                    const matchNum = String(row['prematch_match_number']);
+                    const matchNum = String(row[matchNumberColumn]);
 
                     if (!Object.keys(matchMap).includes(matchNum)) {
                         matchNums.push({ key: matchNum, text: "Match " + matchNum });
@@ -419,9 +419,9 @@ export default {
             return this.aggregationTypes[this.activeAggregationTypeIndex].key;
         },
         activeIndependentColumnChoices() {
-            if (this.activeIndependentColumn.name == "prematch_team_number") {
+            if (this.activeIndependentColumn.name == teamNumberColumn) {
                 return this.teamNumbers;
-            } else if (this.activeIndependentColumn.name == "prematch_match_number") {
+            } else if (this.activeIndependentColumn.name == matchNumberColumn) {
                 return this.matchNumbers;
             }
 
