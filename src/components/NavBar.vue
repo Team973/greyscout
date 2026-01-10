@@ -25,6 +25,7 @@ import { useAuthStore } from "@/stores/auth-store";
                 </div>
             </template>
             <template v-slot:menu-content>
+                <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink>
                 <!-- <RouterLink to="/scout" class="nav-link nav-link-mobile">Match Scouting</RouterLink> -->
                 <!-- <RouterLink to="/pit-scout" class="nav-link nav-link-mobile">Pit Scouting</RouterLink> -->
                 <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink>
@@ -53,6 +54,7 @@ import { useAuthStore } from "@/stores/auth-store";
         </HamburgerMenu>
     </div>
     <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
+        <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink>
         <!-- <RouterLink to="/scout" class="nav-link">Match Scouting</RouterLink> -->
         <!-- <RouterLink to="/pit-scout" class="nav-link">Pit Scouting</RouterLink> -->
         <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink>
@@ -117,6 +119,9 @@ export default {
         },
         isLoggedIn() {
             return this.authStore?.isUserLoggedIn;
+        },
+        isWriteAccess() {
+            return this.authStore?.isWriteAuthorized;
         }
     },
     methods: {

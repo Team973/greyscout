@@ -77,7 +77,7 @@ export async function getChartModel(queryInputs: QueryInputs, chartInputs: Chart
         dbData = await queryEventData(queryInputs.eventId);
     }
 
-    if (!dbData) {
+    if (!dbData || dbData.length == 0) {
         return chartModel;
     }
 
