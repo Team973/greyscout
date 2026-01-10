@@ -5,7 +5,7 @@
 import { getAllianceOverview } from "@/lib/2025/alliance-overview";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { teamInfoTable } from "@/lib/constants";
+import { teamInfoTable, teamNumberColumn } from "@/lib/constants";
 import { queryEventData } from "@/lib/data-query";
 import { aggregateData } from "@/lib/data-transforms";
 
@@ -97,7 +97,6 @@ export default {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
 
-            const teamNumberColumn = "prematch_team_number";
             let dbData = await queryEventData(this.eventStore.eventId);
             let aggregatedData = aggregateData(dbData, teamNumberColumn, mean);
             this.teamsData = {};

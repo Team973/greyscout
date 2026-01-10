@@ -1,9 +1,10 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { isSiteReadPrivate } from "@/lib/constants";
+import { isSiteReadPrivate, isSiteWritePrivate } from "@/lib/constants";
 
 import { createRouter, createWebHistory } from "vue-router";
+import DataUploadView from "@/views/DataUploadView.vue";
 import MatchScoutView from "@/views/MatchScoutView.vue";
 import PitScoutView from "@/views/PitScoutView.vue";
 import TeamAnalysisView from "@/views/TeamAnalysisView.vue";
@@ -23,6 +24,14 @@ const router = createRouter({
       component: LoginView
     },
     {
+      path: "/upload",
+      name: "Data Upload | GreyScout",
+      component: DataUploadView,
+      meta: {
+        requiresAuth: isSiteWritePrivate
+      }
+    },
+    {
       path: "/event",
       name: "Event Analysis | GreyScout",
       component: EventAnalysisView,
@@ -30,22 +39,22 @@ const router = createRouter({
         requiresAuth: isSiteReadPrivate
       }
     },
-    {
-      path: "/scout",
-      name: "Match Scouting | GreyScout",
-      component: MatchScoutView,
-      meta: {
-        requiresAuth: isSiteReadPrivate
-      }
-    },
-    {
-      path: "/pit-scout",
-      name: "Pit Scouting | GreyScout",
-      component: PitScoutView,
-      meta: {
-        requiresAuth: isSiteReadPrivate
-      }
-    },
+    // {
+    //   path: "/scout",
+    //   name: "Match Scouting | GreyScout",
+    //   component: MatchScoutView,
+    //   meta: {
+    //     requiresAuth: isSiteReadPrivate
+    //   }
+    // },
+    // {
+    //   path: "/pit-scout",
+    //   name: "Pit Scouting | GreyScout",
+    //   component: PitScoutView,
+    //   meta: {
+    //     requiresAuth: isSiteReadPrivate
+    //   }
+    // },
     {
       path: "/team",
       name: "Team Analysis | GreyScout",
