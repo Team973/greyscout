@@ -13,6 +13,7 @@ import MatchPreviewView from "@/views/MatchPreviewView.vue";
 import CustomDataVisualizationView from "@/views/CustomDataVisualizationView.vue";
 import LoginView from "@/views/LoginView.vue";
 import AccountView from "@/views/AccountView.vue";
+import PicklistView from "@/views/PicklistView.vue";
 import { useAuthStore } from "@/stores/auth-store";
 
 const router = createRouter({
@@ -39,22 +40,22 @@ const router = createRouter({
         requiresAuth: isSiteReadPrivate
       }
     },
-    // {
-    //   path: "/scout",
-    //   name: "Match Scouting | GreyScout",
-    //   component: MatchScoutView,
-    //   meta: {
-    //     requiresAuth: isSiteReadPrivate
-    //   }
-    // },
-    // {
-    //   path: "/pit-scout",
-    //   name: "Pit Scouting | GreyScout",
-    //   component: PitScoutView,
-    //   meta: {
-    //     requiresAuth: isSiteReadPrivate
-    //   }
-    // },
+    {
+      path: "/match",
+      name: "Match Scouting | GreyScout",
+      component: MatchScoutView,
+      meta: {
+        requiresAuth: isSiteReadPrivate
+      }
+    },
+    {
+      path: "/pit",
+      name: "Pit Scouting | GreyScout",
+      component: PitScoutView,
+      meta: {
+        requiresAuth: isSiteReadPrivate
+      }
+    },
     {
       path: "/team",
       name: "Team Analysis | GreyScout",
@@ -98,6 +99,14 @@ const router = createRouter({
       component: AccountView,
       meta: {
         requiresAuth: true
+      }
+    },
+    {
+      path: "/picklist",
+      name: "Pick List | GreyScout",
+      component: PicklistView,
+      meta: {
+        requiresAuth: isSiteReadPrivate
       }
     }
   ],

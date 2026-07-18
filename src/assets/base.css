@@ -332,3 +332,25 @@ div.tile-item {
   background-color: rgb(88, 88, 232);
   color: white
 }
+
+/* ── Picklist utilities ─────────────────────────────────── */
+
+/* Global offline banner (used by OfflineQueue.vue) */
+.offline-banner-global {
+  position: fixed;
+  top: 65px;
+  left: 0;
+  right: 0;
+  z-index: 9990;
+  background: #b05703;
+  color: #fff;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Picklist page max-width wrapper */
+.picklist-page {
+  max-width: 860px;
+}

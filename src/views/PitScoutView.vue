@@ -5,7 +5,7 @@ import QRCode from "@/components/QRCode.vue";
 
 
 import { pitScoutTable } from "@/lib/constants";
-import { getPitScoutSchema } from "@/lib/2025/pit-scouting-form";
+import { getPitScoutSchema } from "@/lib/2026/pit-scouting-form";
 import { validateForm, parseScoutData, submitScoutData } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 

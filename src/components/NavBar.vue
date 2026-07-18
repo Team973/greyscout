@@ -9,6 +9,7 @@ import HamburgerMenu from '@/components/HamburgerMenu.vue';
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useEventStore } from '@/stores/event-store';
 import { useAuthStore } from "@/stores/auth-store";
+import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 </script>
 
 <template>
@@ -26,12 +27,13 @@ import { useAuthStore } from "@/stores/auth-store";
             </template>
             <template v-slot:menu-content>
                 <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink>
-                <!-- <RouterLink to="/scout" class="nav-link nav-link-mobile">Match Scouting</RouterLink> -->
-                <!-- <RouterLink to="/pit-scout" class="nav-link nav-link-mobile">Pit Scouting</RouterLink> -->
-                <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink>
+                <RouterLink to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
+                <RouterLink to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
+                <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
-                <RouterLink to="/match" class="nav-link nav-link-mobile">Match Preview</RouterLink>
-                <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink>
+                <!-- <RouterLink to="/match" class="nav-link nav-link-mobile">Match Preview</RouterLink> -->
+                <RouterLink to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
+                <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
                 <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
             </template>
         </HamburgerMenu>
@@ -55,18 +57,21 @@ import { useAuthStore } from "@/stores/auth-store";
     </div>
     <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink>
-        <!-- <RouterLink to="/scout" class="nav-link">Match Scouting</RouterLink> -->
-        <!-- <RouterLink to="/pit-scout" class="nav-link">Pit Scouting</RouterLink> -->
-        <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink>
+        <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
+        <RouterLink to="/pit" class="nav-link">Pit Scouting</RouterLink>
+        <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
-        <RouterLink to="/match" class="nav-link">Match Preview</RouterLink>
-        <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink>
+        <!-- <RouterLink to="/match" class="nav-link">Match Preview</RouterLink> -->
+        <RouterLink to="/picklist" class="nav-link">Pick List</RouterLink>
+        <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
 
         <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
             <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
             <md-icon slot="icon" v-else>light_mode</md-icon>
         </div>
         <div class="nav-text nav-right">{{ eventName }}</div>
+        <div class="nav-online-dot nav-right" :class="isOnline ? 'nav-online-dot--online' : 'nav-online-dot--offline'"
+            :title="isOnline ? 'Online' : 'Offline'"></div>
         <div class="nav-dark-mode nav-right" @click="userLogin">
             <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
             <md-icon slot="icon" v-else>account_circle</md-icon>
@@ -100,7 +105,9 @@ export default {
             windowWidth: window.innerWidth,
             viewMode: null,
             eventStore: null,
-            authStore: null
+            authStore: null,
+            queueStore: null,
+            isOnline: navigator.onLine
         }
     },
     created() {
@@ -109,6 +116,11 @@ export default {
 
         this.authStore = useAuthStore();
         this.authStore.checkUser();
+
+        this.queueStore = useOfflineQueueStore();
+
+        window.addEventListener('online', () => { this.isOnline = true; });
+        window.addEventListener('offline', () => { this.isOnline = false; });
     },
     computed: {
         eventName() {
@@ -244,5 +256,28 @@ a.nav-link-mobile {
 
 .nav-dark-mode:hover {
     background-color: var(--header-auxillary-button-hover-color);
+}
+
+.nav-online-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+.nav-online-dot--online {
+    background-color: #3ab83a;
+    box-shadow: 0 0 0 2px rgba(58, 184, 58, 0.35);
+}
+
+.nav-online-dot--offline {
+    background-color: #e05050;
+    box-shadow: 0 0 0 2px rgba(224, 80, 80, 0.35);
 }
 </style>

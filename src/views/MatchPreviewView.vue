@@ -2,7 +2,7 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { getAllianceOverview } from "@/lib/2025/alliance-overview";
+import { getAllianceOverview } from "@/lib/2026/alliance-overview";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { teamInfoTable, teamNumberColumn } from "@/lib/constants";

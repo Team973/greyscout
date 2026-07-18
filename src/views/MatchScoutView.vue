@@ -4,7 +4,7 @@ import FormSection from "@/components/FormSection.vue";
 import QRCode from "@/components/QRCode.vue";
 
 import { matchScoutTable } from "@/lib/constants";
-import { getMatchScoutSchema } from "@/lib/2025/match-scouting-form";
+import { getMatchScoutSchema } from "@/lib/2026/match-scouting-form";
 import { validateForm, parseScoutData, submitScoutData } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 
@@ -163,7 +163,7 @@ export default {
     computed: {
         getAllianceColor() {
             // This is hardcoded, so it may need to change.
-            const switchPos = this.scoutForm[0].components[4].value;
+            const switchPos = this.scoutForm[0].components[2].value;
             let allianceColor = switchPos ? "blue" : "red";
             return allianceColor;
         },

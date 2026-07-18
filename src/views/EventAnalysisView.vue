@@ -11,7 +11,7 @@ import draggable from 'vuedraggable'
 
 import Tile from "@/components/Tile.vue";
 
-import { getEventAnalysisLayout } from "@/lib/2025/event-analysis-layout";
+import { getEventAnalysisLayout } from "@/lib/2026/event-analysis-layout";
 import { processLayout } from "@/lib/process-layout";
 import { minWidthForDesktop } from "@/lib/constants";
 </script>

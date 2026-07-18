@@ -16,7 +16,7 @@ import Dropdown from "@/components/Dropdown.vue";
 import Tile from "@/components/Tile.vue";
 
 import { supabase } from "@/lib/supabase-client";
-import { getTeamAnalysisLayout } from "@/lib/2025/team-analysis-layout";
+import { getTeamAnalysisLayout } from "@/lib/2026/team-analysis-layout";
 import { processLayout } from "@/lib/process-layout";
 import { queryTeamNumbers } from "@/lib/data-query";
 import { minWidthForDesktop } from "@/lib/constants";
@@ -210,7 +210,8 @@ export default {
         },
         async uploadImage() {
             await this.authStore.checkUser();
-            if (!this.authStore.isUserWriteAccess) {
+            if (!this.authStore.isWriteAuthorized) {
+                console.log("Error: user not authorized to upload images!")
                 // Early exit if the user is not authorized to upload images.
                 return;
             }
