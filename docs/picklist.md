@@ -51,6 +51,10 @@ The democratic tab shows a read-only ranking computed from all personal lists su
 
 On the **Team List** tab, leads/admins can click **↺ Reset from Democratic** to overwrite the current team list with the current democratic ranking as a starting point, then continue reordering from there. This immediately saves — it's a real overwrite, not a staged draft — so use it when you want to discard the team list's current order, not to preview the democratic results. The button is disabled when no personal lists have been submitted yet (nothing to copy).
 
+### Per-Team Rank Stats
+
+Rows on the **Democratic** and **Team List** tabs show four numbers next to each team, summarizing where that team landed across every scout's personal list: **Hi** (highest/best rank any scout gave it), **Lo** (lowest/worst rank), **Avg** (mean rank), and **Med** (median rank). A team no scout has picked yet shows "No picks yet" instead. These numbers reflect the *raw rank position* a team received (1st, 2nd, …) in each personal list — not the democratic score used to order the Democratic tab itself, so a team can have a strong average rank while still sitting lower in the democratic order if fewer scouts included it. This is meant to help leads judge consensus (or disagreement) while building the team list — it isn't shown on **My List**, since a single list has no variance to summarize.
+
 ---
 
 ## Offline Behaviour

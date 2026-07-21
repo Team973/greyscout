@@ -266,3 +266,51 @@ export function computeDemocraticRanking(
         .sort(([, a], [, b]) => b - a)
         .map(([teamNum]) => Number(teamNum));
 }
+
+export interface TeamRankStats {
+    count: number;
+    highest: number; // best (lowest-numbered) 1-indexed rank a scout gave this team
+    lowest: number;  // worst (highest-numbered) 1-indexed rank a scout gave this team
+    mean: number;
+    median: number;
+}
+
+/**
+ * Compute per-team rank statistics (highest/lowest/mean/median 1-indexed
+ * position) from all personal picklists. Teams a scout didn't include in
+ * their list contribute no data point for that scout.
+ */
+export function computeTeamRankStats(
+    allLists: { user_id: string; team_numbers: number[] }[]
+): Record<number, TeamRankStats> {
+    const ranksByTeam: Record<number, number[]> = {};
+
+    allLists.forEach(({ team_numbers }) => {
+        team_numbers.forEach((teamNum, idx) => {
+            const rank = idx + 1;
+            (ranksByTeam[teamNum] ??= []).push(rank);
+        });
+    });
+
+    const stats: Record<number, TeamRankStats> = {};
+
+    Object.entries(ranksByTeam).forEach(([teamNumStr, ranks]) => {
+        const teamNum = Number(teamNumStr);
+        const sorted = [...ranks].sort((a, b) => a - b);
+        const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+        const mid = Math.floor(sorted.length / 2);
+        const median = sorted.length % 2 === 0
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid];
+
+        stats[teamNum] = {
+            count: sorted.length,
+            highest: sorted[0],
+            lowest: sorted[sorted.length - 1],
+            mean,
+            median
+        };
+    });
+
+    return stats;
+}

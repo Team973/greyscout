@@ -150,6 +150,16 @@ function formatFieldLabel(field: string) {
 function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
+
+// ─── Rank stats (Democratic / Team tabs) ──────────────────────────────────────
+
+function rankStatsFor(teamNumber: number) {
+    return picklistStore.teamRankStats[teamNumber] ?? null;
+}
+
+function formatRankNumber(n: number) {
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
 </script>
 
 <template>
@@ -268,6 +278,27 @@ function formatDate(iso: string) {
                                     <span class="picklist-team-number">{{ team.team_number }}</span>
                                     <span class="picklist-team-name">{{ team.name }}</span>
                                 </div>
+                                <div v-if="activeTab === 'team'" class="picklist-rank-stats" @click.stop>
+                                    <template v-if="rankStatsFor(team.team_number)">
+                                        <div class="rank-stat" title="Highest (best) rank across personal lists">
+                                            <span class="rank-stat-label">Hi</span>
+                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).highest) }}</span>
+                                        </div>
+                                        <div class="rank-stat" title="Lowest (worst) rank across personal lists">
+                                            <span class="rank-stat-label">Lo</span>
+                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).lowest) }}</span>
+                                        </div>
+                                        <div class="rank-stat" title="Mean rank across personal lists">
+                                            <span class="rank-stat-label">Avg</span>
+                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).mean) }}</span>
+                                        </div>
+                                        <div class="rank-stat" title="Median rank across personal lists">
+                                            <span class="rank-stat-label">Med</span>
+                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).median) }}</span>
+                                        </div>
+                                    </template>
+                                    <span v-else class="picklist-rank-stats-empty">No picks yet</span>
+                                </div>
                                 <div class="picklist-expand-chevron"
                                     :class="{ 'picklist-expand-chevron--open': expandedTeam === team.team_number }">
                                     ›
@@ -345,6 +376,27 @@ function formatDate(iso: string) {
                             <div class="picklist-team-info">
                                 <span class="picklist-team-number">{{ team.team_number }}</span>
                                 <span class="picklist-team-name">{{ team.name }}</span>
+                            </div>
+                            <div class="picklist-rank-stats" @click.stop>
+                                <template v-if="rankStatsFor(team.team_number)">
+                                    <div class="rank-stat" title="Highest (best) rank across personal lists">
+                                        <span class="rank-stat-label">Hi</span>
+                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).highest) }}</span>
+                                    </div>
+                                    <div class="rank-stat" title="Lowest (worst) rank across personal lists">
+                                        <span class="rank-stat-label">Lo</span>
+                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).lowest) }}</span>
+                                    </div>
+                                    <div class="rank-stat" title="Mean rank across personal lists">
+                                        <span class="rank-stat-label">Avg</span>
+                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).mean) }}</span>
+                                    </div>
+                                    <div class="rank-stat" title="Median rank across personal lists">
+                                        <span class="rank-stat-label">Med</span>
+                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).median) }}</span>
+                                    </div>
+                                </template>
+                                <span v-else class="picklist-rank-stats-empty">No picks yet</span>
                             </div>
                             <div class="picklist-expand-chevron"
                                 :class="{ 'picklist-expand-chevron--open': expandedTeam === team.team_number }">
@@ -699,6 +751,45 @@ function formatDate(iso: string) {
     flex-shrink: 0;
     line-height: 1;
     padding-left: 4px;
+}
+
+/* ── Rank stats (Democratic / Team rows) ── */
+.picklist-rank-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.rank-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 28px;
+}
+
+.rank-stat-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(128, 128, 128, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+}
+
+.rank-stat-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    line-height: 1.2;
+}
+
+.picklist-rank-stats-empty {
+    font-size: 11px;
+    color: rgba(128, 128, 128, 0.6);
+    font-style: italic;
+    white-space: nowrap;
 }
 
 .picklist-expand-chevron--open {

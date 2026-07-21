@@ -9,9 +9,11 @@ import {
     upsertPersonalPicklist,
     upsertTeamPicklist,
     computeDemocraticRanking,
+    computeTeamRankStats,
     fetchTeamMatchStats,
     fetchTeamComments
 } from '@/lib/picklist-query';
+import type { TeamRankStats } from '@/lib/picklist-query';
 
 export type PicklistTab = 'personal' | 'democratic' | 'team';
 
@@ -43,6 +45,9 @@ export const usePicklistStore = defineStore('picklist', {
             // Democratic list — computed from all personal lists
             democraticList: [] as number[],
             democraticListLoaded: false,
+
+            // Per-team highest/lowest/mean/median rank across all personal lists
+            teamRankStats: {} as Record<number, TeamRankStats>,
 
             // Per-team expanded data cache
             teamDataCache: {} as Record<number, { stats: unknown[]; comments: unknown[] }>,
@@ -157,6 +162,7 @@ export const usePicklistStore = defineStore('picklist', {
             this.democraticListLoaded = false;
             const allLists = await fetchAllPersonalPicklists(eventId);
             this.democraticList = computeDemocraticRanking(allLists);
+            this.teamRankStats = computeTeamRankStats(allLists);
             this.democraticListLoaded = true;
         },
 
