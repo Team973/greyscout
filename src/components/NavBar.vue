@@ -52,6 +52,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             </template>
             <template v-slot:menu-content>
                 <RouterLink to="/login" class="nav-link nav-link-mobile">Login</RouterLink>
+                <RouterLink to="/register" class="nav-link nav-link-mobile">Register</RouterLink>
             </template>
         </HamburgerMenu>
     </div>

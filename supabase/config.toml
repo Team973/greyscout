@@ -26,7 +26,7 @@ major_version = 15
 
 [db.migrations]
 enabled = true
-schema_paths = ["./schemas/*.sql"]
+schema_paths = ["./database/schemas/*.sql"]
 
 [db.pooler]
 enabled = false

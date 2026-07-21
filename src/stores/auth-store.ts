@@ -5,13 +5,21 @@ import { supabase } from '@/lib/supabase-client';
 import { userTable } from '@/lib/constants';
 import { isSiteReadPrivate, isSiteWritePrivate } from '@/lib/constants';
 
-export type UserRole = 'admin' | 'lead' | 'member' | null;
+export type UserRole = 'admin' | 'lead' | 'member' | 'observer' | null;
+
+export const roleRank: Record<Exclude<UserRole, null>, number> = {
+    observer: 0,
+    member: 1,
+    lead: 2,
+    admin: 3
+};
 
 export const useAuthStore = defineStore('auth', {
     state() {
         return {
             isLoggedIn: false,
             userId: null as string | null,
+            userName: null as string | null,
             userAuthLevel: {
                 canWrite: false,
             },
@@ -40,10 +48,16 @@ export const useAuthStore = defineStore('auth', {
             return this.role === 'admin' || this.role === 'lead';
         },
         isMember(): boolean {
-            return this.isLoggedIn;
+            return this.role === 'admin' || this.role === 'lead' || this.role === 'member';
+        },
+        isObserver(): boolean {
+            return this.role === 'observer';
         },
         currentUserId(): string | null {
             return this.userId;
+        },
+        currentUserName(): string | null {
+            return this.userName;
         }
     },
     actions: {
@@ -57,6 +71,7 @@ export const useAuthStore = defineStore('auth', {
                 this.userAuthLevel.canWrite = false;
                 this.role = null;
                 this.userId = null;
+                this.userName = null;
                 this.isUpdated = true;
                 return;
             }
@@ -68,17 +83,39 @@ export const useAuthStore = defineStore('auth', {
                 .select()
                 .eq('user_id', user.id);
 
-            const dbData = dbResponse?.data;
+            let dbData = dbResponse?.data;
             const dbError = dbResponse?.error;
 
-            if (dbError || !dbData || dbData?.length === 0) {
+            if (dbError) {
                 this.userAuthLevel.canWrite = false;
-                this.role = 'member';
+                this.role = 'observer';
+                this.userName = null;
+                this.isUpdated = true;
+                return;
+            }
+
+            // First time this user has been seen — provision their profile row.
+            // New accounts always start out as Observers.
+            if (!dbData || dbData.length === 0) {
+                const provisionedName = user.user_metadata?.name ?? null;
+                const { data: insertedData } = await supabase
+                    .from(userTable)
+                    .insert({ user_id: user.id, name: provisionedName, role: 'observer' })
+                    .select();
+                dbData = insertedData;
+            }
+
+            if (!dbData || dbData.length === 0) {
+                // Insert failed (e.g. no active session yet while awaiting email confirmation).
+                this.userAuthLevel.canWrite = false;
+                this.role = 'observer';
+                this.userName = user.user_metadata?.name ?? null;
                 this.isUpdated = true;
                 return;
             }
 
             this.userAuthLevel.canWrite = dbData[0].write_authorized;
+            this.userName = dbData[0].name ?? null;
 
             // Determine role — use 'role' column if present, otherwise derive from write_authorized.
             if (dbData[0].role) {
@@ -86,7 +123,7 @@ export const useAuthStore = defineStore('auth', {
             } else if (dbData[0].write_authorized) {
                 this.role = 'lead';
             } else {
-                this.role = 'member';
+                this.role = 'observer';
             }
 
             this.isUpdated = true;

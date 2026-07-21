@@ -24,6 +24,7 @@ window.addEventListener('offline', () => { isOnline.value = false; });
 // ─── Computed helpers ──────────────────────────────────────────────────────────
 
 const isLead = computed(() => authStore.isLead);
+const isObserver = computed(() => authStore.isObserver);
 const userId = computed(() => authStore.currentUserId);
 const eventId = computed(() => eventStore.eventId);
 
@@ -53,6 +54,7 @@ const isEditable = computed(() =>
 
 onMounted(async () => {
     await authStore.checkUser();
+    if (isObserver.value) return;
     await eventStore.updateEvent();
     await picklistStore.loadAll(eventId.value, userId.value, isLead.value);
 });
@@ -145,7 +147,14 @@ function formatDate(iso: string) {
 
 <template>
     <div class="main-content">
-        <div class="picklist-page">
+        <div class="picklist-page" v-if="isObserver">
+            <div class="picklist-empty">
+                <div class="picklist-empty-icon">🔒</div>
+                <h2>Not available</h2>
+                <p>Observers do not have access to the pick list.</p>
+            </div>
+        </div>
+        <div class="picklist-page" v-else>
             <!-- Page header -->
             <div class="picklist-header">
                 <h1>Pick List</h1>

@@ -1,5 +1,15 @@
 # Pick List Feature
 
+## Requirements
+
+* Members shall be able to make their own pick lists on their accounts  
+* Leads shall be able to view aggregation of all user picklists (democratic picklist)  
+* Leads shall be able to maintain a “team picklist” which is the official picklist for the team.   
+  * There is only 1 team picklist, and the leads can collaborate on it  
+* The picklist should be a compact list view of rows containing team number, team name, and a robot picture. If a user taps/clicks on the row, the view should expand to show a bigger version of the robot picture, and any stats / scout comments about the team.  
+  * The stats/comments should come from match scouting and pit scouting.  
+  * Any comments should be attributed to the user who commented on the team so they can be asked for any clarification
+
 ## Overview
 
 The Pick List feature allows scouts and lead members to collaboratively rank teams attending the active event. It includes three views:
@@ -55,17 +65,18 @@ GreyScout is designed to be usable in low-connectivity environments (e.g. compet
 
 | Role | Personal list | Democratic view | Team list |
 |---|---|---|---|
+| `observer` | ❌ hidden | ❌ hidden | ❌ hidden |
 | `member` | ✅ read/write | ✅ read | ❌ hidden |
 | `lead` | ✅ read/write | ✅ read | ✅ read/write |
 | `admin` | ✅ read/write | ✅ read | ✅ read/write |
 
-Roles are stored in the `User` table under the `role` column. If no `role` column is present, the app derives the role from `write_authorized` (`true` → `lead`, `false` → `member`).
+Roles are stored in the `User` table under the `role` column (see [users.md](./users.md)). Observers cannot see the pick list at all — the whole feature is hidden for that role.
 
 ---
 
 ## Database Schema
 
-### `PickList` table (new)
+### `PickList` table
 
 | Column | Type | Notes |
 |---|---|---|
@@ -85,13 +96,9 @@ Roles are stored in the `User` table under the `role` column. If no `role` colum
 - `SELECT`: authenticated users can read all rows
 - `INSERT/UPDATE`: user can only write rows where `user_id = auth.uid()` (personal) or `role IN ('lead','admin')` (team)
 
-### `User` table (existing, extended)
+### `User` table
 
-Add an optional `role` column:
-
-```sql
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS role text DEFAULT 'member';
-```
+See [users.md](./users.md) for the full `User` table schema, roles, and role-management rules.
 
 ---
 
