@@ -110,6 +110,13 @@ async function refreshDemocratic() {
     isRefreshingDemocratic.value = false;
 }
 
+// ─── Reset Team List from Democratic ──────────────────────────────────────────
+
+async function resetTeamFromDemocratic() {
+    picklistStore.resetTeamListFromDemocratic();
+    await saveList();
+}
+
 // ─── Stat helpers ─────────────────────────────────────────────────────────────
 
 function computeBasicStats(matchData: unknown[]) {
@@ -204,6 +211,11 @@ function formatDate(iso: string) {
             <div v-else class="picklist-list-wrapper">
                 <!-- Save / status bar -->
                 <div class="picklist-save-bar" v-if="isEditable">
+                    <button v-if="activeTab === 'team'" id="btn-reset-democratic" class="picklist-reset-btn"
+                        :disabled="picklistStore.isSaving || picklistStore.democraticList.length === 0"
+                        title="Overwrite the team list with the current democratic ranking" @click="resetTeamFromDemocratic">
+                        ↺ Reset from Democratic
+                    </button>
                     <transition name="fade">
                         <span v-if="picklistStore.lastSaveSuccess" class="save-status save-status--ok">
                             ✓ Saved
@@ -537,6 +549,28 @@ function formatDate(iso: string) {
     opacity: 0.55;
     cursor: not-allowed;
     transform: none;
+}
+
+.picklist-reset-btn {
+    background: none;
+    color: #b05703;
+    border: 1.5px solid #b05703;
+    border-radius: 8px;
+    padding: 7.5px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    margin-right: auto;
+}
+
+.picklist-reset-btn:hover:not(:disabled) {
+    background: rgba(176, 87, 3, 0.1);
+}
+
+.picklist-reset-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* ── Row ── */

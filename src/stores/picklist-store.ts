@@ -168,6 +168,14 @@ export const usePicklistStore = defineStore('picklist', {
             this.teamList = Array.from(new Set(orderedNumbers.map(Number)));
         },
 
+        /**
+         * Reset the team list to the current democratic ranking, overwriting
+         * whatever order is currently staged for the team list.
+         */
+        resetTeamListFromDemocratic() {
+            this.teamList = [...this.democraticList];
+        },
+
         async savePersonalList(userId: string, eventId: string) {
             this.isSaving = true;
             this.lastSaveError = null;

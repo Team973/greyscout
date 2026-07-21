@@ -43,8 +43,8 @@ import { useAuthStore } from "@/stores/auth-store";
         <div class="login-tile" v-else>
             <h1 class="login-tile-element">Reset password</h1>
             <div class="login-tile-element">
-                <TextInput :model-value="resetEmail" @update:modelValue="updateResetEmail"
-                    @keyup.enter="sendPasswordReset" label="Email" required="true" :error="resetEmailError">
+                <TextInput :model-value="resetEmail" @update:modelValue="updateResetEmail" @keyup.enter="sendPasswordReset"
+                    label="Email" required="true" :error="resetEmailError">
                 </TextInput>
             </div>
             <div class="login-tile-element" v-if="resetError">
@@ -113,7 +113,7 @@ export default {
             }
 
             this.authStore.checkUser();
-            this.$router.push("/event");
+            this.$router.push("/picklist");
         },
         async sendPasswordReset() {
             this.resetError = "";

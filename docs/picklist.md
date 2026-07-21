@@ -47,6 +47,10 @@ Click the **Save List** button at the top-right of the list. If you are offline,
 
 The democratic tab shows a read-only ranking computed from all personal lists submitted so far. Teams are ranked by their aggregate score: each list contributes `(list_length - rank)` points per team. Higher score = higher democratic ranking.
 
+### Resetting the Team List from Democratic Results
+
+On the **Team List** tab, leads/admins can click **↺ Reset from Democratic** to overwrite the current team list with the current democratic ranking as a starting point, then continue reordering from there. This immediately saves — it's a real overwrite, not a staged draft — so use it when you want to discard the team list's current order, not to preview the democratic results. The button is disabled when no personal lists have been submitted yet (nothing to copy).
+
 ---
 
 ## Offline Behaviour
