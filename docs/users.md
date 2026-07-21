@@ -36,7 +36,7 @@ New accounts always start as **Observer**, regardless of how the profile row was
 
 ## Account Page
 
-The account page (`/account`) shows the current user's name and role, an "Access" summary, and a "People" section for role management.
+The account page (`/account`) shows the current user's name and role, and a "People" section for role management. Write access throughout the app (Data Upload, Team Analysis, etc.) is derived from `role` — anyone who isn't an Observer can write — so there's no separate write-access indicator to show here.
 
 ### Role Management
 
@@ -59,7 +59,6 @@ This logic is duplicated for UX purposes in `AccountView.vue` (`allowedRoles()`)
 |---|---|---|
 | `user_id` | `uuid` (PK) | References `auth.users(id)` |
 | `created_at` | `timestamptz` | Default `now()` |
-| `write_authorized` | `boolean` | Legacy flag predating the role system; still drives `isWriteAuthorized` for Data Upload / Team Analysis gating, independent of `role` |
 | `role` | `text` | `NOT NULL`, default `'observer'`. `CHECK` constrained to `'admin' \| 'lead' \| 'member' \| 'observer'` |
 | `name` | `text` | Nullable; set at registration from the signup form |
 
@@ -100,4 +99,3 @@ Runs on every update to `User` and:
 - **Self-service name editing**: there's no UI to change your own name after registration, though the database already permits it (`User.name`, self-only).
 - **Account deactivation/removal**: no way to deactivate or delete a user from the People section.
 - **Audit log**: role changes aren't recorded anywhere beyond the row's current state — no history of who promoted/demoted whom.
-- **`write_authorized` consolidation**: this legacy boolean still gates Data Upload / Team Analysis separately from `role`; it predates the role system and could eventually be derived from `role` instead.

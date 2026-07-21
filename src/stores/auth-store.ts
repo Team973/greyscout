@@ -20,9 +20,6 @@ export const useAuthStore = defineStore('auth', {
             isLoggedIn: false,
             userId: null as string | null,
             userName: null as string | null,
-            userAuthLevel: {
-                canWrite: false,
-            },
             role: null as UserRole,
             isUpdated: false
         };
@@ -35,7 +32,7 @@ export const useAuthStore = defineStore('auth', {
             return this.isLoggedIn || !isSiteReadPrivate;
         },
         isWriteAuthorized(): boolean {
-            return (this.isLoggedIn && this.userAuthLevel.canWrite) || !isSiteWritePrivate;
+            return (this.isLoggedIn && this.isMember) || !isSiteWritePrivate;
         },
         isLoaded(): boolean {
             return this.isUpdated;
@@ -68,7 +65,6 @@ export const useAuthStore = defineStore('auth', {
             this.isLoggedIn = !error && !!user;
 
             if (error || !user) {
-                this.userAuthLevel.canWrite = false;
                 this.role = null;
                 this.userId = null;
                 this.userName = null;
@@ -87,7 +83,6 @@ export const useAuthStore = defineStore('auth', {
             const dbError = dbResponse?.error;
 
             if (dbError) {
-                this.userAuthLevel.canWrite = false;
                 this.role = 'observer';
                 this.userName = null;
                 this.isUpdated = true;
@@ -107,24 +102,14 @@ export const useAuthStore = defineStore('auth', {
 
             if (!dbData || dbData.length === 0) {
                 // Insert failed (e.g. no active session yet while awaiting email confirmation).
-                this.userAuthLevel.canWrite = false;
                 this.role = 'observer';
                 this.userName = user.user_metadata?.name ?? null;
                 this.isUpdated = true;
                 return;
             }
 
-            this.userAuthLevel.canWrite = dbData[0].write_authorized;
             this.userName = dbData[0].name ?? null;
-
-            // Determine role — use 'role' column if present, otherwise derive from write_authorized.
-            if (dbData[0].role) {
-                this.role = dbData[0].role as UserRole;
-            } else if (dbData[0].write_authorized) {
-                this.role = 'lead';
-            } else {
-                this.role = 'observer';
-            }
+            this.role = dbData[0].role as UserRole;
 
             this.isUpdated = true;
         }

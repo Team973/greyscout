@@ -225,7 +225,6 @@ ALTER TABLE "public"."Team" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."User" (
     "user_id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "write_authorized" boolean DEFAULT false,
     "role" "text" DEFAULT 'observer'::"text" NOT NULL,
     "name" "text",
     CONSTRAINT "User_role_check" CHECK (("role" = ANY (ARRAY['admin'::"text", 'lead'::"text", 'member'::"text", 'observer'::"text"])))

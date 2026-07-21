@@ -20,13 +20,6 @@ import { fetchAllUsers, updateUserRole } from "@/lib/user-query";
         </div>
 
         <div class="user-tile">
-            <h1>Access</h1>
-            <div>
-                Can Write: {{ authStore.isWriteAuthorized }}
-            </div>
-        </div>
-
-        <div class="user-tile">
             <h1>People</h1>
             <div v-if="!peopleLoaded">Loading people…</div>
             <div v-else-if="people.length === 0">No other users found.</div>
