@@ -9,7 +9,8 @@ import {
     pickListTable,
     pickListTypePersonal,
     pickListTypeTeam,
-    defaultTeamNumber
+    defaultTeamNumber,
+    userTable
 } from '@/lib/constants';
 
 /**
@@ -66,39 +67,71 @@ export async function fetchTeamMatchStats(teamNumber: number, eventId: string) {
 }
 
 /**
- * Fetch pit-scouting comments for a team attributed to their author.
- * Returns array of { comment, user_id, display_name, created_at }.
+ * Fetch pit-scouting answers (drivetrain, weight, language, vibe check) for a team,
+ * attributed to their author. Returns array of
+ * { author, drivetrain, weight, language, vibe_check, comments, created_at }, newest first.
+ */
+export async function fetchTeamPitData(teamNumber: number, eventId: string) {
+    const { data, error } = await supabase
+        .from(pitScoutTable)
+        .select(`pit_drivetrain, pit_weight, pit_language, pit_vibe_check, pit_comments, created_at, ${userTable}(name)`)
+        .eq('event', eventId)
+        .eq('pit_team_number', teamNumber)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('fetchTeamPitData error:', error);
+        return [];
+    }
+
+    return (data ?? []).map((row) => ({
+        author: row[userTable]?.name ?? 'Unknown',
+        drivetrain: row.pit_drivetrain,
+        weight: row.pit_weight,
+        language: row.pit_language,
+        vibe_check: row.pit_vibe_check,
+        comments: row.pit_comments,
+        created_at: row.created_at
+    }));
+}
+
+/**
+ * Fetch match- and pit-scouting comments for a team, attributed to their author.
+ * Returns array of { source, author, comment, match_number, created_at }, newest first.
  */
 export async function fetchTeamComments(teamNumber: number, eventId: string) {
-    // Match scout comments
+    // Match scout comments — scout identity is resolved via the submitting user's
+    // account (scouted_by -> User.user_id) rather than a free-text name field.
     const { data: matchData } = await supabase
         .from(matchScoutTable)
-        .select('prematch_scout_name, postmatch_comments, created_at')
+        .select(`prematch_match_number, postmatch_comments, created_at, ${userTable}(name)`)
         .eq('event', eventId)
         .eq('prematch_team_number', teamNumber)
         .not('postmatch_comments', 'is', null)
         .not('postmatch_comments', 'eq', '');
 
-    // Pit scout comments
+    // Pit scout comments — same account-based attribution as match comments.
     const { data: pitData } = await supabase
         .from(pitScoutTable)
-        .select('scout_name, comments, created_at')
-        .eq('event_id', eventId)
-        .eq('team_number', teamNumber)
-        .not('comments', 'is', null)
-        .not('comments', 'eq', '');
+        .select(`pit_comments, created_at, ${userTable}(name)`)
+        .eq('event', eventId)
+        .eq('pit_team_number', teamNumber)
+        .not('pit_comments', 'is', null)
+        .not('pit_comments', 'eq', '');
 
     const matchComments = (matchData ?? []).map((row) => ({
         source: 'Match',
-        author: row.prematch_scout_name ?? 'Unknown',
+        author: row[userTable]?.name ?? 'Unknown',
         comment: row.postmatch_comments,
+        match_number: row.prematch_match_number ?? null,
         created_at: row.created_at
     }));
 
     const pitComments = (pitData ?? []).map((row) => ({
         source: 'Pit',
-        author: row.scout_name ?? 'Unknown',
-        comment: row.comments,
+        author: row[userTable]?.name ?? 'Unknown',
+        comment: row.pit_comments,
+        match_number: null,
         created_at: row.created_at
     }));
 

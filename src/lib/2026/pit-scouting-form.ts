@@ -10,17 +10,6 @@ export async function getPitScoutSchema() {
             key: "pit",
             name: "",
             components: [
-                {
-                    key: "scout_name",
-                    label: "Scout Name",
-                    type: "text",
-                    options: {},
-                    defaultValue: "",
-                    value: "",
-                    preserveAfterSubmit: true,
-                    required: true,
-                    error: false
-                },
                 teamInputElement,
                 {
                     key: "drivetrain",
@@ -36,68 +25,77 @@ export async function getPitScoutSchema() {
                     },
                     defaultValue: 0,
                     value: 0,
-                    preserveAfterSubmit: true,
+                    preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
                     required: false,
                     error: false
                 },
                 {
-                    key: "coral_intake",
-                    label: "Coral Intake",
-                    type: "radio",
-                    options: {
-                        choices: [
-                            { key: "none", text: "None" },
-                            { key: "feeder", text: "Feeder" },
-                            { key: "ground", text: "Ground" },
-                            { key: "both", text: "Both" },
-                        ],
-                        isVertical: false
-                    },
-                    defaultValue: '',
-                    value: '',
+                    key: "weight",
+                    label: "Weight (lbs)",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
                     preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
                     required: true,
                     error: false
                 },
                 {
-                    key: "algae_intake",
-                    label: "Algae Intake",
-                    type: "radio",
+                    key: "language",
+                    label: "Programming Language",
+                    type: "dropdown",
                     options: {
                         choices: [
-                            { key: "none", text: "None" },
-                            { key: "ground", text: "Ground" },
-                            { key: "reef", text: "Reef" },
-                            { key: "both", text: "Both" },
-                        ],
-                        isVertical: false
+                            { key: "none", text: "Select language..." },
+                            { key: "java", text: "Java" },
+                            { key: "cpp", text: "C++" },
+                            { key: "python", text: "Python" },
+                            { key: "other", text: "Other" }
+                        ]
                     },
-                    defaultValue: '',
-                    value: '',
+                    defaultValue: 0,
+                    value: 0,
                     preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
                     required: true,
                     error: false
                 },
                 {
-                    key: "climb",
-                    label: "Climb Type",
+                    key: "vibe_check",
+                    label: "Vibe Check",
                     type: "radio",
                     options: {
                         choices: [
-                            { key: "none", text: "None" },
-                            { key: "shallow", text: "Shallow only" },
-                            { key: "deep", text: "Deep only" },
-                            { key: "both", text: "Both" },
+                            { key: "1", text: "1" },
+                            { key: "2", text: "2" },
+                            { key: "3", text: "3" },
+                            { key: "4", text: "4" },
+                            { key: "5", text: "5" }
                         ],
                         isVertical: false
                     },
                     defaultValue: '',
                     value: '',
                     preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
                     required: true,
+                    error: false
+                },
+                {
+                    key: "comments",
+                    label: "Comments",
+                    type: "textarea",
+                    options: {},
+                    defaultValue: "",
+                    value: "",
+                    preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
+                    required: false,
                     error: false
                 },
             ]
         },
     ];
-} 
+}

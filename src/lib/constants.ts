@@ -8,8 +8,7 @@ export const projectId = "rqezalinpkjjckztwgmj";
 export const publicKey = "sb_publishable_EXHZUoCVfKAZlBWDladlEQ_DSqHcT4X";
 
 // Database tables
-export const matchScoutUploadTable = "MatchDataUploaded";
-export const matchScoutTable = matchScoutUploadTable;
+export const matchScoutTable = "MatchData";
 export const pitScoutTable = "PitData";
 export const eventInfoTable = "Event";
 export const teamInfoTable = "Team";

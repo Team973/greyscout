@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // @ts-nocheck
 import FormSection from "@/components/FormSection.vue";
-import QRCode from "@/components/QRCode.vue";
-
 
 import { pitScoutTable } from "@/lib/constants";
 import { getPitScoutSchema } from "@/lib/2026/pit-scouting-form";
 import { validateForm, parseScoutData, submitScoutData } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
+import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 
 import "@material/web/button/filled-button";
 </script>
@@ -31,16 +30,10 @@ import "@material/web/button/filled-button";
             <h1>Reset form successfully!</h1>
         </div>
 
-        <div class="data-tile" v-if="submitFailed">
-            <h1>DATA UPLOAD FAILED</h1>
-            <h1>SCAN THIS QR CODE</h1>
-            <QRCode :qr-data="submitData"></QRCode>
-
-
-            <h3>Save this text to a file if a scanner is unavailable</h3>
-            <p>
-                {{ getSubmitDataString }}
-            </p>
+        <div class="data-tile notification-tile" v-if="queuedOffline">
+            <h1>Couldn't submit — saved locally</h1>
+            <p>This entry has been queued and will sync automatically once you're back online. You can keep
+                scouting in the meantime.</p>
         </div>
 
         <div class="button-container" v-if="formLoaded && !isSubmitting">
@@ -55,12 +48,14 @@ export default {
     data() {
         return {
             eventStore: null,
+            queueStore: null,
             scoutForm: null,
             formLoaded: false,
-            // Track data submission in order to fall back to QR code / copy text if it fails.
+            // Track data submission separately from the act of submitting, so it can
+            // be queued locally if the submission fails.
             submitData: {},
             submitSuccess: false,
-            submitFailed: false,
+            queuedOffline: false,
             formInvalid: false,
             isSubmitting: false,
             resetSuccess: false
@@ -87,8 +82,8 @@ export default {
             return valid;
         },
         async submitForm() {
-            // Data submission hasn't failed yet...
-            this.submitFailed = false;
+            // Data submission hasn't failed or succeeded yet...
+            this.queuedOffline = false;
             this.submitSuccess = false;
             this.isSubmitting = true;
             this.resetSuccess = false;
@@ -108,10 +103,16 @@ export default {
             // Preserve some things that don't need to be re-entered.
             this.preserveSingleEntryData();
 
-            // If the database submission failed, set the QR code to show and print the error.
+            // If the database submission failed, queue it locally for retry instead of blocking the scout.
             if (error) {
                 console.log(error);
-                this.submitFailed = true;
+                this.queueStore.enqueue('scout_data', { table: pitScoutTable, data: this.submitData }, error.message ?? String(error));
+
+                // The data is safely queued — let the scout move on.
+                // (resetFormData() clears queuedOffline, so set it true afterward.)
+                this.resetFormData();
+                this.queuedOffline = true;
+                this.submitData = {};
                 this.isSubmitting = false;
                 return;
             }
@@ -144,19 +145,15 @@ export default {
             });
 
             // The form submission no longer has failed since the data is being reset.
-            this.submitFailed = false;
+            this.queuedOffline = false;
             this.formInvalid = false;
             this.submitSuccess = false;
             this.resetSuccess = true;
         }
     },
-    computed: {
-        getSubmitDataString() {
-            return JSON.stringify(this.submitData);
-        }
-    },
     created() {
         this.eventStore = useEventStore();
+        this.queueStore = useOfflineQueueStore();
         this.loadForm();
     }
 }

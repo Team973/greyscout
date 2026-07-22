@@ -3,6 +3,8 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { upsertPersonalPicklist, upsertTeamPicklist } from '@/lib/picklist-query';
+import { submitScoutData } from '@/lib/data-submission';
+import { matchScoutTable, pitScoutTable } from '@/lib/constants';
 
 const queueStore = useOfflineQueueStore();
 const isOpen = ref(false);
@@ -33,6 +35,12 @@ const retryHandlers = {
             payload.eventId as string,
             payload.teamNumbers as number[]
         );
+    },
+    scout_data: async (payload: Record<string, unknown>) => {
+        return await submitScoutData(
+            payload.data as Record<string, unknown>,
+            payload.table as string
+        );
     }
 };
 
@@ -47,10 +55,15 @@ async function retryOne(id: string) {
     if (handler) await queueStore.retryItem(id, handler);
 }
 
-function typeLabel(type: string) {
-    if (type === 'picklist_personal') return 'Personal Pick List';
-    if (type === 'picklist_team') return 'Team Pick List';
-    return type;
+function typeLabel(item: { type: string; payload: Record<string, unknown> }) {
+    if (item.type === 'picklist_personal') return 'Personal Pick List';
+    if (item.type === 'picklist_team') return 'Team Pick List';
+    if (item.type === 'scout_data') {
+        if (item.payload?.table === matchScoutTable) return 'Match Scouting';
+        if (item.payload?.table === pitScoutTable) return 'Pit Scouting';
+        return 'Scouting Data';
+    }
+    return item.type;
 }
 
 function formatDate(iso: string) {
@@ -99,7 +112,7 @@ function formatDate(iso: string) {
             <ul class="offline-queue-list">
                 <li v-for="item in queueStore.queue" :key="item.id" class="offline-queue-item">
                     <div class="queue-item-info">
-                        <span class="queue-item-type">{{ typeLabel(item.type) }}</span>
+                        <span class="queue-item-type">{{ typeLabel(item) }}</span>
                         <span class="queue-item-time">{{ formatDate(item.enqueuedAt) }}</span>
                     </div>
                     <div v-if="item.lastError" class="queue-item-error">{{ item.lastError }}</div>

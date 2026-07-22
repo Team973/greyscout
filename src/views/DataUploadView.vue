@@ -5,7 +5,7 @@
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useAuthStore } from "@/stores/auth-store";
-import { matchScoutUploadTable, teamNumberColumn, matchNumberColumn } from "@/lib/constants";
+import { matchScoutTable, teamNumberColumn, matchNumberColumn } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
@@ -98,6 +98,7 @@ export default {
                 if (selectedFile) {
                     Papa.parse(selectedFile, {
                         header: true, // Use the first row as headers
+                        skipEmptyLines: true, // Avoid a trailing blank line producing a null-filled row
                         complete: (results) => {
                             this.csvData.value = results.data;
                             this.uploadData();
@@ -122,7 +123,7 @@ export default {
                 rows.push(row);
             }
 
-            const { error } = await supabase.from(matchScoutUploadTable).upsert(rows, { ignoreDuplicates: true, onConflict: "key" });
+            const { error } = await supabase.from(matchScoutTable).upsert(rows, { ignoreDuplicates: true, onConflict: "key" });
             if (error) {
                 console.log(error);
                 this.errorText = error;

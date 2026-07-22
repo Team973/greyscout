@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase-client";
 import { getTeamAnalysisLayout } from "@/lib/2026/team-analysis-layout";
 import { processLayout } from "@/lib/process-layout";
 import { queryTeamNumbers } from "@/lib/data-query";
+import { fetchTeamComments, fetchTeamPitData } from "@/lib/picklist-query";
 import { minWidthForDesktop } from "@/lib/constants";
 
 </script>
@@ -69,6 +70,52 @@ import { minWidthForDesktop } from "@/lib/constants";
                         </template>
                     </draggable>
                 </div>
+
+                <div class="pit-section">
+                    <h1>Pit Scouting</h1>
+                    <div v-if="!teamPitDataLoaded">Loading pit scouting data…</div>
+                    <div v-else-if="teamPitData.length === 0" class="no-comments">No pit scouting data yet.</div>
+                    <ul v-else class="pit-list">
+                        <li v-for="(pit, idx) in teamPitData" :key="idx" class="pit-card">
+                            <div class="pit-stats-grid">
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Drivetrain</div>
+                                    <div class="pit-stat-value">{{ formatDrivetrain(pit.drivetrain) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Weight</div>
+                                    <div class="pit-stat-value">{{ pit.weight != null ? pit.weight + ' lbs' : '—' }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Language</div>
+                                    <div class="pit-stat-value">{{ formatLanguage(pit.language) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Vibe Check</div>
+                                    <div class="pit-stat-value">{{ pit.vibe_check != null ? pit.vibe_check + ' / 5' : '—' }}</div>
+                                </div>
+                            </div>
+                            <div class="pit-author">Scouted by {{ pit.author }}</div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="comments-section">
+                    <h1>Scout Comments</h1>
+                    <div v-if="!teamCommentsLoaded">Loading comments…</div>
+                    <div v-else-if="teamComments.length === 0" class="no-comments">No comments from scouts yet.</div>
+                    <ul v-else class="comments-list">
+                        <li v-for="(comment, idx) in teamComments" :key="idx" class="comment-card">
+                            <div class="comment-meta">
+                                <span class="comment-author">{{ comment.author }}</span>
+                                <span class="comment-source-badge">{{ comment.source }}</span>
+                                <span class="comment-match" v-if="comment.match_number != null">Match
+                                    {{ comment.match_number }}</span>
+                            </div>
+                            <p class="comment-text">{{ comment.comment }}</p>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
         <div v-else-if="teamLoaded">
@@ -92,7 +139,11 @@ export default {
             teamFilters: [],
             currentTeamIndex: 0,
             currentLayout: [],
-            tileModelList: []
+            tileModelList: [],
+            teamComments: [],
+            teamCommentsLoaded: false,
+            teamPitData: [],
+            teamPitDataLoaded: false
         }
     },
     methods: {
@@ -108,6 +159,44 @@ export default {
 
             // Load the robot photo.
             this.getRobotPhoto();
+
+            // Load scout comments.
+            this.loadTeamComments();
+
+            // Load pit scouting answers.
+            this.loadTeamPitData();
+        },
+        async loadTeamPitData() {
+            const teamNumber = this.getTeamNumber();
+            if (teamNumber < 0) {
+                this.teamPitData = [];
+                this.teamPitDataLoaded = true;
+                return;
+            }
+
+            this.teamPitDataLoaded = false;
+            this.teamPitData = await fetchTeamPitData(teamNumber, this.eventStore.eventId);
+            this.teamPitDataLoaded = true;
+        },
+        formatDrivetrain(key) {
+            const labels = { swerve: 'Swerve', tank: 'Tank', mecanum: 'Mecanum', other: 'Other' };
+            return labels[key] ?? key ?? '—';
+        },
+        formatLanguage(key) {
+            const labels = { java: 'Java', cpp: 'C++', python: 'Python', other: 'Other' };
+            return labels[key] ?? key ?? '—';
+        },
+        async loadTeamComments() {
+            const teamNumber = this.getTeamNumber();
+            if (teamNumber < 0) {
+                this.teamComments = [];
+                this.teamCommentsLoaded = true;
+                return;
+            }
+
+            this.teamCommentsLoaded = false;
+            this.teamComments = await fetchTeamComments(teamNumber, this.eventStore.eventId);
+            this.teamCommentsLoaded = true;
         },
         async loadTeamNumbers() {
             const teamNumbersRows = await queryTeamNumbers(this.eventStore.eventId);
@@ -203,6 +292,8 @@ export default {
             // Reload team data.
             this.refreshTiles();
             this.getRobotPhoto();
+            this.loadTeamComments();
+            this.loadTeamPitData();
         },
         chooseFiles() {
             let fileInputElement = this.$refs.file;
@@ -298,4 +389,115 @@ export default {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.pit-section {
+    margin-top: 24px;
+}
+
+.pit-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pit-card {
+    background: var(--tile-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.pit-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+}
+
+.pit-stat-label {
+    font-size: 11px;
+    color: rgba(128, 128, 128, 0.75);
+    margin-bottom: 2px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pit-stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+}
+
+.pit-author {
+    margin-top: 10px;
+    font-size: 11px;
+    color: rgba(128, 128, 128, 0.6);
+}
+
+.comments-section {
+    margin-top: 24px;
+}
+
+.no-comments {
+    font-size: 13px;
+    color: rgba(128, 128, 128, 0.7);
+    font-style: italic;
+}
+
+.comments-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.comment-card {
+    background: var(--tile-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+    padding: 10px 14px;
+}
+
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.comment-author {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--primary-text-color);
+}
+
+.comment-source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: rgba(176, 87, 3, 0.15);
+    color: #b05703;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.comment-match {
+    font-size: 11px;
+    color: rgba(128, 128, 128, 0.6);
+    margin-left: auto;
+}
+
+.comment-text {
+    font-size: 13px;
+    color: var(--primary-text-color);
+    line-height: 1.55;
+    margin: 0;
+}
+</style>

@@ -147,10 +147,6 @@ function formatFieldLabel(field: string) {
         .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
 // ─── Rank stats (Democratic / Team tabs) ──────────────────────────────────────
 
 function rankStatsFor(teamNumber: number) {
@@ -342,8 +338,8 @@ function formatRankNumber(n: number) {
                                                     <div class="comment-meta">
                                                         <span class="comment-author">{{ comment.author }}</span>
                                                         <span class="comment-source-badge">{{ comment.source }}</span>
-                                                        <span class="comment-date">{{ formatDate(comment.created_at)
-                                                        }}</span>
+                                                        <span class="comment-match" v-if="comment.match_number != null">Match
+                                                            {{ comment.match_number }}</span>
                                                     </div>
                                                     <p class="comment-text">{{ comment.comment }}</p>
                                                 </li>
@@ -436,7 +432,8 @@ function formatRankNumber(n: number) {
                                                 <div class="comment-meta">
                                                     <span class="comment-author">{{ comment.author }}</span>
                                                     <span class="comment-source-badge">{{ comment.source }}</span>
-                                                    <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
+                                                    <span class="comment-match" v-if="comment.match_number != null">Match
+                                                        {{ comment.match_number }}</span>
                                                 </div>
                                                 <p class="comment-text">{{ comment.comment }}</p>
                                             </li>
@@ -924,7 +921,7 @@ function formatRankNumber(n: number) {
     letter-spacing: 0.06em;
 }
 
-.comment-date {
+.comment-match {
     font-size: 11px;
     color: rgba(128, 128, 128, 0.6);
     margin-left: auto;
