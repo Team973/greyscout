@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import draggable from 'vuedraggable';
+import Papa from 'papaparse';
 import { usePicklistStore } from '@/stores/picklist-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
@@ -192,6 +193,28 @@ async function resetTeamFromDemocratic() {
     await saveList();
 }
 
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+function exportTeamListCsv() {
+    const rows = picklistStore.activeOrderedTeams.map((team, index) => ({
+        rank: index + 1,
+        team_number: team.team_number,
+        name: team.name
+    }));
+
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `team-picklist-${eventId.value}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
 // ─── Stat helpers ─────────────────────────────────────────────────────────────
 
 function computeBasicStats(matchData: unknown[]) {
@@ -296,6 +319,10 @@ function formatRankNumber(n: number) {
                         :disabled="picklistStore.isSaving || picklistStore.democraticList.length === 0"
                         title="Overwrite the team list with the current democratic ranking" @click="resetTeamFromDemocratic">
                         ↺ Reset from Democratic
+                    </button>
+                    <button v-if="activeTab === 'team'" id="btn-export-team-csv" class="picklist-reset-btn"
+                        title="Download the current team pick list as a CSV" @click="exportTeamListCsv">
+                        ⬇ Export CSV
                     </button>
                     <transition name="fade">
                         <span v-if="picklistStore.lastSaveSuccess" class="save-status save-status--ok">
