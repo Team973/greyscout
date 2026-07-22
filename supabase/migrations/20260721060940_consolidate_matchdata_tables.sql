@@ -1,0 +1,10 @@
+DROP POLICY "Enable insert for authenticated users only" ON public."MatchDataUploaded";
+DROP POLICY "Enable read access for authenticated users" ON public."MatchDataUploaded";
+DROP POLICY "Enable update for authenticated users only" ON public."MatchDataUploaded";
+DROP TABLE public."MatchDataUploaded";
+ALTER TABLE public."MatchData" ADD COLUMN key text;
+ALTER TABLE public."MatchData" ADD CONSTRAINT "MatchData_key_key" UNIQUE (key);
+ALTER TABLE public."MatchData" ADD COLUMN source text;
+CREATE POLICY "Enable insert for authenticated users only" ON public."MatchData" FOR INSERT TO authenticated WITH CHECK ((scouted_by = auth.uid()));
+CREATE POLICY "Enable update for authenticated users only" ON public."MatchData" FOR UPDATE TO authenticated USING (true);
+COMMENT ON TABLE public."MatchDataUploaded2025" IS 'Archived 2025-season match scouting data (2025cafr). Superseded by the consolidated 2026 MatchData table.';

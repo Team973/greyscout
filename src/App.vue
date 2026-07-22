@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
+import { VueQueryPlugin } from "@tanstack/vue-query";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useEventStore } from '@/stores/event-store';
 import NavBar from "./components/NavBar.vue";
+import OfflineQueue from "./components/OfflineQueue.vue";
 import { useAuthStore } from "@/stores/auth-store";
 
 // Keep track of the view mode based on screen width.
@@ -26,6 +28,7 @@ authStore.checkUser();
 <template>
   <NavBar></NavBar>
   <RouterView />
+  <OfflineQueue />
 </template>
 
 

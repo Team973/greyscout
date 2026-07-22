@@ -2,14 +2,15 @@
 
 import argparse
 
-from offline_data import process_offline_data_file 
+from offline_data import process_offline_data_file
 from event_info import update_event_info_for_team, update_attendance_list_for_all_events
+from robot_photos import update_robot_photos_for_event
 
 from credentials import get_supabase_credentials, get_tba_credentials
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", default="event", choices=["offline", "event"])
+    parser.add_argument("--mode", default="event", choices=["offline", "event", "photos"])
     parser.add_argument("--infile", default="data.json")
     parser.add_argument("--outfile", default="data.csv")
     parser.add_argument("--offline_mode", default="upload", choices=["csv", "upload"])
@@ -17,16 +18,21 @@ if __name__ == "__main__":
     parser.add_argument("--tba_creds", default=None)
     parser.add_argument("--supabase_creds", default=None)
     parser.add_argument("--team_number", default=973)
+    parser.add_argument("--event_id", default=None, help="Required for --mode photos, e.g. 2026sunshow")
     args = parser.parse_args()
 
     # Load credentials
     sb_creds = get_supabase_credentials(args.supabase_creds)
     tba_creds = get_tba_credentials(args.tba_creds)
-        
+
     # Parse the JSON array in the provided file into a CSV or upload directly to supabase based on mode.
     if args.mode == "offline":
         process_offline_data_file(args.infile, args.outfile, args.offline_mode, args.type, sb_creds)
     elif args.mode == "event":
         update_event_info_for_team(sb_creds, tba_creds, args.team_number)
         update_attendance_list_for_all_events(sb_creds, tba_creds)
+    elif args.mode == "photos":
+        if not args.event_id:
+            parser.error("--event_id is required for --mode photos")
+        update_robot_photos_for_event(sb_creds, tba_creds, args.event_id)
 
