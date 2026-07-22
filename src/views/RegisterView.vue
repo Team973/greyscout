@@ -3,8 +3,8 @@
 // @ts-nocheck
 
 import "@material/web/button/filled-button";
+import "@material/web/button/text-button";
 import TextInput from '@/components/TextInput.vue';
-import { RouterLink } from 'vue-router';
 
 import { supabase } from "@/lib/supabase-client";
 import { userTable } from "@/lib/constants";
@@ -47,7 +47,7 @@ import { useAuthStore } from "@/stores/auth-store";
                 <md-filled-button v-on:click="registerUser()" class="load-button">Register</md-filled-button>
             </div>
             <div class="login-tile-element">
-                <RouterLink to="/login">Already have an account? Log in</RouterLink>
+                <md-text-button v-on:click="$router.push('/login')">Already have an account? Log in</md-text-button>
             </div>
         </div>
     </div>

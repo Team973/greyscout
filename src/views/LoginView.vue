@@ -5,7 +5,6 @@
 import "@material/web/button/filled-button";
 import "@material/web/button/text-button";
 import TextInput from '@/components/TextInput.vue';
-import { RouterLink } from 'vue-router';
 
 import { supabase } from "@/lib/supabase-client";
 
@@ -36,7 +35,7 @@ import { useAuthStore } from "@/stores/auth-store";
                 <md-text-button v-on:click="showForgotPassword = true">Forgot password?</md-text-button>
             </div>
             <div class="login-tile-element">
-                <RouterLink to="/register">Need an account? Register</RouterLink>
+                <md-text-button v-on:click="$router.push('/register')">Need an account? Register</md-text-button>
             </div>
         </div>
 
