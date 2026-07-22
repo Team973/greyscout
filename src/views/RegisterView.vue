@@ -112,7 +112,8 @@ export default {
                 options: {
                     data: {
                         name: this.userName
-                    }
+                    },
+                    emailRedirectTo: `${window.location.origin}/login`
                 }
             });
 
