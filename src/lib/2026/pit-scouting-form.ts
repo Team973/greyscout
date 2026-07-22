@@ -92,7 +92,7 @@ export async function getPitScoutSchema() {
                     value: "",
                     preserveAfterSubmit: false,
                     incrementAfterSubmit: false,
-                    required: false,
+                    required: true,
                     error: false
                 },
             ]

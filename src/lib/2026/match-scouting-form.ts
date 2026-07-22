@@ -83,7 +83,7 @@ export async function getMatchScoutSchema() {
                     value: "",
                     preserveAfterSubmit: false,
                     incrementAfterSubmit: false,
-                    required: false,
+                    required: true,
                     error: false
                 },
             ]

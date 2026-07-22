@@ -6,7 +6,8 @@ import { useViewModeStore } from '@/stores/view-mode-store';
 
 <template>
     <md-outlined-text-field v-on:input="updateText" type="textarea" v-bind:value="modelValue" :label="label" :cols="cols"
-        :rows="effectiveRows" :maxLength="maxLength"></md-outlined-text-field>
+        :rows="effectiveRows" :maxLength="maxLength" :required="required" :error="error"
+        error-text="This field is required"></md-outlined-text-field>
 </template>
 
 <script lang="ts">
@@ -27,6 +28,12 @@ export default {
         },
         maxLength: {
             default: 2000
+        },
+        required: {
+            default: false
+        },
+        error: {
+            default: false
         }
     },
     data() {
