@@ -135,7 +135,7 @@ export async function submitScoutData(data, table) {
 
 // Upload file using standard upload
 export async function uploadFile(file, bucket, filename) {
-    const { data, error } = await supabase.storage.from(bucket).upload(filename, file, { upsert: true });
+    const { data, error } = await supabase.storage.from(bucket).upload(filename, file, { upsert: true, cacheControl: '3600' });
 
     // IF there is an error, let the user know.
     if (error) {

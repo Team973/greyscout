@@ -36,8 +36,7 @@ import { minWidthForDesktop } from "@/lib/constants";
                     <input ref="file" type="file" v-on:change="uploadImage" hidden>
                     <div class="image-tile" v-if="isRobotPhotoAvailable">
                         <h1>Robot Photo</h1>
-                        <!-- Assuming a 4:3 aspect ratio for now -->
-                        <img :src="getRobotPhotoUrl" width="300" height="400" />
+                        <img :src="getRobotPhotoUrl" class="robot-photo" loading="lazy" />
                         <div v-if="isUserWriteAccess">
                             <md-filled-button v-on:click="chooseFiles"
                                 v-if="!teamPhotoUploading && isUserWriteAccess">Upload a
@@ -135,6 +134,9 @@ export default {
             teamPhotoLoaded: false,
             teamPhotoAvailable: false,
             teamPhotoUrl: "",
+            // Only set right after this session uploads a new photo, so the browser can
+            // otherwise cache robot photos normally instead of re-fetching on every view.
+            photoCacheBust: 0,
             teamPhotoUploading: false,
             teamFilters: [],
             currentTeamIndex: 0,
@@ -288,6 +290,7 @@ export default {
         },
         setTeam(idx: int) {
             this.currentTeamIndex = idx;
+            this.photoCacheBust = 0;
 
             // Reload team data.
             this.refreshTiles();
@@ -325,6 +328,7 @@ export default {
                     // this.teamPhotoAvailable = true;
                     this.teamPhotoLoaded = false;
                     this.teamPhotoUrl = "";
+                    this.photoCacheBust = Date.now();
 
                     // Refresh the robot photo.
                     this.getRobotPhoto();
@@ -343,10 +347,10 @@ export default {
             return this.teamPhotoAvailable;
         },
         getRobotPhotoUrl() {
-            if (this.teamPhotoLoaded) {
-                return this.teamPhotoUrl + "?" + + new Date().getTime();
+            if (!this.teamPhotoLoaded || !this.teamPhotoUrl) {
+                return "";
             }
-            return "";
+            return this.photoCacheBust ? `${this.teamPhotoUrl}?v=${this.photoCacheBust}` : this.teamPhotoUrl;
         },
         getCurrentTeam() {
             if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
@@ -390,6 +394,14 @@ export default {
 </script>
 
 <style scoped>
+.robot-photo {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    border-radius: 8px;
+}
+
 .pit-section {
     margin-top: 24px;
 }
