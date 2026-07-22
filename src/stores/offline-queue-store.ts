@@ -103,11 +103,11 @@ export const useOfflineQueueStore = defineStore('offlineQueue', {
                 if (!error) {
                     this.removeItem(id);
                 } else {
-                    item.lastError = String(error);
+                    item.lastError = error.message ?? String(error);
                     saveToStorage(this.queue);
                 }
             } catch (e) {
-                item.lastError = String(e);
+                item.lastError = e.message ?? String(e);
                 saveToStorage(this.queue);
             }
         },

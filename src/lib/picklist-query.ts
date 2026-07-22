@@ -9,7 +9,6 @@ import {
     pickListTable,
     pickListTypePersonal,
     pickListTypeTeam,
-    defaultTeamNumber,
     userTable
 } from '@/lib/constants';
 
@@ -267,7 +266,6 @@ export async function upsertTeamPicklist(eventId: string, teamNumbers: number[])
         const { error } = await supabase
             .from(pickListTable)
             .insert({
-                user_id: defaultTeamNumber + "_" + eventId + "_picklist",
                 event_id: eventId,
                 type: pickListTypeTeam,
                 team_numbers: teamNumbers,
