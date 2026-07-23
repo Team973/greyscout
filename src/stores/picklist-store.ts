@@ -6,14 +6,19 @@ import {
     fetchPersonalPicklist,
     fetchTeamPicklist,
     fetchAllPersonalPicklists,
+    fetchPickedTeams,
     upsertPersonalPicklist,
     upsertTeamPicklist,
-    computeDemocraticRanking,
-    computeTeamRankStats,
+    updatePickedTeams,
+    computeTeamTierStats,
+    computeDemocraticTierGroups,
+    parseTeamTiers,
     fetchTeamMatchStats,
-    fetchTeamComments
+    fetchTeamComments,
+    TIERS,
+    TIER_GROUPS
 } from '@/lib/picklist-query';
-import type { TeamRankStats } from '@/lib/picklist-query';
+import type { Tier, TierGroup, TeamTierStats } from '@/lib/picklist-query';
 
 export type PicklistTab = 'personal' | 'democratic' | 'team';
 
@@ -21,6 +26,40 @@ export interface TeamEntry {
     team_number: number;
     name: string;
     photo_url: string | null;
+}
+
+function emptyTierSections(): Record<TierGroup, number[]> {
+    const groups = {} as Record<TierGroup, number[]>;
+    TIER_GROUPS.forEach((g) => { groups[g] = []; });
+    return groups;
+}
+
+/**
+ * Bucket a saved (order, tier) pair into tier-grouped sections, in saved
+ * order within each tier. Any team present in allTeams but missing from
+ * teamNumbers (e.g. added to the event after this list was last saved)
+ * is appended to "Unranked".
+ */
+function buildTierSections(
+    teamNumbers: number[],
+    tiersMap: Record<number, Tier>,
+    allTeams: TeamEntry[]
+): Record<TierGroup, number[]> {
+    const groups = emptyTierSections();
+    const seen = new Set<number>();
+    const orderSource = teamNumbers.length ? teamNumbers : allTeams.map((t) => t.team_number);
+
+    const place = (num: number) => {
+        if (seen.has(num)) return;
+        seen.add(num);
+        const tier = tiersMap[num];
+        groups[tier ?? 'Unranked'].push(num);
+    };
+
+    orderSource.forEach((num) => place(Number(num)));
+    allTeams.forEach((t) => place(t.team_number));
+
+    return groups;
 }
 
 export const usePicklistStore = defineStore('picklist', {
@@ -33,21 +72,25 @@ export const usePicklistStore = defineStore('picklist', {
             allTeams: [] as TeamEntry[],
             teamsLoaded: false,
 
-            // Personal list — ordered team numbers
-            personalList: [] as number[],
-            personalListId: null as string | null,
+            // Personal list — tier-grouped team numbers, source of truth for order + tier
+            personalTierSections: emptyTierSections(),
             personalListLoaded: false,
 
-            // Team (lead) list — ordered team numbers
-            teamList: [] as number[],
+            // Team (lead) list — tier-grouped team numbers
+            teamTierSections: emptyTierSections(),
             teamListLoaded: false,
 
-            // Democratic list — computed from all personal lists
-            democraticList: [] as number[],
+            // Democratic list — computed (read-only) tier grouping from all personal lists
+            democraticTierSections: emptyTierSections(),
             democraticListLoaded: false,
 
-            // Per-team highest/lowest/mean/median rank across all personal lists
-            teamRankStats: {} as Record<number, TeamRankStats>,
+            // Per-team aggregate tier stats across all personal lists
+            teamTierStats: {} as Record<number, TeamTierStats>,
+
+            // Event-wide "has this team already been picked" set, visible to everyone,
+            // editable by leads only. Lives on the shared team-type PickList row.
+            pickedTeams: [] as number[],
+            pickedTeamsLoaded: false,
 
             // Per-team expanded data cache
             teamDataCache: {} as Record<number, { stats: unknown[]; comments: unknown[] }>,
@@ -59,53 +102,45 @@ export const usePicklistStore = defineStore('picklist', {
         };
     },
     getters: {
-        /**
-         * Returns the active list's team entries in ranked order.
-         * Falls back to all teams (unranked) when the list is empty.
-         */
-        activeOrderedTeams(): TeamEntry[] {
-            let orderedNums: number[];
-
-            if (this.activeTab === 'personal') {
-                orderedNums = this.personalList;
-            } else if (this.activeTab === 'democratic') {
-                orderedNums = this.democraticList;
-            } else {
-                orderedNums = this.teamList;
-            }
-
-            if (orderedNums.length === 0) {
-                return [...this.allTeams];
-            }
-
-            const teamMap: Record<number, TeamEntry> = {};
-            this.allTeams.forEach((t) => {
-                teamMap[t.team_number] = t;
-            });
-
-            const ordered: TeamEntry[] = [];
-            const added = new Set<number>();
-
-            orderedNums.forEach((num) => {
-                const n = Number(num);
-                if (teamMap[n] && !added.has(n)) {
-                    ordered.push(teamMap[n]);
-                    added.add(n);
-                }
-            });
-
-            // Append any teams not yet in the list
-            this.allTeams.forEach((t) => {
-                if (!added.has(t.team_number)) ordered.push(t);
-            });
-
-            return ordered;
+        teamMap(): Record<number, TeamEntry> {
+            const map: Record<number, TeamEntry> = {};
+            this.allTeams.forEach((t) => { map[t.team_number] = t; });
+            return map;
         },
 
-        isActiveListEditable(): boolean {
-            // Personal tab: everyone can edit their own
-            // Team tab: only leads can edit
-            return this.activeTab === 'personal' || this.activeTab === 'team';
+        /** The tier-grouped sections for whichever tab is currently active. */
+        activeSections(): Record<TierGroup, number[]> {
+            if (this.activeTab === 'personal') return this.personalTierSections;
+            if (this.activeTab === 'team') return this.teamTierSections;
+            return this.democraticTierSections;
+        },
+
+        personalFlatOrder(): number[] {
+            return TIER_GROUPS.flatMap((g) => this.personalTierSections[g] ?? []);
+        },
+
+        personalTiersMap(): Record<number, Tier> {
+            const map: Record<number, Tier> = {};
+            TIERS.forEach((tier) => {
+                (this.personalTierSections[tier] ?? []).forEach((num) => { map[num] = tier; });
+            });
+            return map;
+        },
+
+        teamFlatOrder(): number[] {
+            return TIER_GROUPS.flatMap((g) => this.teamTierSections[g] ?? []);
+        },
+
+        teamTiersMap(): Record<number, Tier> {
+            const map: Record<number, Tier> = {};
+            TIERS.forEach((tier) => {
+                (this.teamTierSections[tier] ?? []).forEach((num) => { map[num] = tier; });
+            });
+            return map;
+        },
+
+        isTeamPicked(): (teamNumber: number) => boolean {
+            return (teamNumber: number) => this.pickedTeams.includes(teamNumber);
         }
     },
     actions: {
@@ -116,6 +151,7 @@ export const usePicklistStore = defineStore('picklist', {
         async loadAll(eventId: string, userId: string | null, isLead: boolean) {
             await this.loadTeams(eventId);
             await this.loadPersonalList(userId, eventId);
+            await this.loadPickedTeams(eventId);
             await this.loadDemocraticList(eventId);
             if (isLead) {
                 await this.loadTeamList(eventId);
@@ -131,61 +167,64 @@ export const usePicklistStore = defineStore('picklist', {
         async loadPersonalList(userId: string | null, eventId: string) {
             this.personalListLoaded = false;
             if (!userId) {
-                this.personalList = this.allTeams.map((t) => t.team_number);
+                this.personalTierSections = buildTierSections([], {}, this.allTeams);
                 this.personalListLoaded = true;
                 return;
             }
 
             const result = await fetchPersonalPicklist(userId, eventId);
-            if (result?.team_numbers?.length) {
-                this.personalList = result.team_numbers;
-                this.personalListId = result.id;
-            } else {
-                // Default: use the sorted team list order
-                this.personalList = this.allTeams.map((t) => t.team_number);
-            }
+            this.personalTierSections = buildTierSections(
+                result?.team_numbers ?? [],
+                parseTeamTiers(result?.team_tiers),
+                this.allTeams
+            );
             this.personalListLoaded = true;
         },
 
         async loadTeamList(eventId: string) {
             this.teamListLoaded = false;
             const result = await fetchTeamPicklist(eventId);
-            if (result?.team_numbers?.length) {
-                this.teamList = result.team_numbers;
-            } else {
-                this.teamList = this.allTeams.map((t) => t.team_number);
-            }
+            this.teamTierSections = buildTierSections(
+                result?.team_numbers ?? [],
+                parseTeamTiers(result?.team_tiers),
+                this.allTeams
+            );
             this.teamListLoaded = true;
         },
 
         async loadDemocraticList(eventId: string) {
             this.democraticListLoaded = false;
             const allLists = await fetchAllPersonalPicklists(eventId);
-            this.democraticList = computeDemocraticRanking(allLists);
-            this.teamRankStats = computeTeamRankStats(allLists);
+            this.teamTierStats = computeTeamTierStats(allLists);
+            this.democraticTierSections = computeDemocraticTierGroups(
+                this.allTeams.map((t) => t.team_number),
+                this.teamTierStats
+            );
             this.democraticListLoaded = true;
         },
 
-        setPersonalOrder(orderedNumbers: (number|string)[]) {
-            this.personalList = Array.from(new Set(orderedNumbers.map(Number)));
-        },
-
-        setTeamOrder(orderedNumbers: (number|string)[]) {
-            this.teamList = Array.from(new Set(orderedNumbers.map(Number)));
+        async loadPickedTeams(eventId: string) {
+            this.pickedTeamsLoaded = false;
+            this.pickedTeams = await fetchPickedTeams(eventId);
+            this.pickedTeamsLoaded = true;
         },
 
         /**
-         * Reset the team list to the current democratic ranking, overwriting
-         * whatever order is currently staged for the team list.
+         * Reset the team list's tiers/order to the current democratic
+         * grouping, overwriting whatever is currently staged for the team list.
          */
         resetTeamListFromDemocratic() {
-            this.teamList = [...this.democraticList];
+            const cloned = emptyTierSections();
+            TIER_GROUPS.forEach((g) => { cloned[g] = [...(this.democraticTierSections[g] ?? [])]; });
+            this.teamTierSections = cloned;
         },
 
         async savePersonalList(userId: string, eventId: string) {
             this.isSaving = true;
             this.lastSaveError = null;
-            const error = await upsertPersonalPicklist(userId, eventId, this.personalList);
+            const error = await upsertPersonalPicklist(
+                userId, eventId, this.personalFlatOrder, this.personalTiersMap
+            );
             this.isSaving = false;
             if (error) {
                 this.lastSaveError = error.message ?? 'Unknown error';
@@ -199,7 +238,7 @@ export const usePicklistStore = defineStore('picklist', {
         async saveTeamList(eventId: string) {
             this.isSaving = true;
             this.lastSaveError = null;
-            const error = await upsertTeamPicklist(eventId, this.teamList);
+            const error = await upsertTeamPicklist(eventId, this.teamFlatOrder, this.teamTiersMap);
             this.isSaving = false;
             if (error) {
                 this.lastSaveError = error.message ?? 'Unknown error';
@@ -207,6 +246,27 @@ export const usePicklistStore = defineStore('picklist', {
             }
             this.lastSaveSuccess = true;
             setTimeout(() => { this.lastSaveSuccess = false; }, 3000);
+            return true;
+        },
+
+        /**
+         * Toggle the event-wide picked status for a team. Optimistically
+         * updates local state, reverting if the save fails.
+         */
+        async togglePicked(eventId: string, teamNumber: number) {
+            const previous = this.pickedTeams;
+            const wasPicked = previous.includes(teamNumber);
+            const next = wasPicked
+                ? previous.filter((n) => n !== teamNumber)
+                : [...previous, teamNumber];
+
+            this.pickedTeams = next;
+            const error = await updatePickedTeams(eventId, next);
+            if (error) {
+                this.pickedTeams = previous;
+                this.lastSaveError = error.message ?? 'Unknown error';
+                return false;
+            }
             return true;
         },
 
