@@ -256,6 +256,8 @@ CREATE TABLE IF NOT EXISTS "public"."PickList" (
     "team_numbers" integer[] DEFAULT '{}'::integer[] NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "team_tiers" jsonb DEFAULT '{}'::jsonb NOT NULL,
+    "picked_team_numbers" integer[] DEFAULT '{}'::integer[] NOT NULL,
     CONSTRAINT "PickList_type_check" CHECK (("type" = ANY (ARRAY['personal'::"text", 'team'::"text"])))
 );
 

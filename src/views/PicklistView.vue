@@ -1,12 +1,14 @@
 <script setup lang="ts">
 // @ts-nocheck
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import draggable from 'vuedraggable';
 import Papa from 'papaparse';
 import { usePicklistStore } from '@/stores/picklist-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
+import { TIER_GROUPS } from '@/lib/picklist-query';
+import PicklistRow from '@/components/PicklistRow.vue';
 
 const picklistStore = usePicklistStore();
 const authStore = useAuthStore();
@@ -109,22 +111,22 @@ const activeTab = computed({
     set: (v) => picklistStore.setTab(v)
 });
 
-// Draggable list binding — sync back into the store on change
-const draggablePersonal = computed({
-    get: () => picklistStore.activeOrderedTeams,
-    set: (newOrder) => {
-        if (picklistStore.activeTab === 'personal') {
-            picklistStore.setPersonalOrder(newOrder.map(t => t.team_number));
-        } else if (picklistStore.activeTab === 'team') {
-            picklistStore.setTeamOrder(newOrder.map(t => t.team_number));
-        }
-    }
-});
-
 const isEditable = computed(() =>
     (activeTab.value === 'personal') ||
     (activeTab.value === 'team' && isLead.value)
 );
+
+// Vote (tier) stats are only meaningful once more than one person's ranking
+// is in play — shown on the Team tab (leads deciding) and the Democratic tab.
+const showVoteStats = computed(() => activeTab.value !== 'personal');
+
+// The picked checkbox reflects real-world alliance selection. It's only
+// shown (and only ever editable) on the official Team tab — not on a
+// scout's own personal draft ranking, and not on the read-only Democratic
+// aggregate.
+const showPickedCheckbox = computed(() => activeTab.value === 'team');
+
+const hasDemocraticVotes = computed(() => Object.keys(picklistStore.teamTierStats).length > 0);
 
 // ─── Loading ───────────────────────────────────────────────────────────────────
 
@@ -151,6 +153,13 @@ async function toggleExpand(teamNumber: number) {
     expandedLoading.value = false;
 }
 
+// ─── Picked toggle ─────────────────────────────────────────────────────────────
+
+async function togglePicked(teamNumber: number) {
+    if (!isLead.value) return;
+    await picklistStore.togglePicked(eventId.value, teamNumber);
+}
+
 // ─── Save ─────────────────────────────────────────────────────────────────────
 
 async function saveList() {
@@ -163,7 +172,8 @@ async function saveList() {
             queueStore.enqueue('picklist_personal', {
                 userId: userId.value,
                 eventId: eventId.value,
-                teamNumbers: picklistStore.personalList
+                teamNumbers: picklistStore.personalFlatOrder,
+                teamTiers: picklistStore.personalTiersMap
             }, picklistStore.lastSaveError ?? undefined);
         }
     } else if (activeTab.value === 'team' && isLead.value) {
@@ -171,7 +181,8 @@ async function saveList() {
         if (!success) {
             queueStore.enqueue('picklist_team', {
                 eventId: eventId.value,
-                teamNumbers: picklistStore.teamList
+                teamNumbers: picklistStore.teamFlatOrder,
+                teamTiers: picklistStore.teamTiersMap
             }, picklistStore.lastSaveError ?? undefined);
         }
     }
@@ -196,11 +207,22 @@ async function resetTeamFromDemocratic() {
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 function exportTeamListCsv() {
-    const rows = picklistStore.activeOrderedTeams.map((team, index) => ({
-        rank: index + 1,
-        team_number: team.team_number,
-        name: team.name
-    }));
+    const rows: Record<string, unknown>[] = [];
+    let rank = 0;
+    TIER_GROUPS.forEach((group) => {
+        (picklistStore.teamTierSections[group] ?? []).forEach((teamNumber) => {
+            const team = picklistStore.teamMap[teamNumber];
+            if (!team) return;
+            rank += 1;
+            rows.push({
+                rank,
+                tier: group,
+                team_number: team.team_number,
+                name: team.name,
+                picked: picklistStore.isTeamPicked(teamNumber)
+            });
+        });
+    });
 
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -215,44 +237,26 @@ function exportTeamListCsv() {
     URL.revokeObjectURL(url);
 }
 
-// ─── Stat helpers ─────────────────────────────────────────────────────────────
+// ─── Tier stats (Democratic / Team tabs) ──────────────────────────────────────
 
-function computeBasicStats(matchData: unknown[]) {
-    if (!matchData.length) return [];
+function tierStatsFor(teamNumber: number) {
+    return picklistStore.teamTierStats[teamNumber] ?? null;
+}
 
-    // Derive numeric fields automatically from the first row
-    const numericFields: string[] = [];
-    if (matchData[0]) {
-        Object.entries(matchData[0]).forEach(([key, val]) => {
-            if (typeof val === 'number' && !key.includes('match_number') && !key.includes('team_number')) {
-                numericFields.push(key);
-            }
-        });
+function tierGroupLabel(group: string) {
+    return group === 'Unranked' ? 'Unranked' : group;
+}
+
+// The orange number is the overall rank across the whole list, not a
+// per-tier count — so it keeps climbing across tier section boundaries.
+function groupRankOffset(group: string) {
+    const sections = picklistStore.activeSections;
+    let offset = 0;
+    for (const g of TIER_GROUPS) {
+        if (g === group) break;
+        offset += (sections[g] ?? []).length;
     }
-
-    return numericFields.slice(0, 8).map((field) => {
-        const values = matchData.map(row => row[field]).filter(v => typeof v === 'number');
-        const avg = values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : 0;
-        const max = values.length ? Math.max(...values) : 0;
-        return { label: formatFieldLabel(field), avg: avg.toFixed(1), max };
-    });
-}
-
-function formatFieldLabel(field: string) {
-    return field
-        .replace(/^(prematch_|postmatch_|auto_|teleop_|endgame_)/g, '')
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-// ─── Rank stats (Democratic / Team tabs) ──────────────────────────────────────
-
-function rankStatsFor(teamNumber: number) {
-    return picklistStore.teamRankStats[teamNumber] ?? null;
-}
-
-function formatRankNumber(n: number) {
-    return Number.isInteger(n) ? String(n) : n.toFixed(1);
+    return offset;
 }
 </script>
 
@@ -292,10 +296,11 @@ function formatRankNumber(n: number) {
 
             <!-- Tab description -->
             <div class="picklist-tab-description">
-                <span v-if="activeTab === 'personal'">Your personal ranking. Drag rows to reorder, then save.</span>
-                <span v-else-if="activeTab === 'democratic'">Aggregated ranking from all scouts' personal lists
+                <span v-if="activeTab === 'personal'">Your personal tier ranking. Drag rows between tiers or reorder
+                    within a tier, then save.</span>
+                <span v-else-if="activeTab === 'democratic'">Aggregated tier ranking from all scouts' personal lists
                     (read-only).</span>
-                <span v-else>Official team pick list — only leads can edit. Drag to reorder, then save.</span>
+                <span v-else>Official team pick list — only leads can edit. Drag between tiers, then save.</span>
             </div>
 
             <!-- Loading state -->
@@ -316,8 +321,8 @@ function formatRankNumber(n: number) {
                 <!-- Save / status bar -->
                 <div class="picklist-save-bar" v-if="isEditable">
                     <button v-if="activeTab === 'team'" id="btn-reset-democratic" class="picklist-reset-btn"
-                        :disabled="picklistStore.isSaving || picklistStore.democraticList.length === 0"
-                        title="Overwrite the team list with the current democratic ranking" @click="resetTeamFromDemocratic">
+                        :disabled="picklistStore.isSaving || !hasDemocraticVotes"
+                        title="Overwrite the team list with the current democratic tier grouping" @click="resetTeamFromDemocratic">
                         ↺ Reset from Democratic
                     </button>
                     <button v-if="activeTab === 'team'" id="btn-export-team-csv" class="picklist-reset-btn"
@@ -348,202 +353,49 @@ function formatRankNumber(n: number) {
                 </div>
 
                 <!-- Democratic hint -->
-                <div v-if="activeTab === 'democratic' && picklistStore.democraticList.length === 0" class="picklist-empty">
+                <div v-if="activeTab === 'democratic' && !hasDemocraticVotes" class="picklist-empty">
                     <p>No personal lists have been submitted yet — submit yours on the "My List" tab first.</p>
                 </div>
 
-                <!-- Draggable / static list -->
-                <draggable v-if="isEditable" v-model="draggablePersonal" group="picklist" item-key="team_number"
-                    handle=".picklist-drag-handle" animation="200" ghost-class="picklist-row--ghost" :force-fallback="true"
-                    :scroll="false" @start="onDragStart" @end="onDragEnd" @change="saveList">
-                    <template #item="{ element: team, index }">
-                        <div class="picklist-row" :class="{ 'picklist-row--expanded': expandedTeam === team.team_number }"
-                            :id="`picklist-team-${team.team_number}`">
-                            <!-- Collapsed row -->
-                            <div class="picklist-row-collapsed" @click="toggleExpand(team.team_number)">
-                                <div class="picklist-drag-handle" @click.stop title="Drag to reorder">
-                                    <span class="drag-dots">⠿</span>
-                                </div>
-                                <div class="picklist-rank">{{ index + 1 }}</div>
-                                <div class="picklist-thumb-wrapper">
-                                    <img v-if="team.photo_url" :src="team.photo_url" :alt="`Team ${team.team_number} robot`"
-                                        class="picklist-thumb" loading="lazy" />
-                                    <div v-else class="picklist-thumb-placeholder">
-                                        <span>🤖</span>
-                                    </div>
-                                </div>
-                                <div class="picklist-team-info">
-                                    <span class="picklist-team-number">{{ team.team_number }}</span>
-                                    <span class="picklist-team-name">{{ team.name }}</span>
-                                </div>
-                                <div v-if="activeTab === 'team'" class="picklist-rank-stats" @click.stop>
-                                    <template v-if="rankStatsFor(team.team_number)">
-                                        <div class="rank-stat" title="Highest (best) rank across personal lists">
-                                            <span class="rank-stat-label">Hi</span>
-                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).highest) }}</span>
-                                        </div>
-                                        <div class="rank-stat" title="Lowest (worst) rank across personal lists">
-                                            <span class="rank-stat-label">Lo</span>
-                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).lowest) }}</span>
-                                        </div>
-                                        <div class="rank-stat" title="Mean rank across personal lists">
-                                            <span class="rank-stat-label">Avg</span>
-                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).mean) }}</span>
-                                        </div>
-                                        <div class="rank-stat" title="Median rank across personal lists">
-                                            <span class="rank-stat-label">Med</span>
-                                            <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).median) }}</span>
-                                        </div>
-                                    </template>
-                                    <span v-else class="picklist-rank-stats-empty">No picks yet</span>
-                                </div>
-                                <div class="picklist-expand-chevron"
-                                    :class="{ 'picklist-expand-chevron--open': expandedTeam === team.team_number }">
-                                    ›
-                                </div>
-                            </div>
-
-                            <!-- Expanded detail -->
-                            <transition name="expand">
-                                <div v-if="expandedTeam === team.team_number" class="picklist-row-detail">
-                                    <div v-if="expandedLoading" class="picklist-detail-loading">
-                                        <div class="picklist-spinner picklist-spinner--sm"></div> Loading data…
-                                    </div>
-                                    <div v-else-if="expandedData" class="picklist-detail-content">
-                                        <!-- Full robot image -->
-                                        <div class="picklist-detail-photo" v-if="team.photo_url">
-                                            <img :src="team.photo_url" :alt="`Team ${team.team_number} robot (full)`"
-                                                class="picklist-full-photo" />
-                                        </div>
-
-                                        <!-- Stats -->
-                                        <div class="picklist-detail-section" v-if="expandedData.stats.length > 0">
-                                            <h3 class="picklist-detail-heading">Match Stats ({{ expandedData.stats.length }}
-                                                matches)</h3>
-                                            <div class="picklist-stats-grid">
-                                                <div v-for="stat in computeBasicStats(expandedData.stats)" :key="stat.label"
-                                                    class="picklist-stat-card">
-                                                    <div class="stat-label">{{ stat.label }}</div>
-                                                    <div class="stat-avg">{{ stat.avg }}</div>
-                                                    <div class="stat-sub">avg &nbsp;|&nbsp; max {{ stat.max }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div v-else class="picklist-no-data">No match data available.</div>
-
-                                        <!-- Comments -->
-                                        <div class="picklist-detail-section" v-if="expandedData.comments.length > 0">
-                                            <h3 class="picklist-detail-heading">Scout Comments</h3>
-                                            <ul class="picklist-comments-list">
-                                                <li v-for="(comment, idx) in expandedData.comments" :key="idx"
-                                                    class="picklist-comment">
-                                                    <div class="comment-meta">
-                                                        <span class="comment-author">{{ comment.author }}</span>
-                                                        <span class="comment-source-badge">{{ comment.source }}</span>
-                                                        <span class="comment-match" v-if="comment.match_number != null">Match
-                                                            {{ comment.match_number }}</span>
-                                                    </div>
-                                                    <p class="comment-text">{{ comment.comment }}</p>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div v-else-if="expandedData.stats.length === 0" class="picklist-no-data">
-                                            No scouting data available for this team.
-                                        </div>
-                                    </div>
-                                </div>
-                            </transition>
-                        </div>
-                    </template>
-                </draggable>
-
-                <!-- Read-only list (democratic tab) -->
-                <div v-else-if="activeTab === 'democratic' && picklistStore.democraticList.length > 0">
-                    <div v-for="(team, index) in picklistStore.activeOrderedTeams" :key="team.team_number"
-                        class="picklist-row" :class="{ 'picklist-row--expanded': expandedTeam === team.team_number }"
-                        :id="`picklist-team-demo-${team.team_number}`">
-                        <div class="picklist-row-collapsed" @click="toggleExpand(team.team_number)">
-                            <div class="picklist-rank">{{ index + 1 }}</div>
-                            <div class="picklist-thumb-wrapper">
-                                <img v-if="team.photo_url" :src="team.photo_url" :alt="`Team ${team.team_number} robot`"
-                                    class="picklist-thumb" loading="lazy" />
-                                <div v-else class="picklist-thumb-placeholder">
-                                    <span>🤖</span>
-                                </div>
-                            </div>
-                            <div class="picklist-team-info">
-                                <span class="picklist-team-number">{{ team.team_number }}</span>
-                                <span class="picklist-team-name">{{ team.name }}</span>
-                            </div>
-                            <div class="picklist-rank-stats" @click.stop>
-                                <template v-if="rankStatsFor(team.team_number)">
-                                    <div class="rank-stat" title="Highest (best) rank across personal lists">
-                                        <span class="rank-stat-label">Hi</span>
-                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).highest) }}</span>
-                                    </div>
-                                    <div class="rank-stat" title="Lowest (worst) rank across personal lists">
-                                        <span class="rank-stat-label">Lo</span>
-                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).lowest) }}</span>
-                                    </div>
-                                    <div class="rank-stat" title="Mean rank across personal lists">
-                                        <span class="rank-stat-label">Avg</span>
-                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).mean) }}</span>
-                                    </div>
-                                    <div class="rank-stat" title="Median rank across personal lists">
-                                        <span class="rank-stat-label">Med</span>
-                                        <span class="rank-stat-value">{{ formatRankNumber(rankStatsFor(team.team_number).median) }}</span>
-                                    </div>
-                                </template>
-                                <span v-else class="picklist-rank-stats-empty">No picks yet</span>
-                            </div>
-                            <div class="picklist-expand-chevron"
-                                :class="{ 'picklist-expand-chevron--open': expandedTeam === team.team_number }">
-                                ›
-                            </div>
+                <!-- Tier-grouped sections -->
+                <div v-else class="tier-sections">
+                    <div v-for="group in TIER_GROUPS" :key="group" class="tier-section">
+                        <div class="tier-section-header" :class="`tier-section-header--${group}`">
+                            <span class="tier-section-name">{{ tierGroupLabel(group) }}</span>
+                            <span class="tier-section-count">{{ (picklistStore.activeSections[group] || []).length }}</span>
                         </div>
 
-                        <transition name="expand">
-                            <div v-if="expandedTeam === team.team_number" class="picklist-row-detail">
-                                <div v-if="expandedLoading" class="picklist-detail-loading">
-                                    <div class="picklist-spinner picklist-spinner--sm"></div> Loading data…
-                                </div>
-                                <div v-else-if="expandedData" class="picklist-detail-content">
-                                    <div class="picklist-detail-photo" v-if="team.photo_url">
-                                        <img :src="team.photo_url" :alt="`Team ${team.team_number} robot (full)`"
-                                            class="picklist-full-photo" />
-                                    </div>
-                                    <div class="picklist-detail-section" v-if="expandedData.stats.length > 0">
-                                        <h3 class="picklist-detail-heading">Match Stats ({{ expandedData.stats.length }}
-                                            matches)</h3>
-                                        <div class="picklist-stats-grid">
-                                            <div v-for="stat in computeBasicStats(expandedData.stats)" :key="stat.label"
-                                                class="picklist-stat-card">
-                                                <div class="stat-label">{{ stat.label }}</div>
-                                                <div class="stat-avg">{{ stat.avg }}</div>
-                                                <div class="stat-sub">avg &nbsp;|&nbsp; max {{ stat.max }}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-else class="picklist-no-data">No match data available.</div>
+                        <!-- Editable: draggable within and across tier sections -->
+                        <draggable v-if="isEditable" :list="picklistStore.activeSections[group]" group="picklist"
+                            :item-key="(el) => el" handle=".picklist-drag-handle" animation="200"
+                            ghost-class="picklist-row--ghost" :force-fallback="true" :scroll="false"
+                            class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
+                            <template #item="{ element: teamNumber, index }">
+                                <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                    :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
+                                    :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
+                                    :is-picked="picklistStore.isTeamPicked(teamNumber)"
+                                    :can-toggle-picked="isLead" :expanded="expandedTeam === teamNumber"
+                                    :expanded-data="expandedData" :expanded-loading="expandedLoading"
+                                    @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)" />
+                            </template>
+                        </draggable>
 
-                                    <div class="picklist-detail-section" v-if="expandedData.comments.length > 0">
-                                        <h3 class="picklist-detail-heading">Scout Comments</h3>
-                                        <ul class="picklist-comments-list">
-                                            <li v-for="(comment, idx) in expandedData.comments" :key="idx"
-                                                class="picklist-comment">
-                                                <div class="comment-meta">
-                                                    <span class="comment-author">{{ comment.author }}</span>
-                                                    <span class="comment-source-badge">{{ comment.source }}</span>
-                                                    <span class="comment-match" v-if="comment.match_number != null">Match
-                                                        {{ comment.match_number }}</span>
-                                                </div>
-                                                <p class="comment-text">{{ comment.comment }}</p>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        </transition>
+                        <!-- Read-only (democratic tab) -->
+                        <div v-else class="tier-section-body tier-section-body--static">
+                            <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
+                                :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
+                                :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
+                                :is-picked="picklistStore.isTeamPicked(teamNumber)"
+                                :can-toggle-picked="isLead" :expanded="expandedTeam === teamNumber"
+                                :expanded-data="expandedData" :expanded-loading="expandedLoading"
+                                @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)" />
+                        </div>
+
+                        <div v-if="(picklistStore.activeSections[group] || []).length === 0" class="tier-section-empty">
+                            {{ isEditable ? 'Drag teams here' : 'No teams in this tier' }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -632,12 +484,6 @@ function formatRankNumber(n: number) {
     animation: spin 0.8s linear infinite;
 }
 
-.picklist-spinner--sm {
-    width: 20px;
-    height: 20px;
-    border-width: 2px;
-}
-
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -724,339 +570,89 @@ function formatRankNumber(n: number) {
     cursor: not-allowed;
 }
 
-/* ── Row ── */
-.picklist-list-wrapper {
-    display: flex;
-    flex-direction: column;
-}
-
-.picklist-row {
-    background: var(--tile-background-color);
-    border-radius: 12px;
-    margin-bottom: 8px;
-    overflow: hidden;
-    box-shadow:
-        inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.07),
-        0 1px 4px hsla(230, 13%, 9%, 0.07),
-        0 2px 10px hsla(230, 13%, 9%, 0.06);
-    transition: box-shadow 0.2s ease;
-}
-
-.picklist-row:hover {
-    box-shadow:
-        inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.1),
-        0 2px 8px hsla(230, 13%, 9%, 0.12),
-        0 4px 16px hsla(230, 13%, 9%, 0.1);
-}
-
-.picklist-row--expanded {
-    box-shadow:
-        0 0 0 2px #b05703,
-        0 4px 20px hsla(230, 13%, 9%, 0.14);
-}
-
-.picklist-row--ghost {
-    opacity: 0.45;
-}
-
-/* Collapsed row layout */
-.picklist-row-collapsed {
-    display: flex;
-    align-items: center;
-    padding: 10px 14px;
-    cursor: pointer;
-    gap: 12px;
-    min-height: 68px;
-    user-select: none;
-}
-
-.picklist-drag-handle {
-    color: rgba(128, 128, 128, 0.5);
-    cursor: grab;
-    font-size: 20px;
-    padding: 4px;
-    flex-shrink: 0;
-    transition: color 0.15s;
-    line-height: 1;
-}
-
-.picklist-drag-handle:hover {
-    color: #b05703;
-}
-
-.picklist-rank {
-    font-size: 18px;
-    font-weight: 700;
-    color: #b05703;
-    min-width: 30px;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-.picklist-thumb-wrapper {
-    width: 52px;
-    height: 52px;
-    border-radius: 8px;
-    overflow: hidden;
-    flex-shrink: 0;
-    background: rgba(128, 128, 128, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.picklist-thumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.picklist-thumb-placeholder {
-    font-size: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-}
-
-.picklist-team-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-}
-
-.picklist-team-number {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--primary-text-color);
-    line-height: 1.2;
-}
-
-.picklist-team-name {
-    font-size: 13px;
-    color: rgba(128, 128, 128, 0.8);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.picklist-expand-chevron {
-    font-size: 24px;
-    font-weight: 300;
-    color: rgba(128, 128, 128, 0.5);
-    transition: transform 0.22s ease, color 0.15s ease;
-    flex-shrink: 0;
-    line-height: 1;
-    padding-left: 4px;
-}
-
-/* ── Rank stats (Democratic / Team rows) ── */
-.picklist-rank-stats {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-    cursor: default;
-}
-
-.rank-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 28px;
-}
-
-.rank-stat-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: rgba(128, 128, 128, 0.7);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    line-height: 1.2;
-}
-
-.rank-stat-value {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--primary-text-color);
-    line-height: 1.2;
-}
-
-.picklist-rank-stats-empty {
-    font-size: 11px;
-    color: rgba(128, 128, 128, 0.6);
-    font-style: italic;
-    white-space: nowrap;
-}
-
-.picklist-expand-chevron--open {
-    transform: rotate(90deg);
-    color: #b05703;
-}
-
-/* ── Detail section ── */
-.picklist-row-detail {
-    border-top: 1px solid rgba(128, 128, 128, 0.15);
-    padding: 16px 14px 20px;
-    overflow: hidden;
-}
-
-.picklist-detail-loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    color: rgba(128, 128, 128, 0.7);
-    padding: 8px 0;
-}
-
-.picklist-detail-content {
+/* ── Tier sections ── */
+.tier-sections {
     display: flex;
     flex-direction: column;
     gap: 18px;
 }
 
-.picklist-detail-photo {
-    display: flex;
-    justify-content: center;
-}
-
-.picklist-full-photo {
-    max-width: 340px;
-    width: 100%;
-    border-radius: 10px;
-    object-fit: cover;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
-
-.picklist-detail-heading {
-    font-size: 14px;
-    font-weight: 700;
-    color: #b05703;
-    margin-bottom: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-}
-
-.picklist-detail-section {
+.tier-section {
     display: flex;
     flex-direction: column;
 }
 
-/* Stats grid */
-.picklist-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 10px;
-}
-
-.picklist-stat-card {
-    background: rgba(176, 87, 3, 0.08);
-    border: 1px solid rgba(176, 87, 3, 0.2);
-    border-radius: 10px;
-    padding: 10px 12px;
-    text-align: center;
-}
-
-.stat-label {
-    font-size: 11px;
-    color: rgba(128, 128, 128, 0.75);
-    margin-bottom: 4px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.stat-avg {
-    font-size: 22px;
-    font-weight: 700;
-    color: #b05703;
-    line-height: 1.1;
-}
-
-.stat-sub {
-    font-size: 10px;
-    color: rgba(128, 128, 128, 0.6);
-    margin-top: 2px;
-}
-
-/* Comments */
-.picklist-comments-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.picklist-comment {
-    border: 1px solid rgba(128, 128, 128, 0.2);
-    border-radius: 10px;
-    padding: 10px 14px;
-}
-
-.comment-meta {
+.tier-section-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 6px;
-    flex-wrap: wrap;
+    padding: 4px 10px;
+    margin-bottom: 8px;
+    border-left: 4px solid rgba(128, 128, 128, 0.4);
 }
 
-.comment-author {
-    font-weight: 700;
-    font-size: 13px;
+.tier-section-name {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
     color: var(--primary-text-color);
 }
 
-.comment-source-badge {
-    font-size: 10px;
+.tier-section-count {
+    font-size: 12px;
     font-weight: 600;
-    padding: 2px 7px;
+    color: rgba(128, 128, 128, 0.7);
+    background: rgba(128, 128, 128, 0.12);
     border-radius: 20px;
-    background: rgba(176, 87, 3, 0.15);
-    color: #b05703;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    padding: 1px 8px;
 }
 
-.comment-match {
-    font-size: 11px;
-    color: rgba(128, 128, 128, 0.6);
-    margin-left: auto;
+.tier-section-header--S {
+    border-left-color: #d4a017;
 }
 
-.comment-text {
-    font-size: 13px;
-    color: var(--primary-text-color);
-    line-height: 1.55;
-    margin: 0;
+.tier-section-header--A {
+    border-left-color: #3a9e3a;
 }
 
-.picklist-no-data {
-    font-size: 13px;
-    color: rgba(128, 128, 128, 0.6);
+.tier-section-header--B {
+    border-left-color: #3a78c8;
+}
+
+.tier-section-header--C {
+    border-left-color: #8c64c8;
+}
+
+.tier-section-header--D {
+    border-left-color: #b05703;
+}
+
+.tier-section-header--DNP {
+    border-left-color: #c83c3c;
+}
+
+.tier-section-header--Unranked {
+    border-left-color: rgba(128, 128, 128, 0.4);
+}
+
+.tier-section-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 50px;
+}
+
+.tier-section-empty {
+    font-size: 12px;
+    color: rgba(128, 128, 128, 0.55);
     font-style: italic;
-    padding: 4px 0;
+    text-align: center;
+    padding: 10px;
+    border: 1.5px dashed rgba(128, 128, 128, 0.25);
+    border-radius: 10px;
+    margin-top: -4px;
 }
 
 /* ── Transitions ── */
-.expand-enter-active,
-.expand-leave-active {
-    transition: max-height 0.28s ease, opacity 0.22s ease;
-    max-height: 1200px;
-    overflow: hidden;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-    max-height: 0;
-    opacity: 0;
-}
-
 .fade-enter-active,
 .fade-leave-active {
     transition: opacity 0.3s ease;

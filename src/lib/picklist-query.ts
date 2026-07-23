@@ -140,13 +140,42 @@ export async function fetchTeamComments(teamNumber: number, eventId: string) {
 }
 
 /**
+ * The tiers a team can be sorted into, best to worst. "DNP" = Do Not Pick.
+ */
+export const TIERS = ['S', 'A', 'B', 'C', 'D', 'DNP'] as const;
+export type Tier = typeof TIERS[number];
+
+/** Display groups for the tier-grouped picklist, including the untriaged bucket. */
+export type TierGroup = 'Unranked' | Tier;
+// "Unranked" (the untriaged pool) renders last, below the real tiers.
+export const TIER_GROUPS: TierGroup[] = [...TIERS, 'Unranked'];
+
+const TIER_INDEX: Record<Tier, number> = { S: 0, A: 1, B: 2, C: 3, D: 4, DNP: 5 };
+
+function isTier(value: unknown): value is Tier {
+    return typeof value === 'string' && (TIERS as readonly string[]).includes(value);
+}
+
+/**
+ * Normalize a raw team_tiers jsonb value (string keys) into a
+ * Record<team_number, Tier>, dropping any invalid entries.
+ */
+export function parseTeamTiers(raw: Record<string, unknown> | null | undefined): Record<number, Tier> {
+    const tiers: Record<number, Tier> = {};
+    Object.entries(raw ?? {}).forEach(([teamNumStr, tier]) => {
+        if (isTier(tier)) tiers[Number(teamNumStr)] = tier;
+    });
+    return tiers;
+}
+
+/**
  * Fetch the current user's personal picklist for an event.
- * Returns the ordered array of team_numbers, or null if none exists.
+ * Returns the ordered array of team_numbers plus tier assignments, or null if none exists.
  */
 export async function fetchPersonalPicklist(userId: string, eventId: string) {
     const { data, error } = await supabase
         .from(pickListTable)
-        .select('id, team_numbers, updated_at')
+        .select('id, team_numbers, team_tiers, updated_at')
         .eq('user_id', userId)
         .eq('event_id', eventId)
         .eq('type', pickListTypePersonal)
@@ -162,12 +191,12 @@ export async function fetchPersonalPicklist(userId: string, eventId: string) {
 
 /**
  * Fetch ALL personal picklists for an event (for the democratic view).
- * Returns array of { user_id, team_numbers }.
+ * Returns array of { user_id, team_numbers, team_tiers }.
  */
 export async function fetchAllPersonalPicklists(eventId: string) {
     const { data, error } = await supabase
         .from(pickListTable)
-        .select('user_id, team_numbers')
+        .select('user_id, team_numbers, team_tiers')
         .eq('event_id', eventId)
         .eq('type', pickListTypePersonal);
 
@@ -179,12 +208,14 @@ export async function fetchAllPersonalPicklists(eventId: string) {
 }
 
 /**
- * Fetch the team (shared lead) picklist for an event.
+ * Fetch the team (shared lead) picklist for an event, including the
+ * event-wide set of teams that have already been picked (real-world
+ * alliance selection), which is only ever stored on this shared row.
  */
 export async function fetchTeamPicklist(eventId: string) {
     const { data, error } = await supabase
         .from(pickListTable)
-        .select('id, team_numbers, updated_at')
+        .select('id, team_numbers, team_tiers, picked_team_numbers, updated_at')
         .eq('event_id', eventId)
         .eq('type', pickListTypeTeam)
         .limit(1)
@@ -198,13 +229,34 @@ export async function fetchTeamPicklist(eventId: string) {
 }
 
 /**
+ * Fetch just the event-wide picked-team set. Visible to every user
+ * regardless of role, unlike the rest of the team list which is lead-only.
+ */
+export async function fetchPickedTeams(eventId: string): Promise<number[]> {
+    const { data, error } = await supabase
+        .from(pickListTable)
+        .select('picked_team_numbers')
+        .eq('event_id', eventId)
+        .eq('type', pickListTypeTeam)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error('fetchPickedTeams error:', error);
+        return [];
+    }
+    return data?.picked_team_numbers ?? [];
+}
+
+/**
  * Upsert a personal picklist to Supabase.
  * Returns the error object or null on success.
  */
 export async function upsertPersonalPicklist(
     userId: string,
     eventId: string,
-    teamNumbers: number[]
+    teamNumbers: number[],
+    teamTiers: Record<number, Tier>
 ) {
     const { data, error: fetchError } = await supabase
         .from(pickListTable)
@@ -221,6 +273,7 @@ export async function upsertPersonalPicklist(
             .from(pickListTable)
             .update({
                 team_numbers: teamNumbers,
+                team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
             })
             .eq('id', data.id);
@@ -233,6 +286,7 @@ export async function upsertPersonalPicklist(
                 event_id: eventId,
                 type: pickListTypePersonal,
                 team_numbers: teamNumbers,
+                team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
             });
         return error;
@@ -240,10 +294,15 @@ export async function upsertPersonalPicklist(
 }
 
 /**
- * Upsert the shared team picklist to Supabase.
+ * Upsert the shared team picklist to Supabase. Leaves picked_team_numbers
+ * untouched — that's updated separately via updatePickedTeams.
  * Returns the error object or null on success.
  */
-export async function upsertTeamPicklist(eventId: string, teamNumbers: number[]) {
+export async function upsertTeamPicklist(
+    eventId: string,
+    teamNumbers: number[],
+    teamTiers: Record<number, Tier>
+) {
     const { data, error: fetchError } = await supabase
         .from(pickListTable)
         .select('id')
@@ -258,6 +317,7 @@ export async function upsertTeamPicklist(eventId: string, teamNumbers: number[])
             .from(pickListTable)
             .update({
                 team_numbers: teamNumbers,
+                team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
             })
             .eq('id', data.id);
@@ -269,6 +329,7 @@ export async function upsertTeamPicklist(eventId: string, teamNumbers: number[])
                 event_id: eventId,
                 type: pickListTypeTeam,
                 team_numbers: teamNumbers,
+                team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
             });
         return error;
@@ -276,72 +337,128 @@ export async function upsertTeamPicklist(eventId: string, teamNumbers: number[])
 }
 
 /**
- * Compute a democratic ranking from all personal picklists.
- * Each team's score = sum of (total_teams - rank) across all lists.
- * Higher score = higher aggregate ranking.
+ * Update the event-wide picked-team set on the shared team row. This is
+ * intentionally separate from upsertTeamPicklist so toggling a checkbox
+ * never clobbers a concurrently-edited tier/order draft, and vice versa.
+ * Returns the error object or null on success.
  */
-export function computeDemocraticRanking(
-    allLists: { user_id: string; team_numbers: number[] }[]
-): number[] {
-    const scores: Record<number, number> = {};
+export async function updatePickedTeams(eventId: string, pickedTeamNumbers: number[]) {
+    const { data, error: fetchError } = await supabase
+        .from(pickListTable)
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('type', pickListTypeTeam)
+        .maybeSingle();
 
-    allLists.forEach(({ team_numbers }) => {
-        const total = team_numbers.length;
-        team_numbers.forEach((teamNum, idx) => {
-            const score = total - idx; // higher rank = higher score
-            scores[teamNum] = (scores[teamNum] ?? 0) + score;
-        });
-    });
+    if (fetchError) return fetchError;
 
-    return Object.entries(scores)
-        .sort(([, a], [, b]) => b - a)
-        .map(([teamNum]) => Number(teamNum));
+    if (data) {
+        const { error } = await supabase
+            .from(pickListTable)
+            .update({
+                picked_team_numbers: pickedTeamNumbers,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', data.id);
+        return error;
+    } else {
+        const { error } = await supabase
+            .from(pickListTable)
+            .insert({
+                event_id: eventId,
+                type: pickListTypeTeam,
+                picked_team_numbers: pickedTeamNumbers,
+                updated_at: new Date().toISOString()
+            });
+        return error;
+    }
 }
 
-export interface TeamRankStats {
-    count: number;
-    highest: number; // best (lowest-numbered) 1-indexed rank a scout gave this team
-    lowest: number;  // worst (highest-numbered) 1-indexed rank a scout gave this team
-    mean: number;
-    median: number;
+export interface TeamTierStats {
+    tier: Tier; // aggregate (average) tier across scouts who classified this team
+    votes: number;
+    avgIndex: number; // average of each vote's tier index (0=S..5=DNP) — used to bucket the aggregate tier
+    avgRank: number; // average 1-indexed overall rank across voters' full tiered orderings
+    tierCounts: Record<Tier, number>;
 }
 
 /**
- * Compute per-team rank statistics (highest/lowest/mean/median 1-indexed
- * position) from all personal picklists. Teams a scout didn't include in
- * their list contribute no data point for that scout.
+ * Compute per-team aggregate tier statistics from all personal picklists.
+ * A scout who left a team unranked contributes no data point for it — same
+ * "no vote" convention the old rank stats used, so being untriaged in one
+ * scout's list never drags a team's aggregate down.
+ *
+ * Each list's team_numbers is the tier-grouped flat order (real tiers
+ * first, in S..DNP order, "Unranked" trailing), so a tiered team's index
+ * in that array is already its 1-indexed overall rank among that scout's
+ * *tiered* teams — untriaged teams always sort after it and can't shift it.
  */
-export function computeTeamRankStats(
-    allLists: { user_id: string; team_numbers: number[] }[]
-): Record<number, TeamRankStats> {
+export function computeTeamTierStats(
+    allLists: { user_id: string; team_numbers: number[]; team_tiers: Record<string, unknown> }[]
+): Record<number, TeamTierStats> {
+    const tiersByTeam: Record<number, Tier[]> = {};
     const ranksByTeam: Record<number, number[]> = {};
 
-    allLists.forEach(({ team_numbers }) => {
-        team_numbers.forEach((teamNum, idx) => {
-            const rank = idx + 1;
-            (ranksByTeam[teamNum] ??= []).push(rank);
+    allLists.forEach(({ team_numbers, team_tiers }) => {
+        const tiersMap = parseTeamTiers(team_tiers);
+        (team_numbers ?? []).forEach((teamNumRaw, idx) => {
+            const teamNum = Number(teamNumRaw);
+            const tier = tiersMap[teamNum];
+            if (!tier) return; // left unranked by this scout — no data point
+            (tiersByTeam[teamNum] ??= []).push(tier);
+            (ranksByTeam[teamNum] ??= []).push(idx + 1);
         });
     });
 
-    const stats: Record<number, TeamRankStats> = {};
+    const stats: Record<number, TeamTierStats> = {};
 
-    Object.entries(ranksByTeam).forEach(([teamNumStr, ranks]) => {
+    Object.entries(tiersByTeam).forEach(([teamNumStr, tiers]) => {
         const teamNum = Number(teamNumStr);
-        const sorted = [...ranks].sort((a, b) => a - b);
-        const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
-        const mid = Math.floor(sorted.length / 2);
-        const median = sorted.length % 2 === 0
-            ? (sorted[mid - 1] + sorted[mid]) / 2
-            : sorted[mid];
+        const tierCounts = { S: 0, A: 0, B: 0, C: 0, D: 0, DNP: 0 };
+        let sum = 0;
+        tiers.forEach((t) => {
+            tierCounts[t]++;
+            sum += TIER_INDEX[t];
+        });
+        const avgIndex = sum / tiers.length;
+        const bucket = Math.min(TIERS.length - 1, Math.max(0, Math.round(avgIndex)));
+        const ranks = ranksByTeam[teamNum];
+        const avgRank = ranks.reduce((a, b) => a + b, 0) / ranks.length;
 
-        stats[teamNum] = {
-            count: sorted.length,
-            highest: sorted[0],
-            lowest: sorted[sorted.length - 1],
-            mean,
-            median
-        };
+        stats[teamNum] = { tier: TIERS[bucket], votes: tiers.length, avgIndex, avgRank, tierCounts };
     });
 
     return stats;
+}
+
+/**
+ * Group every team into a TierGroup based on computeTeamTierStats output.
+ * Teams with no votes land in "Unranked". Within a real tier, teams are
+ * ordered best-to-worst by average overall placement (avgRank), then by
+ * vote count.
+ */
+export function computeDemocraticTierGroups(
+    allTeamNumbers: number[],
+    stats: Record<number, TeamTierStats>
+): Record<TierGroup, number[]> {
+    const groups: Record<TierGroup, number[]> = {
+        Unranked: [], S: [], A: [], B: [], C: [], D: [], DNP: []
+    };
+
+    allTeamNumbers.forEach((teamNum) => {
+        const s = stats[teamNum];
+        groups[s ? s.tier : 'Unranked'].push(teamNum);
+    });
+
+    TIERS.forEach((tier) => {
+        groups[tier].sort((a, b) => {
+            const sa = stats[a];
+            const sb = stats[b];
+            if (sa.avgRank !== sb.avgRank) return sa.avgRank - sb.avgRank;
+            if (sa.votes !== sb.votes) return sb.votes - sa.votes;
+            return a - b;
+        });
+    });
+
+    return groups;
 }

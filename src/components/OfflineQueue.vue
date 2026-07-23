@@ -27,13 +27,15 @@ const retryHandlers = {
         return await upsertPersonalPicklist(
             payload.userId as string,
             payload.eventId as string,
-            payload.teamNumbers as number[]
+            payload.teamNumbers as number[],
+            payload.teamTiers as Record<number, string>
         );
     },
     picklist_team: async (payload: Record<string, unknown>) => {
         return await upsertTeamPicklist(
             payload.eventId as string,
-            payload.teamNumbers as number[]
+            payload.teamNumbers as number[],
+            payload.teamTiers as Record<number, string>
         );
     },
     scout_data: async (payload: Record<string, unknown>) => {
