@@ -75,6 +75,18 @@ export async function getMatchScoutSchema() {
                     error: false
                 },
                 {
+                    key: "died",
+                    label: "Died?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    incrementAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
                     key: "comments",
                     label: "Comments",
                     type: "textarea",

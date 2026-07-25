@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS "public"."MatchData" (
     "prematch_alliance" "text",
     "prematch_noshow" boolean DEFAULT false,
     "postmatch_cards" "text",
+    "postmatch_died" boolean DEFAULT false NOT NULL,
     "postmatch_comments" "text",
     "key" "text",
     "source" "text"
