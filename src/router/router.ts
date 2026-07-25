@@ -6,7 +6,6 @@ import { isSiteReadPrivate, isSiteWritePrivate } from "@/lib/constants";
 import { createRouter, createWebHistory } from "vue-router";
 import DataUploadView from "@/views/DataUploadView.vue";
 import MatchScoutView from "@/views/MatchScoutView.vue";
-import PitScoutView from "@/views/PitScoutView.vue";
 import TeamAnalysisView from "@/views/TeamAnalysisView.vue";
 import EventAnalysisView from "@/views/EventAnalysisView.vue";
 import MatchPreviewView from "@/views/MatchPreviewView.vue";
@@ -46,14 +45,6 @@ const router = createRouter({
       path: "/match",
       name: "Match Scouting | GreyScout",
       component: MatchScoutView,
-      meta: {
-        requiresAuth: isSiteReadPrivate
-      }
-    },
-    {
-      path: "/pit",
-      name: "Pit Scouting | GreyScout",
-      component: PitScoutView,
       meta: {
         requiresAuth: isSiteReadPrivate
       }

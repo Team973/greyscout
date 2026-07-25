@@ -2,16 +2,37 @@
 
 import { getTeamInputElement } from "@/lib/data-submission";
 
-export async function getPitScoutSchema() {
-    const teamInputElement = await getTeamInputElement();
+// Fills in `component.value` (not `defaultValue` — that stays at the unfilled
+// sentinel so validateForm's required-field checks keep working) from an
+// existing PitData row, inverting the key convention parseScoutData uses
+// (section.key + "_" + component.key, i.e. "pit_" + component.key here).
+function applyExistingPitData(components, row) {
+    components.forEach((component) => {
+        const dbKey = "pit_" + component.key;
+        if (!(dbKey in row) || row[dbKey] == null) {
+            return;
+        }
 
-    return [
+        const raw = row[dbKey];
+        if (component.type === "dropdown") {
+            const idx = component.options.choices.findIndex((c) => c.key === raw);
+            if (idx >= 0) {
+                component.value = idx;
+            }
+        } else {
+            component.value = raw;
+        }
+    });
+}
+
+export async function getPitScoutSchema({ includeTeamSelector = true, existingData = null } = {}) {
+    const components = [];
+    if (includeTeamSelector) {
+        components.push(await getTeamInputElement());
+    }
+
+    components.push(
         {
-            key: "pit",
-            name: "",
-            components: [
-                teamInputElement,
-                {
                     key: "drivetrain",
                     label: "Drivetrain Type",
                     type: "dropdown",
@@ -221,6 +242,7 @@ export async function getPitScoutSchema() {
                     options: {
                         choices: [
                             { key: "none", text: "Select climb..." },
+                            { key: "no_climb", text: "No Climb" },
                             { key: "l1", text: "L1" },
                             { key: "l2", text: "L2" },
                             { key: "l3", text: "L3" }
@@ -296,18 +318,28 @@ export async function getPitScoutSchema() {
                     required: true,
                     error: false
                 },
-                {
-                    key: "comments",
-                    label: "Comments",
-                    type: "textarea",
-                    options: {},
-                    defaultValue: "",
-                    value: "",
-                    preserveAfterSubmit: false,
-                    required: true,
-                    error: false
-                },
-            ]
+        {
+            key: "comments",
+            label: "Comments",
+            type: "textarea",
+            options: {},
+            defaultValue: "",
+            value: "",
+            preserveAfterSubmit: false,
+            required: true,
+            error: false
+        },
+    );
+
+    if (existingData) {
+        applyExistingPitData(components, existingData);
+    }
+
+    return [
+        {
+            key: "pit",
+            name: "",
+            components
         },
     ];
 }

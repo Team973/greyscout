@@ -73,7 +73,7 @@ export async function fetchTeamMatchStats(teamNumber: number, eventId: string) {
 export async function fetchTeamPitData(teamNumber: number, eventId: string) {
     const { data, error } = await supabase
         .from(pitScoutTable)
-        .select(`pit_drivetrain, pit_drive_motor_type, pit_length, pit_width, pit_weight, pit_archetype, pit_language, pit_num_batteries, pit_num_chargers, pit_traverse_bump, pit_traverse_trench, pit_outpost_fuel, pit_shoot_close, pit_shoot_tower, pit_shoot_corner, pit_shoot_trench, pit_climb, pit_climb_auto, pit_auto_strategy, pit_cycle_rate, pit_defense, pit_vibe_check, pit_comments, created_at, ${userTable}(name)`)
+        .select(`id, pit_drivetrain, pit_drive_motor_type, pit_length, pit_width, pit_weight, pit_archetype, pit_language, pit_num_batteries, pit_num_chargers, pit_traverse_bump, pit_traverse_trench, pit_outpost_fuel, pit_shoot_close, pit_shoot_tower, pit_shoot_corner, pit_shoot_trench, pit_climb, pit_climb_auto, pit_auto_strategy, pit_cycle_rate, pit_defense, pit_vibe_check, pit_comments, created_at, ${userTable}(name)`)
         .eq('event', eventId)
         .eq('pit_team_number', teamNumber)
         .order('created_at', { ascending: false });
@@ -84,6 +84,7 @@ export async function fetchTeamPitData(teamNumber: number, eventId: string) {
     }
 
     return (data ?? []).map((row) => ({
+        id: row.id,
         author: row[userTable]?.name ?? 'Unknown',
         drivetrain: row.pit_drivetrain,
         driveMotorType: row.pit_drive_motor_type,
@@ -110,6 +111,25 @@ export async function fetchTeamPitData(teamNumber: number, eventId: string) {
         comments: row.pit_comments,
         created_at: row.created_at
     }));
+}
+
+/**
+ * Fetch a single raw PitData row by id (native pit_* column names), used to
+ * pre-fill the pit scouting form when editing an existing submission.
+ */
+export async function fetchPitDataById(id: number) {
+    const { data, error } = await supabase
+        .from(pitScoutTable)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('fetchPitDataById error:', error);
+        return null;
+    }
+
+    return data;
 }
 
 /**
