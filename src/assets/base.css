@@ -98,7 +98,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -134,7 +134,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -156,7 +156,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -178,7 +178,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -199,7 +199,7 @@ tbody tr:last-of-type {
   padding: 20px 5px;
   background-color: var(--tile-background-color);
   border-radius: 10px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -221,7 +221,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -253,7 +253,7 @@ tbody tr:last-of-type {
   border-style: solid;
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 }
 
 .image-tile {
@@ -265,7 +265,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */
@@ -287,7 +287,7 @@ tbody tr:last-of-type {
   background-color: var(--tile-background-color);
   border-radius: 10px;
   margin: 15px;
-  overflow: scroll;
+  overflow: auto;
 
   /* Taken from https://codyhouse.co/nuggets/beautiful-css-shadows */
   /* 1. inner glow - for dark mode 👇 */

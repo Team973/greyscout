@@ -133,6 +133,13 @@ export async function submitScoutData(data, table) {
     return error;
 }
 
+export async function updateScoutData(id, data, table) {
+    // Update an existing row in the database.
+    const { error } = await supabase.from(table).update(data).eq('id', id);
+
+    return error;
+}
+
 // Upload file using standard upload
 export async function uploadFile(file, bucket, filename) {
     const { data, error } = await supabase.storage.from(bucket).upload(filename, file, { upsert: true, cacheControl: '3600' });

@@ -14,6 +14,7 @@ import "@material/web/button/filled-button";
 import draggable from 'vuedraggable'
 import Dropdown from "@/components/Dropdown.vue";
 import Tile from "@/components/Tile.vue";
+import PitScoutingForm from "@/components/PitScoutingForm.vue";
 
 import { supabase } from "@/lib/supabase-client";
 import { getTeamAnalysisLayout } from "@/lib/2026/team-analysis-layout";
@@ -72,10 +73,27 @@ import { minWidthForDesktop } from "@/lib/constants";
 
                 <div class="pit-section">
                     <h1>Pit Scouting</h1>
-                    <div v-if="!teamPitDataLoaded">Loading pit scouting data…</div>
-                    <div v-else-if="teamPitData.length === 0" class="no-comments">No pit scouting data yet.</div>
-                    <ul v-else class="pit-list">
-                        <li v-for="(pit, idx) in teamPitData" :key="idx" class="pit-card">
+
+                    <PitScoutingForm v-if="pitFormMode !== 'view'" :team-number="teamNumber"
+                        :pit-data-id="pitFormMode === 'edit' ? pitFormEditId : null" @saved="onPitFormSaved"
+                        @cancel="onPitFormCancel">
+                    </PitScoutingForm>
+
+                    <template v-else>
+                        <div v-if="pitSaveMessage" class="data-tile notification-tile pit-save-message">{{ pitSaveMessage }}</div>
+
+                        <div v-if="!teamPitDataLoaded">Loading pit scouting data…</div>
+                        <div v-else-if="teamPitData.length === 0" class="no-comments">
+                            <p>No pit scouting data yet.</p>
+                            <md-filled-button v-if="isUserWriteAccess" v-on:click="startAddPit">Pit Scout This
+                                Team</md-filled-button>
+                        </div>
+                        <template v-else>
+                            <div class="pit-actions" v-if="isUserWriteAccess">
+                                <md-filled-button v-on:click="startEditPit(teamPitData[0].id)">Edit</md-filled-button>
+                            </div>
+                            <ul class="pit-list">
+                                <li v-for="(pit, idx) in teamPitData" :key="idx" class="pit-card">
                             <div class="pit-stats-grid">
                                 <div class="pit-stat">
                                     <div class="pit-stat-label">Drivetrain</div>
@@ -134,7 +152,7 @@ import { minWidthForDesktop } from "@/lib/constants";
                                     <div class="pit-stat-value">{{ pit.autoStrategy || '—' }}</div>
                                 </div>
                                 <div class="pit-stat">
-                                    <div class="pit-stat-label">Cycle Rate</div>
+                                    <div class="pit-stat-label">Balls Per Second</div>
                                     <div class="pit-stat-value">{{ pit.cycleRate != null ? pit.cycleRate + '/s' : '—' }}</div>
                                 </div>
                                 <div class="pit-stat">
@@ -149,6 +167,8 @@ import { minWidthForDesktop } from "@/lib/constants";
                             <div class="pit-author">Scouted by {{ pit.author }}</div>
                         </li>
                     </ul>
+                        </template>
+                    </template>
                 </div>
 
                 <div class="comments-section">
@@ -197,7 +217,11 @@ export default {
             teamComments: [],
             teamCommentsLoaded: false,
             teamPitData: [],
-            teamPitDataLoaded: false
+            teamPitDataLoaded: false,
+            pitFormMode: 'view',
+            pitFormEditId: null,
+            pitSaveMessage: '',
+            pitSaveMessageTimeout: null
         }
     },
     methods: {
@@ -378,11 +402,41 @@ export default {
             this.currentTeamIndex = idx;
             this.photoCacheBust = 0;
 
+            // Switching teams always drops any in-progress pit form back to view mode.
+            this.pitFormMode = 'view';
+            this.pitFormEditId = null;
+
             // Reload team data.
             this.refreshTiles();
             this.getRobotPhoto();
             this.loadTeamComments();
             this.loadTeamPitData();
+        },
+        startAddPit() {
+            this.pitFormMode = 'add';
+            this.pitFormEditId = null;
+        },
+        startEditPit(id: number) {
+            this.pitFormMode = 'edit';
+            this.pitFormEditId = id;
+        },
+        onPitFormCancel() {
+            this.pitFormMode = 'view';
+            this.pitFormEditId = null;
+        },
+        async onPitFormSaved({ queuedOffline }: { queuedOffline: boolean }) {
+            this.pitFormMode = 'view';
+            this.pitFormEditId = null;
+
+            if (this.pitSaveMessageTimeout) {
+                clearTimeout(this.pitSaveMessageTimeout);
+            }
+            this.pitSaveMessage = queuedOffline ? "Couldn't save — queued for sync." : "Saved!";
+            this.pitSaveMessageTimeout = setTimeout(() => {
+                this.pitSaveMessage = '';
+            }, 4000);
+
+            await this.loadTeamPitData();
         },
         chooseFiles() {
             let fileInputElement = this.$refs.file;
@@ -490,6 +544,16 @@ export default {
 
 .pit-section {
     margin-top: 24px;
+}
+
+.pit-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.pit-save-message {
+    margin-bottom: 14px;
 }
 
 .pit-list {

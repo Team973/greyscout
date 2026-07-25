@@ -140,7 +140,7 @@ export default {
 <style scoped>
 .table-container {
     display: flex;
-    overflow: scroll;
+    overflow: auto;
     justify-content: safe center;
     margin: auto;
 }

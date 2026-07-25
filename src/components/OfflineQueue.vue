@@ -3,7 +3,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { upsertPersonalPicklist, upsertTeamPicklist } from '@/lib/picklist-query';
-import { submitScoutData } from '@/lib/data-submission';
+import { submitScoutData, updateScoutData } from '@/lib/data-submission';
 import { matchScoutTable, pitScoutTable } from '@/lib/constants';
 
 const queueStore = useOfflineQueueStore();
@@ -39,6 +39,13 @@ const retryHandlers = {
         );
     },
     scout_data: async (payload: Record<string, unknown>) => {
+        if (payload.id != null) {
+            return await updateScoutData(
+                payload.id as number,
+                payload.data as Record<string, unknown>,
+                payload.table as string
+            );
+        }
         return await submitScoutData(
             payload.data as Record<string, unknown>,
             payload.table as string
