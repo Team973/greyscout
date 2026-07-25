@@ -82,12 +82,64 @@ import { minWidthForDesktop } from "@/lib/constants";
                                     <div class="pit-stat-value">{{ formatDrivetrain(pit.drivetrain) }}</div>
                                 </div>
                                 <div class="pit-stat">
+                                    <div class="pit-stat-label">Drive Motor</div>
+                                    <div class="pit-stat-value">{{ formatMotorType(pit.driveMotorType) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Dimensions</div>
+                                    <div class="pit-stat-value">{{ formatDimensions(pit.length, pit.width) }}</div>
+                                </div>
+                                <div class="pit-stat">
                                     <div class="pit-stat-label">Weight</div>
                                     <div class="pit-stat-value">{{ pit.weight != null ? pit.weight + ' lbs' : '—' }}</div>
                                 </div>
                                 <div class="pit-stat">
+                                    <div class="pit-stat-label">Archetype</div>
+                                    <div class="pit-stat-value">{{ formatArchetype(pit.archetype) }}</div>
+                                </div>
+                                <div class="pit-stat">
                                     <div class="pit-stat-label">Language</div>
                                     <div class="pit-stat-value">{{ formatLanguage(pit.language) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Batteries</div>
+                                    <div class="pit-stat-value">{{ pit.numBatteries ?? '—' }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Chargers</div>
+                                    <div class="pit-stat-value">{{ pit.numChargers ?? '—' }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Traverse</div>
+                                    <div class="pit-stat-value">{{ formatTraverse(pit) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Outpost Fuel</div>
+                                    <div class="pit-stat-value">{{ formatBool(pit.outpostFuel) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Shoot From</div>
+                                    <div class="pit-stat-value">{{ formatShootLocations(pit) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Climb</div>
+                                    <div class="pit-stat-value">{{ formatClimb(pit.climb) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Climb in Auto</div>
+                                    <div class="pit-stat-value">{{ formatBool(pit.climbAuto) }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Auto Strategy</div>
+                                    <div class="pit-stat-value">{{ pit.autoStrategy || '—' }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Cycle Rate</div>
+                                    <div class="pit-stat-value">{{ pit.cycleRate != null ? pit.cycleRate + '/s' : '—' }}</div>
+                                </div>
+                                <div class="pit-stat">
+                                    <div class="pit-stat-label">Defense</div>
+                                    <div class="pit-stat-value">{{ formatBool(pit.defense) }}</div>
                                 </div>
                                 <div class="pit-stat">
                                     <div class="pit-stat-label">Vibe Check</div>
@@ -181,12 +233,46 @@ export default {
             this.teamPitDataLoaded = true;
         },
         formatDrivetrain(key) {
-            const labels = { swerve: 'Swerve', tank: 'Tank', mecanum: 'Mecanum', other: 'Other' };
+            const labels = { swerve: 'Swerve', not_swerve: 'Not Swerve' };
+            return labels[key] ?? key ?? '—';
+        },
+        formatMotorType(key) {
+            const labels = { kraken: 'Kraken', falcon: 'Falcon', neo: 'NEO', other: 'Other' };
+            return labels[key] ?? key ?? '—';
+        },
+        formatArchetype(key) {
+            const labels = { dumper_fixed: 'Dumper/Fixed', turret: 'Turret' };
+            return labels[key] ?? key ?? '—';
+        },
+        formatClimb(key) {
+            const labels = { none: 'None', l1: 'L1', l2: 'L2', l3: 'L3' };
             return labels[key] ?? key ?? '—';
         },
         formatLanguage(key) {
             const labels = { java: 'Java', cpp: 'C++', python: 'Python', other: 'Other' };
             return labels[key] ?? key ?? '—';
+        },
+        formatDimensions(length, width) {
+            if (length == null || width == null) return '—';
+            return `${length}" x ${width}"`;
+        },
+        formatBool(value) {
+            if (value == null) return '—';
+            return value ? 'Yes' : 'No';
+        },
+        formatTraverse(pit) {
+            const parts = [];
+            if (pit.traverseBump) parts.push('Bump');
+            if (pit.traverseTrench) parts.push('Trench');
+            return parts.length > 0 ? parts.join(', ') : 'None';
+        },
+        formatShootLocations(pit) {
+            const parts = [];
+            if (pit.shootClose) parts.push('Close');
+            if (pit.shootTower) parts.push('Tower');
+            if (pit.shootCorner) parts.push('Corner');
+            if (pit.shootTrench) parts.push('Trench');
+            return parts.length > 0 ? parts.join(', ') : 'None';
         },
         async loadTeamComments() {
             const teamNumber = this.getTeamNumber();

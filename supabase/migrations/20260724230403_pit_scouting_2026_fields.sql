@@ -1,0 +1,18 @@
+ALTER TABLE public."PitData" ADD COLUMN pit_drive_motor_type text NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_length real NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_width real NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_archetype text NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_num_batteries smallint NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_num_chargers smallint NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_traverse_bump boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_traverse_trench boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_outpost_fuel text NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_shoot_close boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_shoot_tower boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_shoot_corner boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_shoot_trench boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_climb text NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_climb_auto boolean DEFAULT false NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_auto_strategy text DEFAULT ''::text NOT NULL;
+ALTER TABLE public."PitData" ADD COLUMN pit_cycle_rate real;
+ALTER TABLE public."PitData" ADD COLUMN pit_defense boolean DEFAULT false NOT NULL;

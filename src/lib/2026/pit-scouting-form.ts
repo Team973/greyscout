@@ -18,27 +18,81 @@ export async function getPitScoutSchema() {
                     options: {
                         choices: [
                             { key: "swerve", text: "Swerve" },
-                            { key: "tank", text: "Tank" },
-                            { key: "mecanum", text: "Mecanum" },
+                            { key: "not_swerve", text: "Not Swerve" }
+                        ]
+                    },
+                    defaultValue: 0,
+                    value: 0,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "drive_motor_type",
+                    label: "Drive Motor Type",
+                    type: "dropdown",
+                    options: {
+                        choices: [
+                            { key: "none", text: "Select motor..." },
+                            { key: "kraken", text: "Kraken" },
+                            { key: "falcon", text: "Falcon" },
+                            { key: "neo", text: "NEO" },
                             { key: "other", text: "Other" }
                         ]
                     },
                     defaultValue: 0,
                     value: 0,
                     preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: false,
+                    required: true,
                     error: false
                 },
                 {
-                    key: "weight",
-                    label: "Weight (lbs)",
+                    key: "length",
+                    label: "Drivetrain Length (in)",
                     type: "number",
                     options: {},
                     defaultValue: null,
                     value: null,
                     preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "width",
+                    label: "Drivetrain Width (in)",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
+                    preserveAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "weight",
+                    label: "Weight (no bumper/battery, lbs)",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
+                    preserveAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "archetype",
+                    label: "Archetype",
+                    type: "dropdown",
+                    options: {
+                        choices: [
+                            { key: "none", text: "Select archetype..." },
+                            { key: "dumper_fixed", text: "Dumper/Fixed" },
+                            { key: "turret", text: "Turret" }
+                        ]
+                    },
+                    defaultValue: 0,
+                    value: 0,
+                    preserveAfterSubmit: false,
                     required: true,
                     error: false
                 },
@@ -58,8 +112,168 @@ export async function getPitScoutSchema() {
                     defaultValue: 0,
                     value: 0,
                     preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
                     required: true,
+                    error: false
+                },
+                {
+                    key: "num_batteries",
+                    label: "Number of Batteries",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
+                    preserveAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "num_chargers",
+                    label: "Number of Chargers",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
+                    preserveAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "traverse_bump",
+                    label: "Can Traverse Bump?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "traverse_trench",
+                    label: "Can Traverse Trench?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "outpost_fuel",
+                    label: "Can Take Fuel from Outpost?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "shoot_close",
+                    label: "Can Shoot: Close Shot?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "shoot_tower",
+                    label: "Can Shoot: Tower Shot?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "shoot_corner",
+                    label: "Can Shoot: Corner Shot?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "shoot_trench",
+                    label: "Can Shoot: Trench Shot?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "climb",
+                    label: "Climb?",
+                    type: "dropdown",
+                    options: {
+                        choices: [
+                            { key: "none", text: "Select climb..." },
+                            { key: "l1", text: "L1" },
+                            { key: "l2", text: "L2" },
+                            { key: "l3", text: "L3" }
+                        ]
+                    },
+                    defaultValue: 0,
+                    value: 0,
+                    preserveAfterSubmit: false,
+                    required: true,
+                    error: false
+                },
+                {
+                    key: "climb_auto",
+                    label: "Can Climb in Auto?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "auto_strategy",
+                    label: "Autonomous Routine",
+                    type: "textarea",
+                    options: {},
+                    defaultValue: "",
+                    value: "",
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "cycle_rate",
+                    label: "Balls/Fuel per Second",
+                    type: "number",
+                    options: {},
+                    defaultValue: null,
+                    value: null,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "defense",
+                    label: "OK Playing Defense?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
                     error: false
                 },
                 {
@@ -79,7 +293,6 @@ export async function getPitScoutSchema() {
                     defaultValue: '',
                     value: '',
                     preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
                     required: true,
                     error: false
                 },
@@ -91,7 +304,6 @@ export async function getPitScoutSchema() {
                     defaultValue: "",
                     value: "",
                     preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
                     required: true,
                     error: false
                 },

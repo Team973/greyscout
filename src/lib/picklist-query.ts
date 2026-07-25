@@ -73,7 +73,7 @@ export async function fetchTeamMatchStats(teamNumber: number, eventId: string) {
 export async function fetchTeamPitData(teamNumber: number, eventId: string) {
     const { data, error } = await supabase
         .from(pitScoutTable)
-        .select(`pit_drivetrain, pit_weight, pit_language, pit_vibe_check, pit_comments, created_at, ${userTable}(name)`)
+        .select(`pit_drivetrain, pit_drive_motor_type, pit_length, pit_width, pit_weight, pit_archetype, pit_language, pit_num_batteries, pit_num_chargers, pit_traverse_bump, pit_traverse_trench, pit_outpost_fuel, pit_shoot_close, pit_shoot_tower, pit_shoot_corner, pit_shoot_trench, pit_climb, pit_climb_auto, pit_auto_strategy, pit_cycle_rate, pit_defense, pit_vibe_check, pit_comments, created_at, ${userTable}(name)`)
         .eq('event', eventId)
         .eq('pit_team_number', teamNumber)
         .order('created_at', { ascending: false });
@@ -86,8 +86,26 @@ export async function fetchTeamPitData(teamNumber: number, eventId: string) {
     return (data ?? []).map((row) => ({
         author: row[userTable]?.name ?? 'Unknown',
         drivetrain: row.pit_drivetrain,
+        driveMotorType: row.pit_drive_motor_type,
+        length: row.pit_length,
+        width: row.pit_width,
         weight: row.pit_weight,
+        archetype: row.pit_archetype,
         language: row.pit_language,
+        numBatteries: row.pit_num_batteries,
+        numChargers: row.pit_num_chargers,
+        traverseBump: row.pit_traverse_bump,
+        traverseTrench: row.pit_traverse_trench,
+        outpostFuel: row.pit_outpost_fuel,
+        shootClose: row.pit_shoot_close,
+        shootTower: row.pit_shoot_tower,
+        shootCorner: row.pit_shoot_corner,
+        shootTrench: row.pit_shoot_trench,
+        climb: row.pit_climb,
+        climbAuto: row.pit_climb_auto,
+        autoStrategy: row.pit_auto_strategy,
+        cycleRate: row.pit_cycle_rate,
+        defense: row.pit_defense,
         vibe_check: row.pit_vibe_check,
         comments: row.pit_comments,
         created_at: row.created_at
