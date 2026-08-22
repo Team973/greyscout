@@ -1,6 +1,6 @@
 ---
 name: scouting-app-dev
-description: Conventions and workflow for developing GreyScout, Team 973's FRC scouting web app (Vue 3 + Pinia + Supabase, with a Python/Poetry util/ toolkit for TBA sync). Use for any feature work, bug fixes, or schema changes in this repo.
+description: Conventions and workflow for developing GreyScout, Team 973's FRC scouting web app (Vue 3 + Pinia + Supabase, with a Python/uv util/ toolkit for TBA sync). Use for any feature work, bug fixes, or schema changes in this repo.
 ---
 
 # GreyScout development
@@ -8,7 +8,7 @@ description: Conventions and workflow for developing GreyScout, Team 973's FRC s
 FRC Team 973's scouting app: match scouting, pit scouting, team analysis, and
 a drag-and-drop pick list. Frontend is Vue 3 (mostly Options API, some
 `<script setup>`) + Pinia + Vue Router, backed by Supabase (Postgres, RLS,
-Storage). A separate `util/` directory is a Python/Poetry toolkit that syncs
+Storage). A separate `util/` directory is a Python/uv toolkit that syncs
 event/team/robot-photo data from The Blue Alliance into Supabase.
 
 ## Workflow rules
@@ -117,7 +117,15 @@ event/team/robot-photo data from The Blue Alliance into Supabase.
 
 ## Python util toolkit (`util/`)
 
-- Poetry-managed (`poetry run python util/main.py --mode event|offline|photos`).
+- uv-managed (`uv run python util/main.py --mode event|offline|photos`,
+  from inside `util/`). `pyproject.toml` has `[tool.uv] package = false`
+  since the scripts import each other flatly (not as a package) — don't
+  add a `[build-system]` table without also fixing those imports.
+- The nightly GitHub Actions workflow
+  (`.github/workflows/update_data.yaml`) uses `astral-sh/setup-uv` +
+  `uv sync --locked` + `uv run`, and passes `TBA_CREDENTIALS`/
+  `SUPABASE_CREDENTIALS` secrets via `env:` (not inlined into the `run:`
+  shell line) so JSON quotes/braces in the secret survive shell parsing.
 - `robot_photos.py` syncs TBA robot photos: only TBA's `imgur` media type is
   a reliable direct image URL (`avatar` is a team icon, `youtube` is video,
   `cd-thread` is a forum link, not an image). Images are resized/compressed
@@ -125,7 +133,11 @@ event/team/robot-photo data from The Blue Alliance into Supabase.
   `cache-control` + `upsert: true`.
 - Inline `python -c "..."` one-liners via Bash can silently produce no
   output on this Windows/git-bash environment — write a script file and run
-  it with `poetry run python <file>.py` instead.
+  it with `uv run python <file>.py` instead.
+- The `SUPABASE_CREDENTIALS` GitHub secret is independent of the frontend's
+  `projectId`/`publicKey` in `src/lib/constants.ts` — when migrating
+  Supabase projects, both must be updated together or the nightly sync
+  silently starts hitting a stale/deleted project (DNS `ConnectError`).
 
 ## CSV import/export
 
