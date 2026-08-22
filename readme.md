@@ -10,7 +10,7 @@ npm install
 3. (optional) Install all python util dependencies:
 ```bash
 cd util
-poetry install
+uv sync
 ```
 
 ## Development 
@@ -28,7 +28,7 @@ npm run format
 To update the event/team database:
 ```bash
 cd util
-poetry run python main.py
+uv run python main.py
 ```
 
 ## Running in Production

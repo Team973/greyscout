@@ -5,8 +5,6 @@ on:
     - cron: '00 9 * * *' # once a day at 9:00 AM UTC / 1:00 AM PST
   
 jobs:
-  # A helpful guide on installing poetry in Github Actions can be found here:
-  # https://jacobian.org/til/github-actions-poetry/
   # Update the event information in case it has changed.
   load_event_info:
     name: Update Event Data
@@ -19,20 +17,17 @@ jobs:
       - name: Check out default branch
         uses: actions/checkout@v4
 
-      - name: Install poetry
-        run: pipx install poetry
-
-      # Load the cached poetry install from the environment set up step.
-      - uses: actions/setup-python@v5.2.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: '3.10'
-          cache: 'poetry'
+          enable-cache: true
+          cache-dependency-glob: 'util/uv.lock'
 
-      # Install dependencies. `--no-root` means "install all dependencies but not the project
-      # itself", which is what you want to avoid caching _your_ code. The `if` statement
-      # ensures this only runs on a cache miss.
-      - run: poetry install --no-interaction --no-root
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+      - run: uv sync --locked
 
       - name: Update team data
-        run: poetry run python main.py --mode=event --tba_creds=${{ secrets.TBA_CREDENTIALS }} --supabase_creds=${{ secrets.SUPABASE_CREDENTIALS }}
+        env:
+          TBA_CREDENTIALS: ${{ secrets.TBA_CREDENTIALS }}
+          SUPABASE_CREDENTIALS: ${{ secrets.SUPABASE_CREDENTIALS }}
+        run: uv run python main.py --mode=event --tba_creds="$TBA_CREDENTIALS" --supabase_creds="$SUPABASE_CREDENTIALS"
