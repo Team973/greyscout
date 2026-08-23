@@ -35,7 +35,7 @@ export const robotPhotoBucket = "robot-photos";
 export const defaultTeamNumber = 973;
 
 // Event information.
-export const defaultEventId = "2026sunshow";
+export const defaultEventId = "2026cc";
 // Flag to force override to the default event. Useful if you are playing two tournaments on the same day.
 export const useDefaultEvent = true;
 
