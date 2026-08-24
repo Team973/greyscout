@@ -15,12 +15,15 @@ import draggable from 'vuedraggable'
 import Dropdown from "@/components/Dropdown.vue";
 import Tile from "@/components/Tile.vue";
 import PitScoutingForm from "@/components/PitScoutingForm.vue";
+import AutoPathEditor from "@/components/AutoPathEditor.vue";
+import AutoPathCard from "@/components/AutoPathCard.vue";
 
 import { supabase } from "@/lib/supabase-client";
 import { getTeamAnalysisLayout } from "@/lib/2026/team-analysis-layout";
 import { processLayout } from "@/lib/process-layout";
 import { queryTeamNumbers } from "@/lib/data-query";
 import { fetchTeamComments, fetchTeamPitData } from "@/lib/picklist-query";
+import { fetchTeamAutoPaths, setAutoPathDefault } from "@/lib/auto-path-query";
 import { minWidthForDesktop } from "@/lib/constants";
 
 </script>
@@ -69,6 +72,23 @@ import { minWidthForDesktop } from "@/lib/constants";
                             </Tile>
                         </template>
                     </draggable>
+                </div>
+
+                <div class="comments-section">
+                    <h1>Scout Comments</h1>
+                    <div v-if="!teamCommentsLoaded">Loading comments…</div>
+                    <div v-else-if="teamComments.length === 0" class="no-comments">No comments from scouts yet.</div>
+                    <ul v-else class="comments-list">
+                        <li v-for="(comment, idx) in teamComments" :key="idx" class="comment-card">
+                            <div class="comment-meta">
+                                <span class="comment-author">{{ comment.author }}</span>
+                                <span class="comment-source-badge">{{ comment.source }}</span>
+                                <span class="comment-match" v-if="comment.match_number != null">Match
+                                    {{ comment.match_number }}</span>
+                            </div>
+                            <p class="comment-text">{{ comment.comment }}</p>
+                        </li>
+                    </ul>
                 </div>
 
                 <div class="pit-section">
@@ -171,21 +191,37 @@ import { minWidthForDesktop } from "@/lib/constants";
                     </template>
                 </div>
 
-                <div class="comments-section">
-                    <h1>Scout Comments</h1>
-                    <div v-if="!teamCommentsLoaded">Loading comments…</div>
-                    <div v-else-if="teamComments.length === 0" class="no-comments">No comments from scouts yet.</div>
-                    <ul v-else class="comments-list">
-                        <li v-for="(comment, idx) in teamComments" :key="idx" class="comment-card">
-                            <div class="comment-meta">
-                                <span class="comment-author">{{ comment.author }}</span>
-                                <span class="comment-source-badge">{{ comment.source }}</span>
-                                <span class="comment-match" v-if="comment.match_number != null">Match
-                                    {{ comment.match_number }}</span>
+                <div class="autopath-section">
+                    <h1>Auto Paths</h1>
+
+                    <AutoPathEditor v-if="autoPathFormMode !== 'view'" :team-number="teamNumber"
+                        :auto-path-id="autoPathFormMode === 'edit' ? autoPathEditId : null" @saved="onAutoPathFormSaved"
+                        @deleted="onAutoPathFormDeleted" @cancel="onAutoPathFormCancel">
+                    </AutoPathEditor>
+
+                    <template v-else>
+                        <div v-if="autoPathSaveMessage" class="data-tile notification-tile autopath-save-message">
+                            {{ autoPathSaveMessage }}</div>
+
+                        <div v-if="!teamAutoPathsLoaded">Loading auto paths…</div>
+                        <div v-else-if="teamAutoPaths.length === 0" class="no-comments">
+                            <p>No auto paths recorded yet.</p>
+                            <md-filled-button v-if="isUserWriteAccess" v-on:click="startAddAutoPath">Add Auto
+                                Path</md-filled-button>
+                        </div>
+                        <template v-else>
+                            <div class="pit-actions" v-if="isUserWriteAccess">
+                                <md-filled-button v-on:click="startAddAutoPath">Add Auto Path</md-filled-button>
                             </div>
-                            <p class="comment-text">{{ comment.comment }}</p>
-                        </li>
-                    </ul>
+                            <ul class="autopath-list">
+                                <AutoPathCard v-for="(path, idx) in teamAutoPaths" :key="path.id" :path="path"
+                                    :can-edit="isUserWriteAccess" :card-color="autoPathColor(idx)"
+                                    :is-only-path="teamAutoPaths.length === 1" @edit="startEditAutoPath"
+                                    @set-default="setAutoPathAsDefault">
+                                </AutoPathCard>
+                            </ul>
+                        </template>
+                    </template>
                 </div>
             </div>
         </div>
@@ -221,7 +257,14 @@ export default {
             pitFormMode: 'view',
             pitFormEditId: null,
             pitSaveMessage: '',
-            pitSaveMessageTimeout: null
+            pitSaveMessageTimeout: null,
+            teamAutoPaths: [],
+            teamAutoPathsLoaded: false,
+            autoPathFormMode: 'view',
+            autoPathEditId: null,
+            autoPathSaveMessage: '',
+            autoPathSaveMessageTimeout: null,
+            autoPathColors: ['#ff8c00', '#2f7de1', '#8a3fd1', '#1eae7a', '#d13f6a']
         }
     },
     methods: {
@@ -243,6 +286,63 @@ export default {
 
             // Load pit scouting answers.
             this.loadTeamPitData();
+
+            // Load auto paths.
+            this.loadTeamAutoPaths();
+        },
+        async loadTeamAutoPaths() {
+            const teamNumber = this.getTeamNumber();
+            if (teamNumber < 0) {
+                this.teamAutoPaths = [];
+                this.teamAutoPathsLoaded = true;
+                return;
+            }
+
+            this.teamAutoPathsLoaded = false;
+            this.teamAutoPaths = await fetchTeamAutoPaths(teamNumber, this.eventStore.eventId);
+            this.teamAutoPathsLoaded = true;
+        },
+        autoPathColor(idx) {
+            return this.autoPathColors[idx % this.autoPathColors.length];
+        },
+        async setAutoPathAsDefault(id) {
+            const error = await setAutoPathDefault(this.teamNumber, this.eventStore.eventId, id);
+            if (error) {
+                console.log(error);
+                return;
+            }
+            await this.loadTeamAutoPaths();
+        },
+        startAddAutoPath() {
+            this.autoPathFormMode = 'add';
+            this.autoPathEditId = null;
+        },
+        startEditAutoPath(id) {
+            this.autoPathFormMode = 'edit';
+            this.autoPathEditId = id;
+        },
+        onAutoPathFormCancel() {
+            this.autoPathFormMode = 'view';
+            this.autoPathEditId = null;
+        },
+        async onAutoPathFormSaved({ queuedOffline }) {
+            this.autoPathFormMode = 'view';
+            this.autoPathEditId = null;
+
+            if (this.autoPathSaveMessageTimeout) {
+                clearTimeout(this.autoPathSaveMessageTimeout);
+            }
+            this.autoPathSaveMessage = queuedOffline ? "Couldn't save — queued for sync." : "Saved!";
+            this.autoPathSaveMessageTimeout = setTimeout(() => {
+                this.autoPathSaveMessage = '';
+            }, 4000);
+
+            await this.loadTeamAutoPaths();
+        },
+        async onAutoPathFormDeleted() {
+            this.autoPathFormMode = 'view';
+            this.autoPathEditId = null;
+            await this.loadTeamAutoPaths();
         },
         async loadTeamPitData() {
             const teamNumber = this.getTeamNumber();
@@ -402,15 +502,18 @@ export default {
             this.currentTeamIndex = idx;
             this.photoCacheBust = 0;
 
-            // Switching teams always drops any in-progress pit form back to view mode.
+            // Switching teams always drops any in-progress pit/auto-path form back to view mode.
             this.pitFormMode = 'view';
             this.pitFormEditId = null;
+            this.autoPathFormMode = 'view';
+            this.autoPathEditId = null;
 
             // Reload team data.
             this.refreshTiles();
             this.getRobotPhoto();
             this.loadTeamComments();
             this.loadTeamPitData();
+            this.loadTeamAutoPaths();
         },
         startAddPit() {
             this.pitFormMode = 'add';
@@ -597,6 +700,23 @@ export default {
     margin-top: 10px;
     font-size: 11px;
     color: rgba(128, 128, 128, 0.6);
+}
+
+.autopath-section {
+    margin-top: 24px;
+}
+
+.autopath-save-message {
+    margin-bottom: 14px;
+}
+
+.autopath-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .comments-section {

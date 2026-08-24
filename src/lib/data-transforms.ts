@@ -2,6 +2,10 @@
 // @ts-nocheck
 
 export function aggregateData(data, groupByColumnName, fn) {
+    if (!data || data.length === 0) {
+        return [];
+    }
+
     let dependentColumns = Object.keys(data[0]);
     const groupByColumnIndex = dependentColumns.indexOf(groupByColumnName);
     if (groupByColumnIndex > -1) {

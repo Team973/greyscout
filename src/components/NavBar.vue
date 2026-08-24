@@ -30,7 +30,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <RouterLink to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
-                <!-- <RouterLink to="/match" class="nav-link nav-link-mobile">Match Preview</RouterLink> -->
+                <RouterLink to="/match-preview" class="nav-link nav-link-mobile">Match Preview</RouterLink>
                 <RouterLink to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
                 <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
@@ -60,7 +60,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
         <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
         <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
-        <!-- <RouterLink to="/match" class="nav-link">Match Preview</RouterLink> -->
+        <RouterLink to="/match-preview" class="nav-link">Match Preview</RouterLink>
         <RouterLink to="/picklist" class="nav-link">Pick List</RouterLink>
         <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
 

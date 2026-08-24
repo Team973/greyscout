@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { upsertPersonalPicklist, upsertTeamPicklist } from '@/lib/picklist-query';
 import { submitScoutData, updateScoutData } from '@/lib/data-submission';
-import { matchScoutTable, pitScoutTable } from '@/lib/constants';
+import { matchScoutTable, pitScoutTable, autoPathTable } from '@/lib/constants';
 
 const queueStore = useOfflineQueueStore();
 const isOpen = ref(false);
@@ -70,6 +70,7 @@ function typeLabel(item: { type: string; payload: Record<string, unknown> }) {
     if (item.type === 'scout_data') {
         if (item.payload?.table === matchScoutTable) return 'Match Scouting';
         if (item.payload?.table === pitScoutTable) return 'Pit Scouting';
+        if (item.payload?.table === autoPathTable) return 'Auto Path';
         return 'Scouting Data';
     }
     return item.type;
