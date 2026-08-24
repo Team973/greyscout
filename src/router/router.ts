@@ -66,7 +66,7 @@ const router = createRouter({
       }
     },
     {
-      path: "/match",
+      path: "/match-preview",
       name: "Match Preview | GreyScout",
       component: MatchPreviewView,
       meta: {

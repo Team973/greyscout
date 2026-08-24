@@ -16,10 +16,17 @@ export const robotPhotoTable = "RobotPhoto";
 export const userTable = "User";
 export const pickListTable = "PickList";
 export const userProfileTable = "UserProfile";
+export const autoPathTable = "AutoPath";
 
 // Picklist types
 export const pickListTypePersonal = "personal";
 export const pickListTypeTeam = "team";
+
+// Auto path alliance / starting side
+export const allianceRed = "red";
+export const allianceBlue = "blue";
+export const sideLeft = "left";
+export const sideRight = "right";
 
 // Offline queue
 export const offlineQueueKey = "greyscout_offline_queue";

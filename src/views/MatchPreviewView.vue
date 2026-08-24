@@ -2,18 +2,17 @@
 // TODO: fix types
 // @ts-nocheck
 
-import { getAllianceOverview } from "@/lib/2026/alliance-overview";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
-import { teamInfoTable, teamNumberColumn } from "@/lib/constants";
-import { queryEventData } from "@/lib/data-query";
-import { aggregateData } from "@/lib/data-transforms";
+import { teamInfoTable } from "@/lib/constants";
+import { fetchTeamAutoPaths } from "@/lib/auto-path-query";
+import { SIDE_CHOICES, transformPath } from "@/lib/2026/auto-path-field";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import Dropdown from "@/components/Dropdown.vue";
+import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
 import { supabase } from "@/lib/supabase-client";
-import { mean } from "simple-statistics";
 
 </script>
 
@@ -24,54 +23,54 @@ import { mean } from "simple-statistics";
             <!-- Only show this if the team data is loaded. -->
             <h2>Red Alliance</h2>
             <div class="data-tile red-alliance">
-                Red 1: <Dropdown :choices="teamFilters" v-model="teamIndices[0]" @update:modelValue="setTeam(0, $event)">
-                </Dropdown>
-
-                Red 2: <Dropdown :choices="teamFilters" v-model="teamIndices[1]" @update:modelValue="setTeam(1, $event)">
-                </Dropdown>
-
-                Red 3: <Dropdown :choices="teamFilters" v-model="teamIndices[2]" @update:modelValue="setTeam(2, $event)">
-                </Dropdown>
+                <div class="autopath-preview-selectors">
+                    <div v-for="(slot, i) in [0, 1, 2]" :key="slot" class="autopath-preview-selector">
+                        <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                        Red {{ i + 1 }}:
+                        <Dropdown :choices="teamFilters" v-model="teamIndices[slot]"
+                            @update:modelValue="setTeam(slot, $event)"></Dropdown>
+                    </div>
+                </div>
             </div>
 
             <div class="data-tile red-alliance">
-                <div>
-                    <div v-for="data, col in allianceHighlights([0, 1, 2])" class="alliance-data-container">
-                        <h3>{{ col }}</h3>
-                        <div class="alliance-stat-view">
-                            <div v-for="team, idx in getTeamNumbers([0, 1, 2])" class="alliance-col-data">
-                                <u>{{ team }}</u>
-                                {{ data.value[idx].toFixed(2) }}
-                            </div>
-                        </div>
+                <h3>Auto Path Preview</h3>
+                <div class="autopath-preview-selectors">
+                    <div v-for="slot in [0, 1, 2]" :key="slot" class="autopath-preview-selector">
+                        <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                        <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
+                            @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
+                        <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
                     </div>
                 </div>
+                <AutoPathCanvas :layers="allianceAutoPathLayers([0, 1, 2])" display-alliance="red" large="true"
+                    :editable="false"></AutoPathCanvas>
             </div>
 
             <h2>Blue Alliance</h2>
             <div class="data-tile blue-alliance">
-                Blue 1: <Dropdown :choices="teamFilters" v-model="teamIndices[3]" @update:modelValue="setTeam(3, $event)">
-                </Dropdown>
-
-                Blue 2: <Dropdown :choices="teamFilters" v-model="teamIndices[4]" @update:modelValue="setTeam(4, $event)">
-                </Dropdown>
-
-                Blue 3: <Dropdown :choices="teamFilters" v-model="teamIndices[5]" @update:modelValue="setTeam(5, $event)">
-                </Dropdown>
+                <div class="autopath-preview-selectors">
+                    <div v-for="(slot, i) in [3, 4, 5]" :key="slot" class="autopath-preview-selector">
+                        <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                        Blue {{ i + 1 }}:
+                        <Dropdown :choices="teamFilters" v-model="teamIndices[slot]"
+                            @update:modelValue="setTeam(slot, $event)"></Dropdown>
+                    </div>
+                </div>
             </div>
 
             <div class="data-tile blue-alliance">
-                <div>
-                    <div v-for="data, col in allianceHighlights([3, 4, 5])" class="alliance-data-container">
-                        <h3>{{ col }}</h3>
-                        <div class="alliance-stat-view">
-                            <div v-for="team, idx in getTeamNumbers([3, 4, 5])" class="alliance-col-data">
-                                <u>{{ team }}</u>
-                                {{ data.value[idx].toFixed(2) }}
-                            </div>
-                        </div>
+                <h3>Auto Path Preview</h3>
+                <div class="autopath-preview-selectors">
+                    <div v-for="slot in [3, 4, 5]" :key="slot" class="autopath-preview-selector">
+                        <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                        <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
+                            @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
+                        <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
                     </div>
                 </div>
+                <AutoPathCanvas :layers="allianceAutoPathLayers([3, 4, 5])" display-alliance="blue" large="true"
+                    :editable="false"></AutoPathCanvas>
             </div>
         </div>
         <div v-else-if="teamsLoaded">
@@ -87,23 +86,27 @@ export default {
             viewMode: null,
             eventStore: null,
             teamsLoaded: false,
-            teamsData: {},
             teamFilters: [],
-            teamIndices: [0, 0, 0, 0, 0, 0]
+            teamIndices: [0, 0, 0, 0, 0, 0],
+            // Per-slot dropdown choices ({key, text, path}) of that slot's team's saved auto paths,
+            // plus a leading "None" option. Index aligns with teamIndices (0-2 red, 3-5 blue).
+            autoPathChoices: [[], [], [], [], [], []],
+            selectedAutoPathIndex: [0, 0, 0, 0, 0, 0],
+            // Which side (left/right) to preview each slot's chosen path as — defaults to
+            // the path's own recorded side, but can be flipped independently per slot.
+            selectedSideIndex: [0, 0, 0, 0, 0, 0],
+            // Separate palettes per alliance tile (rather than one shared-by-position
+            // palette) because paths cluster near that tile's own wall, and blue/purple
+            // read poorly against the field art's blue tower/wall on the Blue tile.
+            autoPathSlotColorsRed: ['#2f7de1', '#e08a1e', '#8a3fd1'],
+            autoPathSlotColorsBlue: ['#e08a1e', '#1eae7a', '#d13f6a'],
+            SIDE_CHOICES
         }
     },
     methods: {
         async loadTeamsData() {
             // Note: do this to avoid stale data on page refresh.
             await this.eventStore.updateEvent();
-
-            let dbData = await queryEventData(this.eventStore.eventId);
-            let aggregatedData = aggregateData(dbData, teamNumberColumn, mean);
-            this.teamsData = {};
-            aggregatedData.forEach(row => {
-                const teamNumber = row[teamNumberColumn];
-                this.teamsData[teamNumber] = row;
-            });
 
             const { data, error } = await supabase.from(teamInfoTable).select("*").eq("event_id", this.eventStore.eventId);
             let teamTextMap = {};
@@ -126,36 +129,91 @@ export default {
 
             // Mark the data as ready for the view to display.
             this.teamsLoaded = true;
+
+            // Load auto path choices for whichever team currently occupies each slot.
+            for (var slot = 0; slot < this.teamIndices.length; slot++) {
+                this.loadAutoPathChoices(slot);
+            }
+        },
+        async loadAutoPathChoices(slot: int) {
+            this.selectedAutoPathIndex[slot] = 0;
+            this.selectedSideIndex[slot] = 0;
+
+            if (slot >= this.teamIndices.length || this.teamFilters.length === 0) {
+                this.autoPathChoices[slot] = [{ key: 'none', text: 'No Auto Selected', path: null }];
+                return;
+            }
+
+            const teamIndex = this.teamIndices[slot];
+            const teamNumber = Number(this.teamFilters[teamIndex].key);
+            const paths = await fetchTeamAutoPaths(teamNumber, this.eventStore.eventId);
+
+            // A lone path is treated as the default even if is_default was never
+            // explicitly set — matches AutoPathCard's isOnlyPath rule.
+            const defaultId = paths.length === 1 ? paths[0].id : paths.find((p) => p.isDefault)?.id;
+
+            this.autoPathChoices[slot] = [
+                { key: 'none', text: 'No Auto Selected', path: null },
+                ...paths.map((p) => ({
+                    key: String(p.id),
+                    text: `${teamNumber} - ${p.name}${p.id === defaultId ? ' (default)' : ''}`,
+                    path: p
+                }))
+            ];
+
+            // Default to the team's marked-default auto instead of "None" — or,
+            // with only one saved path, that path is the default by definition.
+            const defaultChoiceIdx = paths.length === 1
+                ? 1
+                : this.autoPathChoices[slot].findIndex((c) => c.path?.isDefault);
+            if (defaultChoiceIdx > 0) {
+                this.onAutoPathChoiceChange(slot, defaultChoiceIdx);
+            }
+        },
+        slotColor(slot: int) {
+            const palette = slot < 3 ? this.autoPathSlotColorsRed : this.autoPathSlotColorsBlue;
+            return palette[slot % 3];
+        },
+        onAutoPathChoiceChange(slot: int, choiceIdx: int) {
+            this.selectedAutoPathIndex[slot] = choiceIdx;
+
+            // Default the side selector to whatever the newly-picked path was
+            // actually recorded as, rather than leaving a stale choice in place.
+            const choice = this.autoPathChoices[slot]?.[choiceIdx];
+            const side = choice?.path?.side;
+            const sideIdx = SIDE_CHOICES.findIndex((c) => c.key === side);
+            this.selectedSideIndex[slot] = sideIdx >= 0 ? sideIdx : 0;
+        },
+        allianceAutoPathLayers(slots) {
+            // display-alliance (set per alliance tile in the template) is
+            // solely responsible for placing these alliance-agnostic [0,1]
+            // points onto the real, fixed field image — see
+            // auto-path-field.ts's file header for why that must stay the
+            // only place alliance-based placement happens. Side, unlike
+            // alliance, is a real mirror within that frame, so it's applied
+            // here via transformPath before handing points to the canvas.
+            const layers = [];
+
+            slots.forEach((slot) => {
+                const choiceIdx = this.selectedAutoPathIndex[slot];
+                const choice = this.autoPathChoices[slot]?.[choiceIdx];
+                if (!choice || !choice.path) return;
+
+                const targetSide = SIDE_CHOICES[this.selectedSideIndex[slot]]?.key ?? choice.path.side;
+                const points = transformPath(choice.path.points, choice.path.side, targetSide);
+
+                layers.push({
+                    key: `slot-${slot}`,
+                    points,
+                    color: this.slotColor(slot)
+                });
+            });
+
+            return layers;
         },
         setTeam(idx: int, data: int) {
             this.teamIndices[idx] = data;
-        },
-        allianceHighlights(teams) {
-            // Get team information.
-            let teamNumbers = [];
-
-            for (var i = 0; i < teams.length; i++) {
-                const teamIndex = this.teamIndices[teams[i]];
-                const teamNumber = this.teamFilters[teamIndex].key;
-                teamNumbers.push(teamNumber);
-            }
-
-            let overview = getAllianceOverview(teamNumbers, this.teamsData);
-
-            return overview;
-        },
-        getTeamNumbers(teams) {
-            let teamNumbers = [];
-
-            for (var i = 0; i < teams.length; i++) {
-                const teamIndex = this.teamIndices[teams[i]];
-                const teamNumber = this.teamFilters[teamIndex].key;
-                teamNumbers.push(teamNumber);
-            }
-
-            teamNumbers.push("Total")
-
-            return teamNumbers;
+            this.loadAutoPathChoices(idx);
         }
     },
     computed: {
@@ -172,27 +230,32 @@ export default {
 </script>
 
 <style>
-.alliance-stat-view {
-    display: flex;
-    flex-direction: row;
-}
-
-.alliance-data-container {
-    display: flex;
-    flex-direction: column;
-}
-
-.alliance-col-data {
-    display: flex;
-    flex-direction: column;
-    padding: 20px;
-}
-
 .red-alliance {
     border: 2px solid red;
 }
 
 .blue-alliance {
     border: 2px solid blue;
+}
+
+.autopath-preview-selectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.autopath-preview-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.autopath-preview-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 </style>
