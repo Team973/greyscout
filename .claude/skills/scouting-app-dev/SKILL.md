@@ -34,6 +34,13 @@ event/team/robot-photo data from The Blue Alliance into Supabase.
 - Never test destructive or reordering UI actions against the real/default
   production event's Team List or other shared data without checking first —
   prefer a personal list, a test account, or confirming with the user.
+- `gh` is not installed in this environment (Windows/git-bash) — there's no
+  fallback to `gh pr create`. To push and open a PR: `git push -u origin
+  <branch>` still works over the existing SSH remote and prints a
+  `.../pull/new/<branch>` compare URL; hand that URL to the user (with a
+  suggested title/description) to open the PR themselves, or drive it via
+  claude-in-chrome browser tools if they're connected — don't attempt a raw
+  GitHub API call without a token (none is set in this environment either).
 
 ## Data model conventions
 
@@ -65,16 +72,45 @@ event/team/robot-photo data from The Blue Alliance into Supabase.
 - When surfacing a Supabase error to the UI, use `error.message` — Supabase
   errors are plain objects (not `Error` instances), so `String(error)`
   produces `"[object Object]"`.
+- To enforce "at most one X per group" (e.g. one default/active row per
+  team, one personal picklist per user+event), use a partial unique index
+  rather than app-only checking: `CREATE UNIQUE INDEX ... ON "Table"
+  (group_col) WHERE (flag_col = true)`. See `picklist_personal_unique`/
+  `picklist_team_unique` and `autopath_default_unique` in
+  `supabase/database/schemas/prod.sql`. The app must still clear any
+  existing flagged row *before* setting a new one (two statements, not
+  atomic) since the index will otherwise reject the write.
+- A file with both `<script setup>` and a plain `<script lang="ts">` block
+  (the common pattern here, e.g. `PitScoutingForm.vue`, `AutoPathCard.vue`)
+  compiles to one JS module — imports/consts declared in `<script setup>`
+  are plain module-scope bindings, so the Options API block's `methods`/
+  `computed`/`data()` can reference them directly (no `this.`) and the
+  `<template>` can too. Only put something in `data()` if the *template*
+  needs to read it as a reactive/bound value (e.g. exposing an imported
+  choices array for `v-model`/`:choices`).
 
 ## Supabase schema changes
 
 - Source of truth is the declarative schema at
-  `supabase/database/schemas/prod.sql`, with generated migrations.
-- `supabase db diff` (non-linked) replays local migrations and is reliable
-  for syntax validation.
-- `supabase db diff --linked` has a known stale pg-delta catalog cache bug
-  and can report "No schema changes found" even when there are real diffs —
-  **never trust it alone**. Cross-verify against the live database directly:
+  `supabase/database/schemas/prod.sql`, with generated migrations. When you
+  add a migration, hand-update `prod.sql` to match in the same commit —
+  don't rely on `db diff` to regenerate it here (see below).
+- `supabase db diff` (linked or not) provisions a local shadow database via
+  Docker, so it hard-fails with `LegacyDeclarativeShadowDbError` /
+  `failed to inspect docker image` whenever Docker Desktop isn't running or
+  installed — true in this environment. Don't loop on retrying it; there is
+  no local-only validation path here. Instead, hand-review new SQL against
+  the style of existing migrations, then apply for real (see below).
+- Without Docker, the reliable no-Docker workflow is: `supabase login`
+  (interactive — ask the user to run `! supabase login` themselves, then
+  continue once they confirm), `supabase db push --linked` to apply
+  migrations directly against the live project, and
+  `supabase migration list` afterward to confirm the pushed version now
+  shows the same value in both the `local` and `remote` columns.
+- `supabase db diff --linked` (on a machine where Docker *is* available)
+  additionally has a known stale pg-delta catalog cache bug and can report
+  "No schema changes found" even when there are real diffs — **never trust
+  it alone**. Cross-verify against the live database directly:
   `supabase db query --linked` against `information_schema.columns` /
   `information_schema.tables`.
 - `supabase db push --linked` always prints a non-fatal
@@ -114,6 +150,33 @@ event/team/robot-photo data from The Blue Alliance into Supabase.
   the user to confirm real-device feel for anything speed/timing-sensitive.
 - `util/private_credentials.json` must **never** be tracked in git — it's
   gitignored; don't remove that pattern, and never print its contents.
+- `router.ts` has had duplicate route `path`s registered under different
+  `name`s (e.g. Match Scouting and Match Preview both on `/match`) — vue-
+  router silently resolves to whichever matching route appears first in
+  the array, so the second one is just dead/unreachable with no error. If
+  a page/feature seems inexplicably unreachable or a nav link does
+  nothing, grep `router.ts` for its `path` before assuming the bug is in
+  the component.
+- No Python interpreter is available in this shell at all (`python`/
+  `python3` hit the Windows Store's stub and no-op) — this is separate
+  from the `util/` toolkit's own uv-managed Python (see below), which
+  *is* real but must be invoked via `uv run python ...` from inside
+  `util/`. For one-off tasks outside `util/` (e.g. inspecting a PNG's
+  pixels to measure a boundary), use Node instead — `pngjs` is already
+  present as a transitive dependency (via `node_modules/pngjs`) and can
+  decode a PNG without adding anything to `package.json`. Run scripts as
+  `.cjs` files from inside the repo root (not `/tmp`), since
+  `package.json` has `"type": "module"` and plain `.js` there is parsed
+  as ESM.
+- When placing normalized/relative coordinates onto one fixed shared
+  visual (e.g. `AutoPathCanvas.vue` drawing team-relative auto-path points
+  onto the single real field image), keep the "make this alliance/frame-
+  relative value physical" transform in exactly one place. It's easy to
+  end up with two independently-reasonable-looking rotations/flips (one
+  in a data-relabeling helper, one in the renderer) that compose back to
+  a no-op — the exact bug that made an alliance-flip toggle visibly do
+  nothing in the auto-path feature (see `docs/auto-paths.md`'s
+  "Coordinate frame" section for the full writeup and the fix).
 
 ## Python util toolkit (`util/`)
 
