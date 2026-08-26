@@ -13,6 +13,7 @@ defineProps<{
     showPicked: boolean;
     isPicked: boolean;
     canTogglePicked: boolean;
+    cardStatus: 'red' | 'yellow' | null;
     watched: boolean;
     canToggleWatch: boolean;
     expanded: boolean;
@@ -50,6 +51,22 @@ function formatFieldLabel(field: string) {
         .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+const FLAG_STATS = [
+    { key: 'postmatch_broke', label: 'Break %' },
+    { key: 'postmatch_died', label: 'Die %' },
+    { key: 'postmatch_beached', label: 'Beach %' },
+    { key: 'postmatch_played_defense', label: 'Defense %' }
+];
+
+function computeFlagStats(matchData: unknown[]) {
+    if (!matchData.length) return [];
+    return FLAG_STATS.map(({ key, label }) => {
+        const count = matchData.filter(row => !!row[key]).length;
+        const pct = (count / matchData.length) * 100;
+        return { label, pct: pct.toFixed(0), count, total: matchData.length };
+    });
+}
+
 function formatAvgRank(avgRank: number) {
     return avgRank.toFixed(1);
 }
@@ -72,7 +89,12 @@ function formatAvgRank(avgRank: number) {
                 </div>
             </div>
             <div class="picklist-team-info">
-                <span class="picklist-team-number">{{ team.team_number }}</span>
+                <span class="picklist-team-number">
+                    {{ team.team_number }}
+                    <span v-if="cardStatus" class="picklist-card-indicator" :class="`picklist-card-indicator--${cardStatus}`"
+                        :title="cardStatus === 'red' ? 'Received a red card this event' : 'Received a yellow card this event'">
+                    </span>
+                </span>
                 <span class="picklist-team-name">{{ team.name }}</span>
             </div>
             <div v-if="showVoteStats" class="picklist-vote-badge" @click.stop>
@@ -119,6 +141,12 @@ function formatAvgRank(avgRank: number) {
                         <h3 class="picklist-detail-heading">Match Stats ({{ expandedData.stats.length }}
                             matches)</h3>
                         <div class="picklist-stats-grid">
+                            <div v-for="stat in computeFlagStats(expandedData.stats)" :key="stat.label"
+                                class="picklist-stat-card">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.pct }}%</div>
+                                <div class="stat-sub">{{ stat.count }} / {{ stat.total }} matches</div>
+                            </div>
                             <div v-for="stat in computeBasicStats(expandedData.stats)" :key="stat.label"
                                 class="picklist-stat-card">
                                 <div class="stat-label">{{ stat.label }}</div>
@@ -280,6 +308,24 @@ function formatAvgRank(avgRank: number) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* ── Card status indicator ── */
+.picklist-card-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.picklist-card-indicator--yellow {
+    background: #e0b400;
+}
+
+.picklist-card-indicator--red {
+    background: #c83c3c;
 }
 
 .picklist-expand-chevron {

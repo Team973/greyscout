@@ -65,6 +65,56 @@ export async function fetchTeamMatchStats(teamNumber: number, eventId: string) {
     return data ?? [];
 }
 
+export interface TeamMatchSummary {
+    matches: number;
+    brokeCount: number;
+    diedCount: number;
+    beachedCount: number;
+    defenseCount: number;
+    /** Worst card seen across this team's matches at the event, or null if none. */
+    worstCard: 'red' | 'yellow' | null;
+}
+
+/**
+ * Fetch a lightweight per-team summary (card status + broke/died/beached/
+ * defense counts) across every match at the event, in one query. Used to
+ * show card status in the picklist row's collapsed summary view without
+ * requiring a per-team round trip, and to compute the Break/Die/Beach/
+ * Defense % stats shown when a row is expanded.
+ */
+export async function fetchTeamMatchSummaries(eventId: string): Promise<Record<number, TeamMatchSummary>> {
+    const { data, error } = await supabase
+        .from(matchScoutTable)
+        .select('prematch_team_number, postmatch_broke, postmatch_died, postmatch_beached, postmatch_played_defense, postmatch_cards')
+        .eq('event', eventId);
+
+    if (error) {
+        console.error('fetchTeamMatchSummaries error:', error);
+        return {};
+    }
+
+    const summaries: Record<number, TeamMatchSummary> = {};
+    (data ?? []).forEach((row) => {
+        const teamNumber = row.prematch_team_number;
+        if (teamNumber == null) return;
+
+        const summary = summaries[teamNumber] ?? {
+            matches: 0, brokeCount: 0, diedCount: 0, beachedCount: 0, defenseCount: 0, worstCard: null
+        };
+        summary.matches += 1;
+        if (row.postmatch_broke) summary.brokeCount += 1;
+        if (row.postmatch_died) summary.diedCount += 1;
+        if (row.postmatch_beached) summary.beachedCount += 1;
+        if (row.postmatch_played_defense) summary.defenseCount += 1;
+        if (row.postmatch_cards === 'red') summary.worstCard = 'red';
+        else if (row.postmatch_cards === 'yellow' && summary.worstCard !== 'red') summary.worstCard = 'yellow';
+
+        summaries[teamNumber] = summary;
+    });
+
+    return summaries;
+}
+
 /**
  * Fetch pit-scouting answers (drivetrain, weight, language, vibe check) for a team,
  * attributed to their author. Returns array of
