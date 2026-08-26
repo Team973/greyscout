@@ -1,14 +1,17 @@
 <script setup lang="ts">
 // @ts-nocheck
-import FormSection from "@/components/FormSection.vue";
+import MatchTeamRow from "@/components/MatchTeamRow.vue";
+import Dropdown from "@/components/Dropdown.vue";
+import NumberInput from "@/components/Number.vue";
+import Switch from "@/components/Switch.vue";
 
 import { matchScoutTable } from "@/lib/constants";
-import { getMatchScoutSchema } from "@/lib/2026/match-scouting-form";
-import { validateForm, parseScoutData, submitScoutData } from "@/lib/data-submission";
+import { buildTeamRowSchema } from "@/lib/2026/match-scouting-form";
+import { validateForm, parseScoutData, submitScoutData, getTeamInputElement } from "@/lib/data-submission";
 import { queryMatchTeams } from "@/lib/data-query";
-import { buildMatchTeamChoices } from "@/lib/match-schedule";
 import { useEventStore } from "@/stores/event-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue-store";
+import { useWatchlistStore } from "@/stores/watchlist-store";
 
 import "@material/web/button/filled-button";
 </script>
@@ -17,14 +20,48 @@ import "@material/web/button/filled-button";
     <div class="main-content">
         <h1>Match Scouting</h1>
 
-        <form v-if="formLoaded">
-            <FormSection v-for="section in scoutForm" :section-key="section.key" :name="section.name"
-                :components="section.key === 'prematch' ? visiblePrematchComponents : section.components"
-                :color="getAllianceColor" @form-update="onFormUpdate"></FormSection>
-        </form>
+        <div v-if="formLoaded" class="data-tile">
+            <div class="match-controls">
+                <div class="match-control">
+                    Match Number:
+                    <NumberInput :model-value="matchNumber" @update:modelValue="onMatchNumberChange" label="">
+                    </NumberInput>
+                </div>
+                <div class="match-control">
+                    Manual Team Entry:
+                    <Switch :model-value="manualEntry" @update:modelValue="onManualEntryChange"></Switch>
+                </div>
+            </div>
+            <p v-if="scheduleLookupFailed && !manualEntry">No qualification schedule found for that match — assign
+                teams manually below.</p>
+        </div>
+
+        <div v-if="formLoaded && showManualPicker" class="data-tile manual-assign-tile">
+            <h3>Team Assignment</h3>
+            <div class="manual-assign-grid">
+                <div v-for="(slot, idx) in slots" :key="slot.key" class="manual-assign-row">
+                    <span class="manual-assign-label" :class="`manual-assign-label--${slot.allianceColor}`">{{ slot.label
+                        }}</span>
+                    <Dropdown :choices="allTeamChoices" :model-value="manualTeamIndices[idx]"
+                        @update:modelValue="onManualTeamChange(idx, $event)"></Dropdown>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="formLoaded" class="match-rows">
+            <MatchTeamRow v-for="(slot, idx) in slots" :key="slot.key + '-' + (slot.teamNumber ?? 'unassigned')"
+                :slot-label="slot.label" :team-number="slot.teamNumber"
+                :team-name="slot.teamNumber ? (teamNameByNumber[slot.teamNumber] ?? '') : ''"
+                :alliance-color="slot.allianceColor" :schema="rows[idx].schema" :expanded="rows[idx].expanded"
+                :dirty="rows[idx].dirty" :included="rows[idx].included"
+                :watched="slot.teamNumber ? watchlistStore.isWatched(slot.teamNumber) : false"
+                :form-invalid="rows[idx].formInvalid" @toggle-expand="toggleExpand(idx)"
+                @toggle-included="toggleIncluded(idx)" @form-update="onRowFormUpdate(idx)">
+            </MatchTeamRow>
+        </div>
 
         <div class="data-tile error-tile" v-if="formInvalid">
-            <h1>^^^ Form is invalid. Please check the form for errors ^^^</h1>
+            <h1>^^^ Form is invalid. Please check the highlighted teams for errors ^^^</h1>
         </div>
         <div class="data-tile success-tile" v-if="submitSuccess">
             <h1>Submitted successfully!</h1>
@@ -34,57 +71,72 @@ import "@material/web/button/filled-button";
         </div>
 
         <div class="data-tile notification-tile" v-if="queuedOffline">
-            <h1>Couldn't submit — saved locally</h1>
-            <p>This entry has been queued and will sync automatically once you're back online. You can keep
+            <h1>Couldn't submit some teams — saved locally</h1>
+            <p>Those entries have been queued and will sync automatically once you're back online. You can keep
                 scouting in the meantime.</p>
         </div>
 
         <div class="button-container" v-if="formLoaded && !isSubmitting">
-            <!-- Fully reset the form if the reset button is clicked -->
-            <md-filled-button v-on:click="resetFormData(false)" class="reset-button">RESET</md-filled-button>
+            <md-filled-button v-on:click="resetMatch" class="reset-button">RESET</md-filled-button>
 
-            <md-filled-button v-on:click="submitForm" class="submit-button">SUBMIT</md-filled-button>
+            <md-filled-button v-on:click="submitForm" class="submit-button" :disabled="!hasDirtyIncludedRow">
+                SUBMIT
+            </md-filled-button>
         </div>
     </div>
 </template>
 
 <script lang="ts">
+// Slot order/labels/alliance are fixed by position — red1-3 are always Red,
+// blue1-3 are always Blue — unlike the old single-team form where alliance
+// was a scout-entered switch.
+const SLOT_DEFS = [
+    { key: "red1", label: "Red 1", allianceColor: "red" },
+    { key: "red2", label: "Red 2", allianceColor: "red" },
+    { key: "red3", label: "Red 3", allianceColor: "red" },
+    { key: "blue1", label: "Blue 1", allianceColor: "blue" },
+    { key: "blue2", label: "Blue 2", allianceColor: "blue" },
+    { key: "blue3", label: "Blue 3", allianceColor: "blue" },
+];
+
 export default {
     data() {
         return {
             eventStore: null,
             queueStore: null,
+            watchlistStore: null,
             formLoaded: false,
-            scoutForm: null,
-            // Track data submission separately from the act of submitting, so it can
-            // be queued locally if the submission fails.
+            matchNumber: null,
+            manualEntry: false,
+            scheduleLookupFailed: false,
+            allTeamChoices: [],
+            teamNameByNumber: {},
+            slots: SLOT_DEFS.map((def) => ({ ...def, teamNumber: null })),
+            manualTeamIndices: [0, 0, 0, 0, 0, 0],
+            rows: SLOT_DEFS.map(() => this.buildRow()),
+            lastMatchSyncKey: null,
             submitData: {},
             queuedOffline: false,
             submitSuccess: false,
             formInvalid: false,
             isSubmitting: false,
             resetSuccess: false,
-            // Full team_number choices for the event, as loaded at schema time —
-            // restored whenever manual entry is on or the schedule lookup misses.
-            allTeamChoices: [],
-            teamNameByNumber: {},
-            // True once the team_number dropdown is showing schedule-derived
-            // choices for the current match (rather than the full team list) —
-            // drives hiding the now-redundant Alliance field.
-            autoTeamsApplied: false,
-            // `${match_number}|${manual_entry}` for the last schedule lookup, so
-            // unrelated field edits (comments, cards, etc.) don't re-trigger a
-            // lookup and reset the scout's team selection.
-            lastTeamSyncKey: null
         }
     },
     methods: {
+        buildRow() {
+            return {
+                schema: buildTeamRowSchema(),
+                expanded: false,
+                dirty: false,
+                included: true,
+                formInvalid: false
+            };
+        },
         async loadScoutForm() {
             this.formLoaded = false;
-            this.scoutForm = await getMatchScoutSchema();
-            this.formLoaded = true;
 
-            const teamComp = this.findPrematchComponent('team_number');
+            const teamComp = await getTeamInputElement();
             this.allTeamChoices = teamComp?.options?.choices ?? [];
             this.teamNameByNumber = {};
             this.allTeamChoices.forEach((choice) => {
@@ -92,170 +144,164 @@ export default {
                 const [, name] = String(choice.text).split(': ');
                 if (name) this.teamNameByNumber[choice.key] = name;
             });
+
+            this.formLoaded = true;
         },
-        findPrematchComponent(key) {
-            return this.scoutForm?.find(s => s.key === 'prematch')?.components.find(c => c.key === key);
+        toggleExpand(idx) {
+            this.rows[idx].expanded = !this.rows[idx].expanded;
         },
-        onFormUpdate() {
-            this.formValidation();
-            this.syncAutoTeams();
+        toggleIncluded(idx) {
+            this.rows[idx].included = !this.rows[idx].included;
         },
-        async syncAutoTeams() {
-            const matchNumberComp = this.findPrematchComponent('match_number');
-            const manualComp = this.findPrematchComponent('manual_entry');
-            const teamComp = this.findPrematchComponent('team_number');
-            const allianceComp = this.findPrematchComponent('alliance');
-
-            if (!matchNumberComp || !manualComp || !teamComp || !allianceComp) return;
-
-            const syncKey = `${matchNumberComp.value}|${manualComp.value}`;
-            if (syncKey !== this.lastTeamSyncKey) {
-                this.lastTeamSyncKey = syncKey;
-
-                if (manualComp.value || !matchNumberComp.value) {
-                    teamComp.options.choices = this.allTeamChoices;
-                    teamComp.value = 0;
-                    this.autoTeamsApplied = false;
-                } else {
-                    const matchTeams = await queryMatchTeams(this.eventStore.eventId, Number(matchNumberComp.value));
-
-                    if (matchTeams) {
-                        teamComp.options.choices = buildMatchTeamChoices(matchTeams, this.teamNameByNumber);
-                        teamComp.value = 0;
-                        this.autoTeamsApplied = true;
-                    } else {
-                        teamComp.options.choices = this.allTeamChoices;
-                        teamComp.value = 0;
-                        this.autoTeamsApplied = false;
-                    }
-                }
-            }
-
-            // Keep the (hidden, in auto mode) Alliance value in sync with
-            // whichever team the scout picked from the schedule-derived choices.
-            if (this.autoTeamsApplied) {
-                const choice = teamComp.options.choices[teamComp.value];
-                if (choice && typeof choice.isBlue === 'boolean') {
-                    allianceComp.value = choice.isBlue;
-                }
-            }
-        },
-        formValidation() {
-            // The form isn't invalid yet.
-            this.formInvalid = false;
-
-            const { data, valid } = validateForm(this.scoutForm);
-            this.scoutForm = data;
-            this.formInvalid = !valid;
-
-            // reset the submit/reset success flag because the form has changed and has not been submitted yet.
+        onRowFormUpdate(idx) {
+            this.rows[idx].dirty = true;
             this.submitSuccess = false;
             this.resetSuccess = false;
 
-            return valid;
+            // Re-validate this row live so a previously-flagged error clears
+            // as soon as the scout fixes it.
+            if (this.rows[idx].formInvalid) {
+                const { data, valid } = validateForm(this.rows[idx].schema);
+                this.rows[idx].schema = data;
+                this.rows[idx].formInvalid = !valid;
+                if (valid) this.formInvalid = this.rows.some((r) => r.formInvalid);
+            }
         },
-        async submitForm() {
-            // Data submission hasn't failed or succeeded yet...
+        onManualTeamChange(idx, choiceIdx) {
+            this.manualTeamIndices[idx] = choiceIdx;
+            const choice = this.allTeamChoices[choiceIdx];
+            this.setSlotTeam(idx, choice && choice.key !== 'none' ? Number(choice.key) : null);
+        },
+        setSlotTeam(idx, teamNumber) {
+            if (this.slots[idx].teamNumber === teamNumber) return;
+            this.slots[idx].teamNumber = teamNumber;
+            this.rows[idx] = this.buildRow();
+        },
+        async syncMatchTeams() {
+            // Starting a new match context — any leftover submit banner from
+            // the previous match no longer applies.
             this.queuedOffline = false;
             this.submitSuccess = false;
-            this.isSubmitting = true;
             this.resetSuccess = false;
+            this.formInvalid = false;
 
-            // If the form isn't valid, wait for the user to fix it.
-            if (!this.formValidation()) {
+            const syncKey = `${this.matchNumber}|${this.manualEntry}`;
+            if (syncKey === this.lastMatchSyncKey) return;
+            this.lastMatchSyncKey = syncKey;
+
+            if (this.manualEntry || !this.matchNumber) {
+                this.scheduleLookupFailed = false;
+                this.slots.forEach((_, idx) => this.setSlotTeam(idx, null));
+                this.manualTeamIndices = [0, 0, 0, 0, 0, 0];
+                return;
+            }
+
+            const matchTeams = await queryMatchTeams(this.eventStore.eventId, Number(this.matchNumber));
+            if (matchTeams) {
+                this.scheduleLookupFailed = false;
+                SLOT_DEFS.forEach((def, idx) => this.setSlotTeam(idx, matchTeams[def.key] ?? null));
+            } else {
+                this.scheduleLookupFailed = true;
+                this.slots.forEach((_, idx) => this.setSlotTeam(idx, null));
+                this.manualTeamIndices = [0, 0, 0, 0, 0, 0];
+            }
+        },
+        onMatchNumberChange(value) {
+            this.matchNumber = value;
+            this.syncMatchTeams();
+        },
+        onManualEntryChange(value) {
+            this.manualEntry = value;
+            this.syncMatchTeams();
+        },
+        async submitForm() {
+            this.queuedOffline = false;
+            this.submitSuccess = false;
+            this.resetSuccess = false;
+            this.formInvalid = false;
+            this.isSubmitting = true;
+
+            const toSubmit = [];
+            let anyInvalid = false;
+
+            this.rows.forEach((row, idx) => {
+                if (!row.dirty || !row.included) return;
+
+                const { data, valid } = validateForm(row.schema);
+                row.schema = data;
+                row.formInvalid = !valid;
+
+                if (!valid) {
+                    anyInvalid = true;
+                    row.expanded = true;
+                } else {
+                    toSubmit.push(idx);
+                }
+            });
+
+            if (anyInvalid) {
+                this.formInvalid = true;
                 this.isSubmitting = false;
                 return;
             }
 
-            // Parse the data to submit separately from the act of submitting the data to the database in case the connection fails.
-            this.submitData = parseScoutData(this.scoutForm, this.eventStore.eventId)
+            let anyQueuedOffline = false;
 
-            // Attempt to submit the data.
-            const error = await submitScoutData(this.submitData, matchScoutTable);
+            for (const idx of toSubmit) {
+                const row = this.rows[idx];
+                const slot = this.slots[idx];
 
-            // Preserve some things that don't need to be re-entered.
-            this.preserveSingleEntryData();
+                const dbData = parseScoutData(row.schema, this.eventStore.eventId);
+                dbData.prematch_team_number = slot.teamNumber;
+                dbData.prematch_match_number = this.matchNumber;
+                dbData.prematch_alliance = slot.allianceColor === 'blue' ? 'Blue' : 'Red';
 
-            // If the database submission failed, queue it locally for retry instead of blocking the scout.
-            if (error) {
-                console.log(error);
-                this.queueStore.enqueue('scout_data', { table: matchScoutTable, data: this.submitData }, error.message ?? String(error));
+                const error = await submitScoutData(dbData, matchScoutTable);
 
-                // The data is safely queued — let the scout move on to the next match.
-                // (resetFormData() clears queuedOffline, so set it true afterward.)
-                this.resetFormData(true);
-                this.queuedOffline = true;
-                this.submitData = {};
-                this.isSubmitting = false;
-                return;
+                if (error) {
+                    console.log(error);
+                    this.queueStore.enqueue('scout_data', { table: matchScoutTable, data: dbData }, error.message ?? String(error));
+                    anyQueuedOffline = true;
+                }
             }
 
+            this.advanceToNextMatch();
 
-            // Reset all non-preserved data. This marks queuedOffline as false and also submitSuccess as false.
-            // So we mark submitSuccess as true below to update the UI.
-            // After submission allow incrementing of data in the form reset.
-            this.resetFormData(true);
-
-            // Mark the submission as successful and reset the submission data.
-            this.submitSuccess = true;
-            this.submitData = {};
+            this.queuedOffline = anyQueuedOffline;
+            this.submitSuccess = !anyQueuedOffline;
             this.isSubmitting = false;
         },
-        preserveSingleEntryData() {
-            // Iterate over all components and set their default values to be whatever was submitted most recently.
-            this.scoutForm.forEach(section => {
-                section.components.forEach(component => {
-                    if (component.preserveAfterSubmit) {
-                        component.defaultValue = component.value;
-                    }
-                })
-            });
+        advanceToNextMatch() {
+            this.matchNumber = this.matchNumber ? this.matchNumber + 1 : this.matchNumber;
+            this.lastMatchSyncKey = null;
+            this.syncMatchTeams();
         },
-        resetFormData(isIncrement) {
-            // Reset all data to their default values.
-            this.scoutForm.forEach(section => {
-                section.components.forEach(component => {
-                    if (!component.incrementAfterSubmit || !isIncrement) {
-                        component.value = component.defaultValue;
-                    } else {
-                        component.value = component.value + 1;
-                    }
-                    component.error = false;
+        resetMatch() {
+            this.slots.forEach((_, idx) => { this.rows[idx] = this.buildRow(); });
 
-                    console.log(section.key + "-" + component.key + ": " + component.value);
-                })
-            });
-
-            // The form submission no longer has failed since the data is being reset.
             this.queuedOffline = false;
             this.formInvalid = false;
             this.submitSuccess = false;
             this.resetSuccess = true;
-
-            // The match number may have just incremented (or been cleared) —
-            // refresh the schedule-derived team choices to match.
-            this.syncAutoTeams();
         }
     },
     computed: {
-        getAllianceColor() {
-            const switchPos = this.findPrematchComponent('alliance')?.value;
-            let allianceColor = switchPos ? "blue" : "red";
-            return allianceColor;
+        showManualPicker() {
+            return this.manualEntry || this.scheduleLookupFailed;
         },
-        visiblePrematchComponents() {
-            const prematch = this.scoutForm?.find(s => s.key === 'prematch');
-            if (!prematch) return [];
-            // In auto mode, the Alliance field is derived from the chosen
-            // schedule team rather than entered directly, so hide it.
-            if (!this.autoTeamsApplied) return prematch.components;
-            return prematch.components.filter(c => c.key !== 'alliance');
+        hasDirtyIncludedRow() {
+            return this.rows.some((row) => row.dirty && row.included);
         }
     },
     created() {
         this.eventStore = useEventStore();
         this.queueStore = useOfflineQueueStore();
+        this.watchlistStore = useWatchlistStore();
         this.loadScoutForm();
+
+        this.eventStore.updateEvent().then(() => {
+            this.watchlistStore.loadWatchlist(this.eventStore.eventId);
+        });
     },
 }
 </script>
@@ -289,5 +335,57 @@ p {
 .notification-tile {
     background-color: rgb(88, 88, 232);
     color: white
+}
+
+.match-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: safe center;
+}
+
+.match-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.manual-assign-tile {
+    text-align: left;
+}
+
+.manual-assign-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.manual-assign-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.manual-assign-label {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    min-width: 56px;
+    text-align: center;
+}
+
+.manual-assign-label--red {
+    background: rgba(255, 0, 0, 0.15);
+    color: #d32f2f;
+}
+
+.manual-assign-label--blue {
+    background: rgba(0, 0, 255, 0.15);
+    color: #1a5fd3;
+}
+
+.match-rows {
+    margin-top: 16px;
 }
 </style>

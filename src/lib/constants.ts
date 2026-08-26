@@ -18,6 +18,7 @@ export const userTable = "User";
 export const pickListTable = "PickList";
 export const userProfileTable = "UserProfile";
 export const autoPathTable = "AutoPath";
+export const watchlistTable = "Watchlist";
 
 // Picklist types
 export const pickListTypePersonal = "personal";

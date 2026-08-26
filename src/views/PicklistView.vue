@@ -7,6 +7,7 @@ import { usePicklistStore } from '@/stores/picklist-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
+import { useWatchlistStore } from '@/stores/watchlist-store';
 import { TIER_GROUPS } from '@/lib/picklist-query';
 import PicklistRow from '@/components/PicklistRow.vue';
 
@@ -14,6 +15,7 @@ const picklistStore = usePicklistStore();
 const authStore = useAuthStore();
 const eventStore = useEventStore();
 const queueStore = useOfflineQueueStore();
+const watchlistStore = useWatchlistStore();
 
 // Which row is expanded
 const expandedTeam = ref<number | null>(null);
@@ -135,6 +137,7 @@ onMounted(async () => {
     if (isObserver.value) return;
     await eventStore.updateEvent();
     await picklistStore.loadAll(eventId.value, userId.value, isLead.value);
+    await watchlistStore.loadWatchlist(eventId.value);
 });
 
 // ─── Expand / collapse row ────────────────────────────────────────────────────
@@ -158,6 +161,13 @@ async function toggleExpand(teamNumber: number) {
 async function togglePicked(teamNumber: number) {
     if (!isLead.value) return;
     await picklistStore.togglePicked(eventId.value, teamNumber);
+}
+
+// ─── Watchlist toggle ──────────────────────────────────────────────────────────
+
+async function toggleWatch(teamNumber: number) {
+    if (!isLead.value) return;
+    await watchlistStore.toggleWatch(eventId.value, teamNumber);
 }
 
 // ─── Save ─────────────────────────────────────────────────────────────────────
@@ -375,9 +385,11 @@ function groupRankOffset(group: string) {
                                     :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
                                     :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                     :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                    :can-toggle-picked="isLead" :expanded="expandedTeam === teamNumber"
+                                    :can-toggle-picked="isLead" :watched="watchlistStore.isWatched(teamNumber)"
+                                    :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
                                     :expanded-data="expandedData" :expanded-loading="expandedLoading"
-                                    @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)" />
+                                    @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
+                                    @toggle-watch="toggleWatch(teamNumber)" />
                             </template>
                         </draggable>
 
@@ -388,9 +400,11 @@ function groupRankOffset(group: string) {
                                 :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
                                 :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                 :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                :can-toggle-picked="isLead" :expanded="expandedTeam === teamNumber"
+                                :can-toggle-picked="isLead" :watched="watchlistStore.isWatched(teamNumber)"
+                                :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
                                 :expanded-data="expandedData" :expanded-loading="expandedLoading"
-                                @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)" />
+                                @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
+                                @toggle-watch="toggleWatch(teamNumber)" />
                         </div>
 
                         <div v-if="(picklistStore.activeSections[group] || []).length === 0" class="tier-section-empty">

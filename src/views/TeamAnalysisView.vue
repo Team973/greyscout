@@ -6,6 +6,7 @@ import { uploadFile, updatePhoto } from "@/lib/data-submission";
 import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useAuthStore } from "@/stores/auth-store";
+import { useWatchlistStore } from "@/stores/watchlist-store";
 import { projectId, robotPhotoTable, robotPhotoBucket } from "@/lib/constants";
 
 import '@material/web/select/outlined-select';
@@ -33,7 +34,15 @@ import { minWidthForDesktop } from "@/lib/constants";
         <h1>Team Analysis</h1>
         <div v-if="teamLoaded && isDataAvailable">
             <!-- Only show this if the team data is loaded. -->
-            <Dropdown :choices="teamFilters" v-model="currentTeamIndex" @update:modelValue="setTeam"></Dropdown>
+            <div class="team-select-row">
+                <Dropdown :choices="teamFilters" v-model="currentTeamIndex" @update:modelValue="setTeam"></Dropdown>
+                <button v-if="isTeamWatched || isUserLead" type="button" class="watch-star"
+                    :class="{ 'watch-star--active': isTeamWatched, 'watch-star--readonly': !isUserLead }"
+                    :disabled="!isUserLead" @click="toggleTeamWatch"
+                    :title="isUserLead ? (isTeamWatched ? 'Remove from watchlist' : 'Add to watchlist') : 'On the watchlist'">
+                    ★
+                </button>
+            </div>
 
             <div>
                 <div class="analysis-row-tile">
@@ -238,6 +247,7 @@ export default {
             viewMode: null,
             eventStore: null,
             authStore: null,
+            watchlistStore: null,
             teamLoaded: false,
             teamPhotoLoaded: false,
             teamPhotoAvailable: false,
@@ -289,6 +299,15 @@ export default {
 
             // Load auto paths.
             this.loadTeamAutoPaths();
+
+            // Load the watchlist (event-wide, not per team).
+            this.watchlistStore.loadWatchlist(this.eventStore.eventId);
+        },
+        async toggleTeamWatch() {
+            if (!this.isUserLead) return;
+            const teamNumber = this.getTeamNumber();
+            if (teamNumber < 0) return;
+            await this.watchlistStore.toggleWatch(this.eventStore.eventId, teamNumber);
         },
         async loadTeamAutoPaths() {
             const teamNumber = this.getTeamNumber();
@@ -605,6 +624,14 @@ export default {
         isUserWriteAccess() {
             return this.authStore.isWriteAuthorized;
         },
+        isUserLead() {
+            return this.authStore.isLead;
+        },
+        isTeamWatched() {
+            const teamNumber = this.getTeamNumber();
+            if (teamNumber < 0) return false;
+            return this.watchlistStore.isWatched(teamNumber);
+        },
         teamNumber() {
             if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
                 return -1;
@@ -617,6 +644,7 @@ export default {
         this.viewMode = useViewModeStore();
         this.eventStore = useEventStore();
         this.authStore = useAuthStore();
+        this.watchlistStore = useWatchlistStore();
         this.authStore.checkUser();
 
         this.loadLayout();
@@ -637,6 +665,36 @@ export default {
 </script>
 
 <style scoped>
+.team-select-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.watch-star {
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    color: rgba(128, 128, 128, 0.35);
+    transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.watch-star:not(:disabled):hover {
+    color: #e0b400;
+    transform: scale(1.1);
+}
+
+.watch-star--active {
+    color: #e0b400;
+}
+
+.watch-star--readonly {
+    cursor: default;
+}
+
 .robot-photo {
     display: block;
     width: 100%;
