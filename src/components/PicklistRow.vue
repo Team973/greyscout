@@ -13,12 +13,14 @@ defineProps<{
     showPicked: boolean;
     isPicked: boolean;
     canTogglePicked: boolean;
+    watched: boolean;
+    canToggleWatch: boolean;
     expanded: boolean;
     expandedData: { stats: unknown[]; comments: unknown[] } | null;
     expandedLoading: boolean;
 }>();
 
-const emit = defineEmits(['toggle-expand', 'toggle-picked']);
+const emit = defineEmits(['toggle-expand', 'toggle-picked', 'toggle-watch']);
 
 function computeBasicStats(matchData: unknown[]) {
     if (!matchData.length) return [];
@@ -88,6 +90,12 @@ function formatAvgRank(avgRank: number) {
                 <input type="checkbox" :checked="isPicked" :disabled="!canTogglePicked"
                     @change="emit('toggle-picked')" />
             </label>
+            <button v-if="watched || canToggleWatch" type="button" class="picklist-watch-star"
+                :class="{ 'picklist-watch-star--active': watched, 'picklist-watch-star--readonly': !canToggleWatch }"
+                :disabled="!canToggleWatch" @click.stop="canToggleWatch && emit('toggle-watch')"
+                :title="canToggleWatch ? (watched ? 'Remove from watchlist' : 'Add to watchlist') : 'On the watchlist'">
+                ★
+            </button>
             <div class="picklist-expand-chevron" :class="{ 'picklist-expand-chevron--open': expanded }">
                 ›
             </div>
@@ -343,6 +351,33 @@ function formatAvgRank(avgRank: number) {
 .picklist-picked-check input[type="checkbox"]:disabled {
     cursor: default;
     opacity: 0.6;
+}
+
+/* ── Watchlist star ── */
+.picklist-watch-star {
+    background: none;
+    border: none;
+    padding: 2px;
+    margin-left: 2px;
+    font-size: 20px;
+    line-height: 1;
+    flex-shrink: 0;
+    cursor: pointer;
+    color: rgba(128, 128, 128, 0.35);
+    transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.picklist-watch-star:not(:disabled):hover {
+    color: #e0b400;
+    transform: scale(1.1);
+}
+
+.picklist-watch-star--active {
+    color: #e0b400;
+}
+
+.picklist-watch-star--readonly {
+    cursor: default;
 }
 
 /* ── Detail section ── */

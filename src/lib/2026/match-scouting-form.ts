@@ -1,119 +1,168 @@
 // @ts-nocheck
 
-import { getTeamInputElement } from "@/lib/data-submission";
+// Per-team fields for the "Pre-match" section of a match-scouting row.
+// team_number, match_number, and alliance are no longer editable form
+// components here — in the compact multi-team match form they're derived
+// from the match schedule slot and set directly on the parsed submission.
+export function getMatchPrematchTeamFields() {
+    return [
+        {
+            key: "noshow",
+            label: "No Show",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+    ];
+}
 
-export async function getMatchScoutSchema() {
-    const teamInputElement = await getTeamInputElement();
+// Per-team fields for the "Auto" section of a match-scouting row.
+export function getMatchAutoFields() {
+    return [
+        {
+            key: "failed",
+            label: "Did auto fail?",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+    ];
+}
 
+// Per-team fields for the "Post Match" section of a match-scouting row.
+export function getMatchPostmatchFields() {
+    return [
+        {
+            key: "cards",
+            label: "Cards?",
+            type: "dropdown",
+            options: {
+                choices: [
+                    { key: "none", text: "No Card" },
+                    { key: "yellow", text: "Yellow Card" },
+                    { key: "red", text: "Red Card" },
+                ]
+            },
+            defaultValue: 0,
+            value: 0,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        {
+            key: "died",
+            label: "Died?",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        {
+            key: "broke",
+            label: "Broke?",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        {
+            key: "beached",
+            label: "Beached?",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        {
+            key: "played_defense",
+            label: "Played Defense?",
+            type: "switch",
+            options: {},
+            defaultValue: false,
+            value: false,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        // Only shown (see MatchTeamRow.vue) when played_defense is true. Kept
+        // required:false always, even though it's conditionally displayed, so
+        // a hidden field can never block validateForm() from passing.
+        {
+            key: "defense_impact",
+            label: "Defense Impact",
+            type: "dropdown",
+            options: {
+                choices: [
+                    { key: "none", text: "Select impact..." },
+                    { key: "good", text: "Good" },
+                    { key: "minimal", text: "Minimal" },
+                    { key: "ineffective", text: "Ineffective" },
+                ]
+            },
+            defaultValue: 0,
+            value: 0,
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: false,
+            error: false
+        },
+        {
+            key: "comments",
+            label: "Comments",
+            type: "textarea",
+            options: {},
+            defaultValue: "",
+            value: "",
+            preserveAfterSubmit: false,
+            incrementAfterSubmit: false,
+            required: true,
+            error: false
+        },
+    ];
+}
+
+// The full {key, name, components} section shape for one team's row —
+// matches what FormSection/validateForm/parseScoutData already expect.
+export function buildTeamRowSchema() {
     return [
         {
             key: "prematch",
             name: "Pre-match",
-            components: [
-                {
-                    key: "match_number",
-                    label: "Match Number",
-                    type: "number",
-                    options: {},
-                    defaultValue: null,
-                    value: null,
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: true,
-                    required: true,
-                    error: false
-                },
-                {
-                    key: "manual_entry",
-                    label: "Manual Team Entry",
-                    type: "switch",
-                    options: {},
-                    defaultValue: false,
-                    value: false,
-                    // Preserved across submissions: a scout who needs manual mode
-                    // (e.g. the schedule isn't synced yet) likely needs it for the
-                    // whole event, not just one match.
-                    preserveAfterSubmit: true,
-                    incrementAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-                teamInputElement,
-                {
-                    key: "alliance",
-                    label: "Alliance",
-                    type: "optionswitch",
-                    options: {
-                        unselected: "Red",
-                        selected: "Blue",
-                    },
-                    defaultValue: false,
-                    value: false,
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-                {
-                    key: "noshow",
-                    label: "No Show",
-                    type: "switch",
-                    options: {},
-                    defaultValue: false,
-                    value: false,
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-            ]
+            components: getMatchPrematchTeamFields()
+        },
+        {
+            key: "auto",
+            name: "Auto",
+            components: getMatchAutoFields()
         },
         {
             key: "postmatch",
             name: "Post Match",
-            components: [
-                {
-                    key: "cards",
-                    label: "Cards?",
-                    type: "dropdown",
-                    options: {
-                        choices: [
-                            { key: "none", text: "No Card" },
-                            { key: "yellow", text: "Yellow Card" },
-                            { key: "red", text: "Red Card" },
-                        ]
-                    },
-                    defaultValue: 0,
-                    value: 0,
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-                {
-                    key: "died",
-                    label: "Died?",
-                    type: "switch",
-                    options: {},
-                    defaultValue: false,
-                    value: false,
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-                {
-                    key: "comments",
-                    label: "Comments",
-                    type: "textarea",
-                    options: {},
-                    defaultValue: "",
-                    value: "",
-                    preserveAfterSubmit: false,
-                    incrementAfterSubmit: false,
-                    required: true,
-                    error: false
-                },
-            ]
+            components: getMatchPostmatchFields()
         }
     ];
-} 
+}

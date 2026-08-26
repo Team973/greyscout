@@ -134,7 +134,13 @@ CREATE TABLE IF NOT EXISTS "public"."MatchData" (
     "postmatch_died" boolean DEFAULT false NOT NULL,
     "postmatch_comments" "text",
     "key" "text",
-    "source" "text"
+    "source" "text",
+    "postmatch_broke" boolean DEFAULT false NOT NULL,
+    "postmatch_beached" boolean DEFAULT false NOT NULL,
+    "auto_failed" boolean DEFAULT false NOT NULL,
+    "postmatch_played_defense" boolean DEFAULT false NOT NULL,
+    "postmatch_defense_impact" "text",
+    CONSTRAINT "MatchData_defense_impact_check" CHECK (("postmatch_defense_impact" IS NULL) OR ("postmatch_defense_impact" = ANY (ARRAY['none'::"text", 'good'::"text", 'minimal'::"text", 'ineffective'::"text"])))
 );
 
 
@@ -333,6 +339,17 @@ CREATE TABLE IF NOT EXISTS "public"."PickList" (
 ALTER TABLE "public"."PickList" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."Watchlist" (
+    "event_id" "text" NOT NULL,
+    "team_number" smallint NOT NULL,
+    "created_by" "uuid" DEFAULT "auth"."uid"(),
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."Watchlist" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."RobotPhoto" (
     "team_number" smallint NOT NULL,
     "photo_url" "text"
@@ -413,6 +430,11 @@ ALTER TABLE ONLY "public"."PickList"
 
 
 
+ALTER TABLE ONLY "public"."Watchlist"
+    ADD CONSTRAINT "Watchlist_pkey" PRIMARY KEY ("event_id", "team_number");
+
+
+
 ALTER TABLE ONLY "public"."RobotPhoto"
     ADD CONSTRAINT "RobotPhoto_pkey" PRIMARY KEY ("team_number");
 
@@ -472,6 +494,16 @@ ALTER TABLE ONLY "public"."AutoPath"
 
 ALTER TABLE ONLY "public"."Match"
     ADD CONSTRAINT "Match_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."Event"("event_id");
+
+
+
+ALTER TABLE ONLY "public"."Watchlist"
+    ADD CONSTRAINT "Watchlist_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."Event"("event_id");
+
+
+
+ALTER TABLE ONLY "public"."Watchlist"
+    ADD CONSTRAINT "Watchlist_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."User"("user_id");
 
 
 
@@ -568,6 +600,18 @@ CREATE POLICY "Enable write access for personal lists" ON "public"."PickList" TO
 CREATE POLICY "Enable write access for picklists" ON "public"."PickList" TO "authenticated" USING (true);
 
 
+
+CREATE POLICY "Enable read access for logged in users" ON "public"."Watchlist" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Enable insert for authenticated users only" ON "public"."Watchlist" FOR INSERT TO "authenticated" WITH CHECK (true);
+
+
+
+CREATE POLICY "Enable delete for authenticated users only" ON "public"."Watchlist" FOR DELETE TO "authenticated" USING (true);
+
+
 ALTER TABLE "public"."Event" ENABLE ROW LEVEL SECURITY;
 
 
@@ -599,6 +643,9 @@ ALTER TABLE "public"."Team" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."Watchlist" ENABLE ROW LEVEL SECURITY;
 
 
 
