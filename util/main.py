@@ -5,12 +5,13 @@ import argparse
 from offline_data import process_offline_data_file
 from event_info import update_event_info_for_team, update_attendance_list_for_all_events
 from robot_photos import update_robot_photos_for_event
+from match_schedule import update_match_schedule_for_event
 
 from credentials import get_supabase_credentials, get_tba_credentials
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", default="event", choices=["offline", "event", "photos"])
+    parser.add_argument("--mode", default="event", choices=["offline", "event", "photos", "schedule"])
     parser.add_argument("--infile", default="data.json")
     parser.add_argument("--outfile", default="data.csv")
     parser.add_argument("--offline_mode", default="upload", choices=["csv", "upload"])
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("--tba_creds", default=None)
     parser.add_argument("--supabase_creds", default=None)
     parser.add_argument("--team_number", default=973)
-    parser.add_argument("--event_id", default=None, help="Required for --mode photos, e.g. 2026sunshow")
+    parser.add_argument("--event_id", default=None, help="Required for --mode photos/schedule, e.g. 2026sunshow")
     args = parser.parse_args()
 
     # Load credentials
@@ -35,4 +36,8 @@ if __name__ == "__main__":
         if not args.event_id:
             parser.error("--event_id is required for --mode photos")
         update_robot_photos_for_event(sb_creds, tba_creds, args.event_id)
+    elif args.mode == "schedule":
+        if not args.event_id:
+            parser.error("--event_id is required for --mode schedule")
+        update_match_schedule_for_event(sb_creds, tba_creds, args.event_id)
 

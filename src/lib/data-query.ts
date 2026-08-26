@@ -3,7 +3,51 @@
 
 
 import { supabase } from "@/lib/supabase-client";
-import { matchScoutTable, teamInfoTable, teamNumberColumn } from "@/lib/constants";
+import { matchScoutTable, matchScheduleTable, teamInfoTable, teamNumberColumn } from "@/lib/constants";
+
+// Qualification matches are the only ones with a schedule known ahead of
+// time (playoff pairings are only decided live), so schedule-based
+// auto-fill only ever looks up "qm" matches.
+const QUALIFICATION_COMP_LEVEL = "qm";
+
+// Look up the six teams (red1-3, blue1-3) assigned to a qualification match,
+// or null if the schedule hasn't been synced / the match doesn't exist yet.
+export async function queryMatchTeams(eventId, matchNumber) {
+    const { data, error } = await supabase.from(matchScheduleTable).select()
+        .eq('event_id', eventId)
+        .eq('comp_level', QUALIFICATION_COMP_LEVEL)
+        .eq('match_number', matchNumber)
+        .limit(1);
+
+    if (error) {
+        console.log(error);
+        return null;
+    }
+
+    return data.length > 0 ? data[0] : null;
+}
+
+// Ordering for comp levels within a schedule: qualifications first, then
+// playoffs in bracket order.
+const COMP_LEVEL_RANK = { qm: 0, ef: 1, qf: 2, sf: 3, f: 4 };
+
+// The full match schedule for an event (all comp levels), ordered the way a
+// scout would expect to see it play out.
+export async function queryEventMatchSchedule(eventId) {
+    const { data, error } = await supabase.from(matchScheduleTable).select().eq('event_id', eventId);
+
+    if (error) {
+        console.log(error);
+        return [];
+    }
+
+    return data.sort((a, b) => {
+        const rankDiff = (COMP_LEVEL_RANK[a.comp_level] ?? 99) - (COMP_LEVEL_RANK[b.comp_level] ?? 99);
+        if (rankDiff !== 0) return rankDiff;
+        if (a.set_number !== b.set_number) return a.set_number - b.set_number;
+        return a.match_number - b.match_number;
+    });
+}
 
 export async function queryTeamNumbers(eventId) {
     const { data, error } = await supabase.from(teamInfoTable).select().eq('event_id', eventId);

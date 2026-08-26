@@ -15,6 +15,7 @@ import RegisterView from "@/views/RegisterView.vue";
 import ResetPasswordView from "@/views/ResetPasswordView.vue";
 import AccountView from "@/views/AccountView.vue";
 import PicklistView from "@/views/PicklistView.vue";
+import DataStatusView from "@/views/DataStatusView.vue";
 import { useAuthStore } from "@/stores/auth-store";
 
 const router = createRouter({
@@ -111,27 +112,41 @@ const router = createRouter({
       meta: {
         requiresAuth: isSiteReadPrivate
       }
+    },
+    {
+      path: "/data-status",
+      name: "Data Status | GreyScout",
+      component: DataStatusView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        requiresLead: true
+      }
     }
   ],
 });
 
 router.beforeEach(async (to, from, next) => {
-  // Prevent unauthorized users from accessing the app if the app is private.
-  if (isSiteReadPrivate) {
-    let authStore = useAuthStore();
+  let authStore = useAuthStore();
+
+  // Prevent unauthorized users from accessing the app if the app is private,
+  // and always check the user when the destination is role-gated (this check
+  // is independent of site-wide read privacy).
+  if (isSiteReadPrivate || to.meta.requiresLead) {
     await authStore.checkUser();
-    if (to.meta.requiresAuth && !authStore.isUserLoggedIn) {
-      next('/login');
-    } else {
-      document.title = to.name;
-      next();
-    }
-  } else {
-    document.title = to.name;
-    next();
   }
 
+  if (isSiteReadPrivate && to.meta.requiresAuth && !authStore.isUserLoggedIn) {
+    next('/login');
+    return;
+  }
 
+  if (to.meta.requiresLead && !authStore.isLead) {
+    next('/');
+    return;
+  }
+
+  document.title = to.name;
+  next();
 });
 
 export default router;

@@ -6,7 +6,7 @@ import FormComponent from './FormComponent.vue';
 <template>
     <div class="scout-form-tile" :style="getStyle">
         <h2>{{ name }}</h2>
-        <div v-for="component in components" v-if="components.length > 0">
+        <div v-for="component in components" v-if="components.length > 0" :key="component.key">
             <FormComponent :label="component.label" :type="component.type" :options="component?.options"
                 v-model="component.value" :required="component?.required" :error="component?.error"
                 @update:modelValue="notifyInput">

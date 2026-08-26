@@ -22,6 +22,21 @@ export async function getMatchScoutSchema() {
                     required: true,
                     error: false
                 },
+                {
+                    key: "manual_entry",
+                    label: "Manual Team Entry",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    // Preserved across submissions: a scout who needs manual mode
+                    // (e.g. the schedule isn't synced yet) likely needs it for the
+                    // whole event, not just one match.
+                    preserveAfterSubmit: true,
+                    incrementAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
                 teamInputElement,
                 {
                     key: "alliance",

@@ -12,6 +12,7 @@ export const matchScoutTable = "MatchData";
 export const pitScoutTable = "PitData";
 export const eventInfoTable = "Event";
 export const teamInfoTable = "Team";
+export const matchScheduleTable = "Match";
 export const robotPhotoTable = "RobotPhoto";
 export const userTable = "User";
 export const pickListTable = "PickList";

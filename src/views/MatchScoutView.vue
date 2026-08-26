@@ -5,6 +5,8 @@ import FormSection from "@/components/FormSection.vue";
 import { matchScoutTable } from "@/lib/constants";
 import { getMatchScoutSchema } from "@/lib/2026/match-scouting-form";
 import { validateForm, parseScoutData, submitScoutData } from "@/lib/data-submission";
+import { queryMatchTeams } from "@/lib/data-query";
+import { buildMatchTeamChoices } from "@/lib/match-schedule";
 import { useEventStore } from "@/stores/event-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 
@@ -17,7 +19,8 @@ import "@material/web/button/filled-button";
 
         <form v-if="formLoaded">
             <FormSection v-for="section in scoutForm" :section-key="section.key" :name="section.name"
-                :components="section.components" :color="getAllianceColor" @form-update="formValidation"></FormSection>
+                :components="section.key === 'prematch' ? visiblePrematchComponents : section.components"
+                :color="getAllianceColor" @form-update="onFormUpdate"></FormSection>
         </form>
 
         <div class="data-tile error-tile" v-if="formInvalid">
@@ -60,7 +63,19 @@ export default {
             submitSuccess: false,
             formInvalid: false,
             isSubmitting: false,
-            resetSuccess: false
+            resetSuccess: false,
+            // Full team_number choices for the event, as loaded at schema time —
+            // restored whenever manual entry is on or the schedule lookup misses.
+            allTeamChoices: [],
+            teamNameByNumber: {},
+            // True once the team_number dropdown is showing schedule-derived
+            // choices for the current match (rather than the full team list) —
+            // drives hiding the now-redundant Alliance field.
+            autoTeamsApplied: false,
+            // `${match_number}|${manual_entry}` for the last schedule lookup, so
+            // unrelated field edits (comments, cards, etc.) don't re-trigger a
+            // lookup and reset the scout's team selection.
+            lastTeamSyncKey: null
         }
     },
     methods: {
@@ -68,6 +83,62 @@ export default {
             this.formLoaded = false;
             this.scoutForm = await getMatchScoutSchema();
             this.formLoaded = true;
+
+            const teamComp = this.findPrematchComponent('team_number');
+            this.allTeamChoices = teamComp?.options?.choices ?? [];
+            this.teamNameByNumber = {};
+            this.allTeamChoices.forEach((choice) => {
+                if (choice.key === 'none') return;
+                const [, name] = String(choice.text).split(': ');
+                if (name) this.teamNameByNumber[choice.key] = name;
+            });
+        },
+        findPrematchComponent(key) {
+            return this.scoutForm?.find(s => s.key === 'prematch')?.components.find(c => c.key === key);
+        },
+        onFormUpdate() {
+            this.formValidation();
+            this.syncAutoTeams();
+        },
+        async syncAutoTeams() {
+            const matchNumberComp = this.findPrematchComponent('match_number');
+            const manualComp = this.findPrematchComponent('manual_entry');
+            const teamComp = this.findPrematchComponent('team_number');
+            const allianceComp = this.findPrematchComponent('alliance');
+
+            if (!matchNumberComp || !manualComp || !teamComp || !allianceComp) return;
+
+            const syncKey = `${matchNumberComp.value}|${manualComp.value}`;
+            if (syncKey !== this.lastTeamSyncKey) {
+                this.lastTeamSyncKey = syncKey;
+
+                if (manualComp.value || !matchNumberComp.value) {
+                    teamComp.options.choices = this.allTeamChoices;
+                    teamComp.value = 0;
+                    this.autoTeamsApplied = false;
+                } else {
+                    const matchTeams = await queryMatchTeams(this.eventStore.eventId, Number(matchNumberComp.value));
+
+                    if (matchTeams) {
+                        teamComp.options.choices = buildMatchTeamChoices(matchTeams, this.teamNameByNumber);
+                        teamComp.value = 0;
+                        this.autoTeamsApplied = true;
+                    } else {
+                        teamComp.options.choices = this.allTeamChoices;
+                        teamComp.value = 0;
+                        this.autoTeamsApplied = false;
+                    }
+                }
+            }
+
+            // Keep the (hidden, in auto mode) Alliance value in sync with
+            // whichever team the scout picked from the schedule-derived choices.
+            if (this.autoTeamsApplied) {
+                const choice = teamComp.options.choices[teamComp.value];
+                if (choice && typeof choice.isBlue === 'boolean') {
+                    allianceComp.value = choice.isBlue;
+                }
+            }
         },
         formValidation() {
             // The form isn't invalid yet.
@@ -160,14 +231,25 @@ export default {
             this.formInvalid = false;
             this.submitSuccess = false;
             this.resetSuccess = true;
+
+            // The match number may have just incremented (or been cleared) —
+            // refresh the schedule-derived team choices to match.
+            this.syncAutoTeams();
         }
     },
     computed: {
         getAllianceColor() {
-            // This is hardcoded, so it may need to change.
-            const switchPos = this.scoutForm[0].components[2].value;
+            const switchPos = this.findPrematchComponent('alliance')?.value;
             let allianceColor = switchPos ? "blue" : "red";
             return allianceColor;
+        },
+        visiblePrematchComponents() {
+            const prematch = this.scoutForm?.find(s => s.key === 'prematch');
+            if (!prematch) return [];
+            // In auto mode, the Alliance field is derived from the chosen
+            // schedule team rather than entered directly, so hide it.
+            if (!this.autoTeamsApplied) return prematch.components;
+            return prematch.components.filter(c => c.key !== 'alliance');
         }
     },
     created() {
