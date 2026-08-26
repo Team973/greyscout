@@ -17,12 +17,15 @@ import "@material/web/button/filled-button";
         </div>
 
         <AutoPathCanvas :points="displayPoints" :display-alliance="viewAlliance" :editable="false" large="true"
-            :color="cardColor"></AutoPathCanvas>
+            :color="cardColor" :playing="isPlaying" @finished="isPlaying = false"></AutoPathCanvas>
 
         <div class="autopath-view-controls">
             <span class="autopath-view-label">View as:</span>
             <Dropdown :choices="ALLIANCE_CHOICES" v-model="viewAllianceIndex"></Dropdown>
             <Dropdown :choices="SIDE_CHOICES" v-model="viewSideIndex"></Dropdown>
+            <md-filled-button v-on:click="togglePlay" class="play-button">
+                {{ isPlaying ? "■ STOP" : "▶ PLAY" }}
+            </md-filled-button>
         </div>
 
         <div class="autopath-card-actions" v-if="canEdit">
@@ -62,9 +65,15 @@ export default {
         return {
             viewAllianceIndex: 0,
             viewSideIndex: 0,
+            isPlaying: false,
             ALLIANCE_CHOICES,
             SIDE_CHOICES
         };
+    },
+    methods: {
+        togglePlay() {
+            this.isPlaying = !this.isPlaying;
+        }
     },
     computed: {
         viewAlliance() {
@@ -147,5 +156,9 @@ export default {
 
 .default-button {
     --md-filled-button-container-color: rgba(128, 128, 128, 0.4);
+}
+
+.play-button {
+    margin-left: auto;
 }
 </style>
