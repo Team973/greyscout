@@ -14,11 +14,12 @@ import {
     computeDemocraticTierGroups,
     parseTeamTiers,
     fetchTeamMatchStats,
+    fetchTeamMatchSummaries,
     fetchTeamComments,
     TIERS,
     TIER_GROUPS
 } from '@/lib/picklist-query';
-import type { Tier, TierGroup, TeamTierStats } from '@/lib/picklist-query';
+import type { Tier, TierGroup, TeamTierStats, TeamMatchSummary } from '@/lib/picklist-query';
 
 export type PicklistTab = 'personal' | 'democratic' | 'team';
 
@@ -95,6 +96,11 @@ export const usePicklistStore = defineStore('picklist', {
             // Per-team expanded data cache
             teamDataCache: {} as Record<number, { stats: unknown[]; comments: unknown[] }>,
 
+            // Per-team card status + broke/died/beached/defense counts across all
+            // matches — loaded up front so card status can show on the collapsed
+            // row without expanding.
+            teamMatchSummaries: {} as Record<number, TeamMatchSummary>,
+
             // Save status
             isSaving: false,
             lastSaveError: null as string | null,
@@ -141,6 +147,10 @@ export const usePicklistStore = defineStore('picklist', {
 
         isTeamPicked(): (teamNumber: number) => boolean {
             return (teamNumber: number) => this.pickedTeams.includes(teamNumber);
+        },
+
+        cardStatusFor(): (teamNumber: number) => 'red' | 'yellow' | null {
+            return (teamNumber: number) => this.teamMatchSummaries[teamNumber]?.worstCard ?? null;
         }
     },
     actions: {
@@ -153,9 +163,14 @@ export const usePicklistStore = defineStore('picklist', {
             await this.loadPersonalList(userId, eventId);
             await this.loadPickedTeams(eventId);
             await this.loadDemocraticList(eventId);
+            await this.loadTeamMatchSummaries(eventId);
             if (isLead) {
                 await this.loadTeamList(eventId);
             }
+        },
+
+        async loadTeamMatchSummaries(eventId: string) {
+            this.teamMatchSummaries = await fetchTeamMatchSummaries(eventId);
         },
 
         async loadTeams(eventId: string) {

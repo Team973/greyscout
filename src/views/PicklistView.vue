@@ -38,8 +38,8 @@ window.addEventListener('offline', () => { isOnline.value = false; });
 // main.css), not the window/document, so window.scrollBy is a silent no-op here
 // — the actual scroll container has to be looked up and scrolled directly.
 const AUTOSCROLL_SENSITIVITY = 80; // deadband: no scroll within this many px of the viewport edge
-const AUTOSCROLL_MIN_SPEED = 8; // px/frame right at the deadband boundary, so it's usable immediately
-const AUTOSCROLL_MAX_SPEED = 90; // px/frame right at the true edge
+const AUTOSCROLL_MIN_SPEED = 12; // px/frame right at the deadband boundary, so it's usable immediately (1.5x baseline)
+const AUTOSCROLL_MAX_SPEED = 135; // px/frame right at the true edge (1.5x baseline)
 
 let dragPointerY = null;
 let autoscrollRafId = null;
@@ -268,6 +268,23 @@ function groupRankOffset(group: string) {
     }
     return offset;
 }
+
+// ─── Collapsible tier sections ─────────────────────────────────────────────────
+// Collapsing tiers you're not actively sorting shortens the page, which makes
+// dragging a team from "Unranked" into a tier near the top much less of a
+// scroll marathon as the list fills in.
+const collapsedTiers = ref<Set<string>>(new Set());
+
+function isTierCollapsed(group: string) {
+    return collapsedTiers.value.has(group);
+}
+
+function toggleTierCollapse(group: string) {
+    const next = new Set(collapsedTiers.value);
+    if (next.has(group)) next.delete(group);
+    else next.add(group);
+    collapsedTiers.value = next;
+}
 </script>
 
 <template>
@@ -370,14 +387,17 @@ function groupRankOffset(group: string) {
                 <!-- Tier-grouped sections -->
                 <div v-else class="tier-sections">
                     <div v-for="group in TIER_GROUPS" :key="group" class="tier-section">
-                        <div class="tier-section-header" :class="`tier-section-header--${group}`">
+                        <div class="tier-section-header" :class="`tier-section-header--${group}`"
+                            @click="toggleTierCollapse(group)">
+                            <span class="tier-section-collapse-icon"
+                                :class="{ 'tier-section-collapse-icon--collapsed': isTierCollapsed(group) }">▾</span>
                             <span class="tier-section-name">{{ tierGroupLabel(group) }}</span>
                             <span class="tier-section-count">{{ (picklistStore.activeSections[group] || []).length }}</span>
                         </div>
 
                         <!-- Editable: draggable within and across tier sections -->
-                        <draggable v-if="isEditable" :list="picklistStore.activeSections[group]" group="picklist"
-                            :item-key="(el) => el" handle=".picklist-drag-handle" animation="200"
+                        <draggable v-if="isEditable" v-show="!isTierCollapsed(group)" :list="picklistStore.activeSections[group]"
+                            group="picklist" :item-key="(el) => el" handle=".picklist-drag-handle" animation="200"
                             ghost-class="picklist-row--ghost" :force-fallback="true" :scroll="false"
                             class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
                             <template #item="{ element: teamNumber, index }">
@@ -385,7 +405,8 @@ function groupRankOffset(group: string) {
                                     :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
                                     :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                     :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                    :can-toggle-picked="isLead" :watched="watchlistStore.isWatched(teamNumber)"
+                                    :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
+                                    :watched="watchlistStore.isWatched(teamNumber)"
                                     :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
                                     :expanded-data="expandedData" :expanded-loading="expandedLoading"
                                     @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
@@ -394,20 +415,22 @@ function groupRankOffset(group: string) {
                         </draggable>
 
                         <!-- Read-only (democratic tab) -->
-                        <div v-else class="tier-section-body tier-section-body--static">
+                        <div v-else v-show="!isTierCollapsed(group)" class="tier-section-body tier-section-body--static">
                             <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
                                 :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
                                 :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
                                 :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                 :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                :can-toggle-picked="isLead" :watched="watchlistStore.isWatched(teamNumber)"
+                                :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
+                                :watched="watchlistStore.isWatched(teamNumber)"
                                 :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
                                 :expanded-data="expandedData" :expanded-loading="expandedLoading"
                                 @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
                                 @toggle-watch="toggleWatch(teamNumber)" />
                         </div>
 
-                        <div v-if="(picklistStore.activeSections[group] || []).length === 0" class="tier-section-empty">
+                        <div v-if="!isTierCollapsed(group) && (picklistStore.activeSections[group] || []).length === 0"
+                            class="tier-section-empty">
                             {{ isEditable ? 'Drag teams here' : 'No teams in this tier' }}
                         </div>
                     </div>
@@ -603,6 +626,20 @@ function groupRankOffset(group: string) {
     padding: 4px 10px;
     margin-bottom: 8px;
     border-left: 4px solid rgba(128, 128, 128, 0.4);
+    cursor: pointer;
+    user-select: none;
+}
+
+.tier-section-collapse-icon {
+    font-size: 12px;
+    color: rgba(128, 128, 128, 0.6);
+    transition: transform 0.2s ease;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.tier-section-collapse-icon--collapsed {
+    transform: rotate(-90deg);
 }
 
 .tier-section-name {
