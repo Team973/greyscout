@@ -299,6 +299,36 @@ export async function getPitScoutSchema({ includeTeamSelector = true, existingDa
                     error: false
                 },
                 {
+                    key: "driver_new",
+                    label: "Is Your Driver New?",
+                    type: "switch",
+                    options: {},
+                    defaultValue: false,
+                    value: false,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
+                    key: "system_check",
+                    label: "When Do You Do a System Check?",
+                    type: "dropdown",
+                    options: {
+                        choices: [
+                            { key: "before_every_match", text: "Before Every Match" },
+                            { key: "before_most_matches", text: "Before Most Matches" },
+                            { key: "sometimes_before_match", text: "Sometimes Before a Match" },
+                            { key: "once_or_twice", text: "Only Once or Twice Throughout Comp" },
+                            { key: "never", text: "Never" }
+                        ]
+                    },
+                    defaultValue: 0,
+                    value: 0,
+                    preserveAfterSubmit: false,
+                    required: false,
+                    error: false
+                },
+                {
                     key: "vibe_check",
                     label: "Vibe Check",
                     type: "radio",
@@ -326,7 +356,7 @@ export async function getPitScoutSchema({ includeTeamSelector = true, existingDa
             defaultValue: "",
             value: "",
             preserveAfterSubmit: false,
-            required: true,
+            required: false,
             error: false
         },
     );

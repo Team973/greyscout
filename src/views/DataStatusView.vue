@@ -1,9 +1,11 @@
 <script setup lang="ts">
 // @ts-nocheck
 
+import CollapsibleSection from "@/components/CollapsibleSection.vue";
+
 import { useEventStore } from "@/stores/event-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { queryEventMatchSchedule, queryEventData, queryTeamNumbers } from "@/lib/data-query";
+import { queryEventMatchSchedule, queryEventData, queryEventPitData, queryTeamNumbers } from "@/lib/data-query";
 import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
 </script>
 
@@ -15,8 +17,29 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
             <p>This page is only available to leads and admins.</p>
         </div>
 
-        <div v-else>
-            <div class="data-tile" v-if="loaded">
+        <div v-else-if="loaded">
+            <CollapsibleSection title="Pit Scouting">
+                <p>{{ pitStats.scoutedTeams }} / {{ pitStats.totalTeams }} teams pit scouted
+                    ({{ pitStats.percent }}%).</p>
+                <div class="legend">
+                    <span class="legend-item"><span class="status-dot status-scouted"></span> Pit scouted</span>
+                    <span class="legend-item"><span class="status-dot status-missing"></span> Not yet pit scouted</span>
+                </div>
+
+                <p v-if="teams.length === 0">No teams loaded for this event yet.</p>
+
+                <div v-else class="pit-status-grid">
+                    <div v-for="team in teams" :key="team.team_number" class="pit-status-cell"
+                        :class="pitScoutedTeams[team.team_number] ? 'cell-scouted' : 'cell-missing'">
+                        <span class="status-dot"
+                            :class="pitScoutedTeams[team.team_number] ? 'status-scouted' : 'status-missing'"></span>
+                        {{ team.team_number }}
+                        <span class="team-name">- {{ team.name }}</span>
+                    </div>
+                </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Match Scouting">
                 <p>{{ completionStats.scoutedSlots }} / {{ completionStats.totalSlots }} team-match slots scouted
                     ({{ completionStats.percent }}%) across {{ qualMatches.length }} qualification matches.</p>
                 <div class="legend">
@@ -26,41 +49,39 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
                 </div>
                 <p class="hint">Only qualification matches are shown — match numbers repeat across playoff levels,
                     so scouting entries can't be matched back to a specific playoff match.</p>
-            </div>
 
-            <div class="data-tile" v-if="loaded && qualMatches.length === 0">
-                <p>No qualification schedule loaded for this event yet.</p>
-            </div>
+                <p v-if="qualMatches.length === 0">No qualification schedule loaded for this event yet.</p>
 
-            <div class="data-tile schedule-tile" v-if="loaded && qualMatches.length > 0">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Match</th>
-                            <th class="red-header">Red 1</th>
-                            <th class="red-header">Red 2</th>
-                            <th class="red-header">Red 3</th>
-                            <th class="blue-header">Blue 1</th>
-                            <th class="blue-header">Blue 2</th>
-                            <th class="blue-header">Blue 3</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="match in qualMatches" :key="match.key">
-                            <td>Q{{ match.match_number }}</td>
-                            <td v-for="slotKey in slotKeys" :key="slotKey" :class="cellClass(match, slotKey)">
-                                <span v-if="match[slotKey]">
-                                    <span class="status-dot" :class="statusDotClass(match.match_number, match[slotKey])"></span>
-                                    {{ match[slotKey] }}
-                                    <span class="team-name" v-if="teamNameByNumber[match[slotKey]]">
-                                        - {{ teamNameByNumber[match[slotKey]] }}
+                <div v-else class="schedule-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Match</th>
+                                <th class="red-header">Red 1</th>
+                                <th class="red-header">Red 2</th>
+                                <th class="red-header">Red 3</th>
+                                <th class="blue-header">Blue 1</th>
+                                <th class="blue-header">Blue 2</th>
+                                <th class="blue-header">Blue 3</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="match in qualMatches" :key="match.key">
+                                <td>Q{{ match.match_number }}</td>
+                                <td v-for="slotKey in slotKeys" :key="slotKey" :class="cellClass(match, slotKey)">
+                                    <span v-if="match[slotKey]">
+                                        <span class="status-dot" :class="statusDotClass(match.match_number, match[slotKey])"></span>
+                                        {{ match[slotKey] }}
+                                        <span class="team-name" v-if="teamNameByNumber[match[slotKey]]">
+                                            - {{ teamNameByNumber[match[slotKey]] }}
+                                        </span>
                                     </span>
-                                </span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </CollapsibleSection>
         </div>
     </div>
 </template>
@@ -69,15 +90,19 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
 const SLOT_KEYS = ['red1', 'red2', 'red3', 'blue1', 'blue2', 'blue3'];
 
 export default {
+    components: { CollapsibleSection },
     data() {
         return {
             eventStore: null,
             authStore: null,
             loaded: false,
             schedule: [],
+            teams: [],
             teamNameByNumber: {},
             // `${match_number}|${team_number}` -> { count, noShow }
             scoutedByKey: {},
+            // team_number -> true
+            pitScoutedTeams: {},
             slotKeys: SLOT_KEYS
         }
     },
@@ -100,6 +125,12 @@ export default {
 
             const percent = totalSlots > 0 ? Math.round((scoutedSlots / totalSlots) * 100) : 0;
             return { totalSlots, scoutedSlots, percent };
+        },
+        pitStats() {
+            const totalTeams = this.teams.length;
+            const scoutedTeams = this.teams.filter(team => this.pitScoutedTeams[team.team_number]).length;
+            const percent = totalTeams > 0 ? Math.round((scoutedTeams / totalTeams) * 100) : 0;
+            return { totalTeams, scoutedTeams, percent };
         }
     },
     methods: {
@@ -109,13 +140,16 @@ export default {
             await this.eventStore.updateEvent();
             const eventId = this.eventStore.eventId;
 
-            const [schedule, matchData, teams] = await Promise.all([
+            const [schedule, matchData, pitData, teams] = await Promise.all([
                 queryEventMatchSchedule(eventId),
                 queryEventData(eventId),
+                queryEventPitData(eventId),
                 queryTeamNumbers(eventId)
             ]);
 
             this.schedule = schedule;
+
+            this.teams = [...teams].sort((a, b) => a.team_number - b.team_number);
 
             this.teamNameByNumber = {};
             teams.forEach((team) => {
@@ -130,6 +164,11 @@ export default {
                 }
                 this.scoutedByKey[key].count += 1;
                 this.scoutedByKey[key].noShow = this.scoutedByKey[key].noShow || !!row.prematch_noshow;
+            });
+
+            this.pitScoutedTeams = {};
+            pitData.forEach((row) => {
+                this.pitScoutedTeams[row.pit_team_number] = true;
             });
 
             this.loaded = true;
@@ -198,7 +237,7 @@ export default {
     background-color: #e05050;
 }
 
-.schedule-tile {
+.schedule-table-wrap {
     overflow-x: auto;
     max-width: 100%;
 }
@@ -213,5 +252,29 @@ export default {
 
 .blue-header {
     background-color: rgba(0, 0, 224, 0.15);
+}
+
+.pit-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+
+.pit-status-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.pit-status-cell.cell-scouted {
+    background-color: rgba(58, 184, 58, 0.12);
+}
+
+.pit-status-cell.cell-missing {
+    background-color: rgba(224, 80, 80, 0.12);
 }
 </style>
