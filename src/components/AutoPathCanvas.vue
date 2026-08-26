@@ -19,6 +19,8 @@ import fieldImage from "@/assets/2026-field.png";
                     :style="{ stroke: color }"></polyline>
                 <circle v-if="displayPoints.length > 0" v-bind="toView(displayPoints[0])" r="3.5" class="path-start"
                     :style="{ fill: color }"></circle>
+                <circle v-if="animatedMarker" v-bind="animatedMarker" r="6" class="path-robot"
+                    :style="{ fill: color }"></circle>
             </template>
 
             <!-- Multi-path overlay mode (Match Preview). -->
@@ -29,6 +31,8 @@ import fieldImage from "@/assets/2026-field.png";
                     <circle v-if="layer.points.length > 0" v-bind="toView(layer.points[0])" r="3.5" class="path-start"
                         :style="{ fill: layer.color }"></circle>
                 </g>
+                <circle v-for="m in animatedLayerMarkers" :key="`robot-${m.key}`" v-bind="m.marker" r="6"
+                    class="path-robot" :style="{ fill: m.color }"></circle>
             </template>
 
             <g v-if="editable && displayPoints.length === 0">
@@ -54,6 +58,38 @@ const VIEW_H = 300;
 // player stations) outside this rectangle, so path coordinates only ever
 // map into this sub-region, not the full canvas.
 const FIELD_BOUNDS = { left: 0.13113, right: 0.86874, top: 0.05278, bottom: 0.94691 };
+
+// Constant-speed position along a polyline of already-view-space {cx, cy}
+// points, at fraction `t` (0..1) of the path's own total arc length. Doing
+// this in view space (rather than the raw [0,1] point frame) matters because
+// VIEW_W/VIEW_H preserve the field image's true aspect ratio, so distances
+// there are physically proportional in both axes.
+function markerAtProgress(viewPoints, t) {
+    if (viewPoints.length < 2) return viewPoints[0] ?? null;
+
+    const cumulative = [0];
+    for (let i = 1; i < viewPoints.length; i++) {
+        const dx = viewPoints[i].cx - viewPoints[i - 1].cx;
+        const dy = viewPoints[i].cy - viewPoints[i - 1].cy;
+        cumulative.push(cumulative[i - 1] + Math.hypot(dx, dy));
+    }
+
+    const total = cumulative[cumulative.length - 1];
+    if (total === 0) return viewPoints[0];
+
+    const targetDist = Math.min(t, 1) * total;
+    for (let i = 1; i < cumulative.length; i++) {
+        if (targetDist <= cumulative[i]) {
+            const segLen = cumulative[i] - cumulative[i - 1];
+            const segT = segLen === 0 ? 0 : (targetDist - cumulative[i - 1]) / segLen;
+            return {
+                cx: viewPoints[i - 1].cx + (viewPoints[i].cx - viewPoints[i - 1].cx) * segT,
+                cy: viewPoints[i - 1].cy + (viewPoints[i].cy - viewPoints[i - 1].cy) * segT
+            };
+        }
+    }
+    return viewPoints[viewPoints.length - 1];
+}
 
 export default {
     props: {
@@ -86,14 +122,29 @@ export default {
         large: {
             type: Boolean,
             default: false
+        },
+        // When true, animates a robot marker traveling along the path(s) at
+        // constant speed, reaching the end after `duration` ms regardless of
+        // path length or point count. Parent owns this flag (play/stop button)
+        // and should reset it to false on the `finished` event.
+        playing: {
+            type: Boolean,
+            default: false
+        },
+        duration: {
+            type: Number,
+            default: 20000
         }
     },
-    emits: ["update:points"],
+    emits: ["update:points", "finished"],
     data() {
         return {
             VIEW_W,
             VIEW_H,
-            isDrawing: false
+            isDrawing: false,
+            animProgress: 0,
+            animStartTime: null,
+            animFrame: null
         };
     },
     computed: {
@@ -102,7 +153,34 @@ export default {
         },
         displayPoints() {
             return this.points ?? [];
+        },
+        animatedMarker() {
+            if (this.hasLayers || this.animProgress === 0 && !this.playing) return null;
+            if (this.displayPoints.length < 2) return null;
+            return markerAtProgress(this.displayPoints.map((p) => this.toView(p)), this.animProgress);
+        },
+        animatedLayerMarkers() {
+            if (!this.hasLayers || this.animProgress === 0 && !this.playing) return [];
+            return this.layers
+                .filter((layer) => layer.points.length >= 2)
+                .map((layer) => ({
+                    key: layer.key,
+                    color: layer.color,
+                    marker: markerAtProgress(layer.points.map((p) => this.toView(p)), this.animProgress)
+                }));
         }
+    },
+    watch: {
+        playing(newVal) {
+            if (newVal) {
+                this.startAnimation();
+            } else {
+                this.stopAnimation();
+            }
+        }
+    },
+    beforeUnmount() {
+        this.stopAnimation();
     },
     methods: {
         // Own-relative [0,1] point -> pixel position in the full field image,
@@ -162,6 +240,31 @@ export default {
             // point array so the saved/rendered path is one continuous line
             // even if the scout's real-world drawing wasn't (see issue #14).
             this.isDrawing = false;
+        },
+        startAnimation() {
+            this.animProgress = 0;
+            this.animStartTime = null;
+
+            const step = (timestamp) => {
+                if (!this.playing) return;
+                if (this.animStartTime === null) this.animStartTime = timestamp;
+
+                const elapsed = timestamp - this.animStartTime;
+                this.animProgress = Math.min(1, elapsed / this.duration);
+
+                if (this.animProgress < 1) {
+                    this.animFrame = requestAnimationFrame(step);
+                } else {
+                    this.animFrame = null;
+                    this.$emit("finished");
+                }
+            };
+            this.animFrame = requestAnimationFrame(step);
+        },
+        stopAnimation() {
+            if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
+            this.animFrame = null;
+            this.animProgress = 0;
         }
     }
 };
@@ -200,6 +303,11 @@ export default {
 
 .path-start {
     stroke: none;
+}
+
+.path-robot {
+    stroke: #fff;
+    stroke-width: 1.5;
 }
 
 .empty-hint-bg {

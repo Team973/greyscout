@@ -17,6 +17,8 @@ import Switch from "@/components/Switch.vue";
 import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
 import { supabase } from "@/lib/supabase-client";
 
+import "@material/web/button/filled-button";
+
 </script>
 
 <template>
@@ -51,7 +53,12 @@ import { supabase } from "@/lib/supabase-client";
             </div>
 
             <div class="data-tile red-alliance">
-                <h3>Auto Path Preview</h3>
+                <div class="autopath-preview-heading">
+                    <h3>Auto Path Preview</h3>
+                    <md-filled-button v-on:click="isPlayingRed = !isPlayingRed" class="play-button">
+                        {{ isPlayingRed ? "■ STOP" : "▶ PLAY" }}
+                    </md-filled-button>
+                </div>
                 <div class="autopath-preview-selectors">
                     <div v-for="slot in [0, 1, 2]" :key="slot" class="autopath-preview-selector">
                         <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
@@ -61,7 +68,7 @@ import { supabase } from "@/lib/supabase-client";
                     </div>
                 </div>
                 <AutoPathCanvas :layers="allianceAutoPathLayers([0, 1, 2])" display-alliance="red" large="true"
-                    :editable="false"></AutoPathCanvas>
+                    :editable="false" :playing="isPlayingRed" @finished="isPlayingRed = false"></AutoPathCanvas>
             </div>
 
             <h2>Blue Alliance</h2>
@@ -78,7 +85,12 @@ import { supabase } from "@/lib/supabase-client";
             </div>
 
             <div class="data-tile blue-alliance">
-                <h3>Auto Path Preview</h3>
+                <div class="autopath-preview-heading">
+                    <h3>Auto Path Preview</h3>
+                    <md-filled-button v-on:click="isPlayingBlue = !isPlayingBlue" class="play-button">
+                        {{ isPlayingBlue ? "■ STOP" : "▶ PLAY" }}
+                    </md-filled-button>
+                </div>
                 <div class="autopath-preview-selectors">
                     <div v-for="slot in [3, 4, 5]" :key="slot" class="autopath-preview-selector">
                         <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
@@ -88,7 +100,7 @@ import { supabase } from "@/lib/supabase-client";
                     </div>
                 </div>
                 <AutoPathCanvas :layers="allianceAutoPathLayers([3, 4, 5])" display-alliance="blue" large="true"
-                    :editable="false"></AutoPathCanvas>
+                    :editable="false" :playing="isPlayingBlue" @finished="isPlayingBlue = false"></AutoPathCanvas>
             </div>
         </div>
         <div v-else-if="teamsLoaded">
@@ -123,6 +135,8 @@ export default {
             // read poorly against the field art's blue tower/wall on the Blue tile.
             autoPathSlotColorsRed: ['#2f7de1', '#e08a1e', '#8a3fd1'],
             autoPathSlotColorsBlue: ['#e08a1e', '#1eae7a', '#d13f6a'],
+            isPlayingRed: false,
+            isPlayingBlue: false,
             SIDE_CHOICES
         }
     },
@@ -294,6 +308,14 @@ export default {
 
 .blue-alliance {
     border: 2px solid blue;
+}
+
+.autopath-preview-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .autopath-preview-selectors {
