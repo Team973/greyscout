@@ -28,6 +28,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             <template v-slot:menu-content>
                 <!-- <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink> -->
                 <RouterLink to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
+                <RouterLink to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
                 <RouterLink to="/match-preview" class="nav-link nav-link-mobile">Match Preview</RouterLink>
@@ -59,6 +60,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
     <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <!-- <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink> -->
         <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
+        <RouterLink to="/pit" class="nav-link">Pit Scouting</RouterLink>
         <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
         <RouterLink to="/match-preview" class="nav-link">Match Preview</RouterLink>

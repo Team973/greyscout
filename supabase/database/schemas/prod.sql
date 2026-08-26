@@ -220,6 +220,8 @@ CREATE TABLE IF NOT EXISTS "public"."PitData" (
     "pit_auto_strategy" "text" DEFAULT ''::"text" NOT NULL,
     "pit_cycle_rate" real,
     "pit_defense" boolean DEFAULT false NOT NULL,
+    "pit_driver_new" boolean DEFAULT false NOT NULL,
+    "pit_system_check" "text" DEFAULT 'before_every_match'::"text" NOT NULL,
     "pit_vibe_check" smallint NOT NULL,
     "pit_comments" "text",
     CONSTRAINT "PitData_vibe_check_check" CHECK ((("pit_vibe_check" >= 1) AND ("pit_vibe_check" <= 5)))
