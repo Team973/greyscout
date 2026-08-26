@@ -1,0 +1,35 @@
+name: 'Update Match Schedule'
+on:
+  workflow_dispatch:
+    inputs:
+      event_id:
+        description: 'TBA event key to refresh the schedule for, e.g. 2026cc'
+        required: true
+        default: '2026cc'
+
+jobs:
+  load_match_schedule:
+    name: Update Match Schedule
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: ./util
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.10'
+          enable-cache: true
+          cache-dependency-glob: 'util/uv.lock'
+
+      - run: uv sync --locked
+
+      - name: Update match schedule
+        env:
+          TBA_CREDENTIALS: ${{ secrets.TBA_CREDENTIALS }}
+          SUPABASE_CREDENTIALS: ${{ secrets.SUPABASE_CREDENTIALS }}
+        run: uv run python main.py --mode=schedule --event_id="${{ inputs.event_id }}" --tba_creds="$TBA_CREDENTIALS" --supabase_creds="$SUPABASE_CREDENTIALS"

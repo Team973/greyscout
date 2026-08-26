@@ -6,11 +6,14 @@ import { useEventStore } from "@/stores/event-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { teamInfoTable } from "@/lib/constants";
 import { fetchTeamAutoPaths } from "@/lib/auto-path-query";
+import { queryMatchTeams } from "@/lib/data-query";
 import { SIDE_CHOICES, transformPath } from "@/lib/2026/auto-path-field";
 
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import Dropdown from "@/components/Dropdown.vue";
+import NumberInput from "@/components/Number.vue";
+import Switch from "@/components/Switch.vue";
 import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
 import { supabase } from "@/lib/supabase-client";
 
@@ -21,14 +24,28 @@ import { supabase } from "@/lib/supabase-client";
         <h1>Match Preview</h1>
         <div v-if="teamsLoaded && isDataAvailable">
             <!-- Only show this if the team data is loaded. -->
+            <div class="data-tile">
+                <div class="autopath-preview-selector">
+                    Match Number:
+                    <NumberInput :model-value="matchNumber" @update:modelValue="onMatchNumberChange" label=""></NumberInput>
+                </div>
+                <div class="autopath-preview-selector">
+                    Manual Team Selection:
+                    <Switch :model-value="manualTeamSelection" @update:modelValue="onManualToggle"></Switch>
+                </div>
+                <p v-if="matchLookupFailed && !manualTeamSelection">No qualification schedule found for that match —
+                    turn on Manual Team Selection to pick teams yourself.</p>
+            </div>
+
             <h2>Red Alliance</h2>
             <div class="data-tile red-alliance">
                 <div class="autopath-preview-selectors">
                     <div v-for="(slot, i) in [0, 1, 2]" :key="slot" class="autopath-preview-selector">
                         <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
                         Red {{ i + 1 }}:
-                        <Dropdown :choices="teamFilters" v-model="teamIndices[slot]"
+                        <Dropdown v-if="manualTeamSelection" :choices="teamFilters" v-model="teamIndices[slot]"
                             @update:modelValue="setTeam(slot, $event)"></Dropdown>
+                        <span v-else class="assigned-team">{{ teamFilters[teamIndices[slot]]?.text ?? 'Unassigned' }}</span>
                     </div>
                 </div>
             </div>
@@ -53,8 +70,9 @@ import { supabase } from "@/lib/supabase-client";
                     <div v-for="(slot, i) in [3, 4, 5]" :key="slot" class="autopath-preview-selector">
                         <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
                         Blue {{ i + 1 }}:
-                        <Dropdown :choices="teamFilters" v-model="teamIndices[slot]"
+                        <Dropdown v-if="manualTeamSelection" :choices="teamFilters" v-model="teamIndices[slot]"
                             @update:modelValue="setTeam(slot, $event)"></Dropdown>
+                        <span v-else class="assigned-team">{{ teamFilters[teamIndices[slot]]?.text ?? 'Unassigned' }}</span>
                     </div>
                 </div>
             </div>
@@ -88,6 +106,11 @@ export default {
             teamsLoaded: false,
             teamFilters: [],
             teamIndices: [0, 0, 0, 0, 0, 0],
+            matchNumber: null,
+            matchLookupFailed: false,
+            // Default is schedule-driven auto-assignment; flip on to hand-pick
+            // teams instead (e.g. the schedule hasn't been synced yet).
+            manualTeamSelection: false,
             // Per-slot dropdown choices ({key, text, path}) of that slot's team's saved auto paths,
             // plus a leading "None" option. Index aligns with teamIndices (0-2 red, 3-5 blue).
             autoPathChoices: [[], [], [], [], [], []],
@@ -214,6 +237,41 @@ export default {
         setTeam(idx: int, data: int) {
             this.teamIndices[idx] = data;
             this.loadAutoPathChoices(idx);
+        },
+        async onMatchNumberChange(value) {
+            this.matchNumber = value;
+
+            // In manual mode the match number is just informational context —
+            // it doesn't overwrite the scout's hand-picked teams.
+            if (this.manualTeamSelection) return;
+
+            await this.applyScheduleTeams();
+        },
+        async applyScheduleTeams() {
+            this.matchLookupFailed = false;
+
+            if (!this.matchNumber) return;
+
+            const matchTeams = await queryMatchTeams(this.eventStore.eventId, Number(this.matchNumber));
+            if (!matchTeams) {
+                this.matchLookupFailed = true;
+                return;
+            }
+
+            // Slot order matches teamIndices: 0-2 red, 3-5 blue (see template).
+            const slots = [matchTeams.red1, matchTeams.red2, matchTeams.red3, matchTeams.blue1, matchTeams.blue2, matchTeams.blue3];
+            slots.forEach((teamNumber, slot) => {
+                if (!teamNumber) return;
+                const teamIdx = this.teamFilters.findIndex((t) => Number(t.key) === teamNumber);
+                if (teamIdx >= 0) this.setTeam(slot, teamIdx);
+            });
+        },
+        onManualToggle(value) {
+            this.manualTeamSelection = value;
+
+            // Switching back to auto mode: re-derive teams from the schedule
+            // rather than leaving whatever was last manually picked.
+            if (!value) this.applyScheduleTeams();
         }
     },
     computed: {
@@ -257,5 +315,9 @@ export default {
     height: 12px;
     border-radius: 50%;
     flex-shrink: 0;
+}
+
+.assigned-team {
+    font-weight: bold;
 }
 </style>
