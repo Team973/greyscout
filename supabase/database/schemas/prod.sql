@@ -352,6 +352,23 @@ CREATE TABLE IF NOT EXISTS "public"."Watchlist" (
 ALTER TABLE "public"."Watchlist" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."ScoutAssignment" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "event_id" "text" NOT NULL,
+    "match_number" smallint NOT NULL,
+    "scout_user_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "alliance" "text" NOT NULL,
+    "slot_index" smallint NOT NULL,
+    CONSTRAINT "ScoutAssignment_alliance_check" CHECK (("alliance" = ANY (ARRAY['red'::"text", 'blue'::"text"]))),
+    CONSTRAINT "ScoutAssignment_slot_index_check" CHECK ((("slot_index" >= 1) AND ("slot_index" <= 3)))
+);
+
+
+ALTER TABLE "public"."ScoutAssignment" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."RobotPhoto" (
     "team_number" smallint NOT NULL,
     "photo_url" "text"
@@ -437,6 +454,11 @@ ALTER TABLE ONLY "public"."Watchlist"
 
 
 
+ALTER TABLE ONLY "public"."ScoutAssignment"
+    ADD CONSTRAINT "ScoutAssignment_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."RobotPhoto"
     ADD CONSTRAINT "RobotPhoto_pkey" PRIMARY KEY ("team_number");
 
@@ -466,6 +488,10 @@ CREATE UNIQUE INDEX "picklist_personal_unique" ON "public"."PickList" USING "btr
 
 
 CREATE UNIQUE INDEX "picklist_team_unique" ON "public"."PickList" USING "btree" ("event_id", "type") WHERE ("type" = 'team'::"text");
+
+
+
+CREATE UNIQUE INDEX "scoutassignment_slot_unique" ON "public"."ScoutAssignment" USING "btree" ("event_id", "match_number", "alliance", "slot_index");
 
 
 
@@ -506,6 +532,16 @@ ALTER TABLE ONLY "public"."Watchlist"
 
 ALTER TABLE ONLY "public"."Watchlist"
     ADD CONSTRAINT "Watchlist_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."User"("user_id");
+
+
+
+ALTER TABLE ONLY "public"."ScoutAssignment"
+    ADD CONSTRAINT "ScoutAssignment_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."Event"("event_id");
+
+
+
+ALTER TABLE ONLY "public"."ScoutAssignment"
+    ADD CONSTRAINT "ScoutAssignment_scout_user_id_fkey" FOREIGN KEY ("scout_user_id") REFERENCES "public"."User"("user_id");
 
 
 
@@ -614,6 +650,22 @@ CREATE POLICY "Enable insert for authenticated users only" ON "public"."Watchlis
 CREATE POLICY "Enable delete for authenticated users only" ON "public"."Watchlist" FOR DELETE TO "authenticated" USING (true);
 
 
+
+CREATE POLICY "Enable read access for logged in users" ON "public"."ScoutAssignment" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Enable insert for authenticated users only" ON "public"."ScoutAssignment" FOR INSERT TO "authenticated" WITH CHECK (true);
+
+
+
+CREATE POLICY "Enable update for authenticated users only" ON "public"."ScoutAssignment" FOR UPDATE TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Enable delete for authenticated users only" ON "public"."ScoutAssignment" FOR DELETE TO "authenticated" USING (true);
+
+
 ALTER TABLE "public"."Event" ENABLE ROW LEVEL SECURITY;
 
 
@@ -648,6 +700,9 @@ ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."Watchlist" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."ScoutAssignment" ENABLE ROW LEVEL SECURITY;
 
 
 

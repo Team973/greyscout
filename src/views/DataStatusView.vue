@@ -4,20 +4,20 @@
 import CollapsibleSection from "@/components/CollapsibleSection.vue";
 
 import { useEventStore } from "@/stores/event-store";
-import { useAuthStore } from "@/stores/auth-store";
 import { queryEventMatchSchedule, queryEventData, queryEventPitData, queryTeamNumbers } from "@/lib/data-query";
 import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
 </script>
 
 <template>
     <div class="main-content">
-        <h1>Data Status</h1>
-
-        <div v-if="!authStore?.isLead" class="data-tile">
-            <p>This page is only available to leads and admins.</p>
+        <div class="page-header">
+            <h1>Data Status</h1>
+            <button type="button" class="refresh-button" @click="loadData" :disabled="!loaded">
+                {{ loaded ? 'Refresh' : 'Loading…' }}
+            </button>
         </div>
 
-        <div v-else-if="loaded">
+        <div v-if="loaded">
             <CollapsibleSection title="Pit Scouting">
                 <p>{{ pitStats.scoutedTeams }} / {{ pitStats.totalTeams }} teams pit scouted
                     ({{ pitStats.percent }}%).</p>
@@ -94,7 +94,6 @@ export default {
     data() {
         return {
             eventStore: null,
-            authStore: null,
             loaded: false,
             schedule: [],
             teams: [],
@@ -190,15 +189,38 @@ export default {
     },
     created() {
         this.eventStore = useEventStore();
-        this.authStore = useAuthStore();
-        this.authStore.checkUser().then(() => {
-            if (this.authStore.isLead) this.loadData();
-        });
+        this.loadData();
     }
 }
 </script>
 
 <style scoped>
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.refresh-button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    background-color: var(--accent-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    font: inherit;
+}
+
+.refresh-button:hover:not(:disabled) {
+    background-color: var(--header-hover-color);
+}
+
+.refresh-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .legend {
     display: flex;
     flex-wrap: wrap;

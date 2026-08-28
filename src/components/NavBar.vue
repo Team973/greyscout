@@ -27,6 +27,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             </template>
             <template v-slot:menu-content>
                 <!-- <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink> -->
+                <RouterLink to="/schedule" class="nav-link nav-link-mobile">Schedule</RouterLink>
                 <RouterLink to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
                 <RouterLink to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
@@ -34,7 +35,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <RouterLink to="/match-preview" class="nav-link nav-link-mobile">Match Preview</RouterLink>
                 <RouterLink to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
-                <RouterLink to="/data-status" class="nav-link nav-link-mobile" v-if="isLead">Data Status</RouterLink>
+                <RouterLink to="/data-status" class="nav-link nav-link-mobile">Data Status</RouterLink>
                 <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
             </template>
         </HamburgerMenu>
@@ -59,6 +60,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
     </div>
     <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <!-- <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink> -->
+        <RouterLink to="/schedule" class="nav-link">Schedule</RouterLink>
         <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
         <RouterLink to="/pit" class="nav-link">Pit Scouting</RouterLink>
         <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
@@ -66,7 +68,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
         <RouterLink to="/match-preview" class="nav-link">Match Preview</RouterLink>
         <RouterLink to="/picklist" class="nav-link">Pick List</RouterLink>
         <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
-        <RouterLink to="/data-status" class="nav-link" v-if="isLead">Data Status</RouterLink>
+        <RouterLink to="/data-status" class="nav-link">Data Status</RouterLink>
 
         <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
             <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
@@ -137,9 +139,6 @@ export default {
         },
         isWriteAccess() {
             return this.authStore?.isWriteAuthorized;
-        },
-        isLead() {
-            return this.authStore?.isLead;
         }
     },
     methods: {
