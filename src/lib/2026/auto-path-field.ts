@@ -20,6 +20,9 @@ import { allianceRed, allianceBlue, sideLeft, sideRight } from "@/lib/constants"
 export interface FieldPoint {
     x: number;
     y: number;
+    // Recorded time, [0,1] fraction of the path's normalized duration.
+    // Optional — absent on paths saved before per-point timing existed.
+    t?: number;
 }
 
 export const ALLIANCE_CHOICES = [
@@ -39,8 +42,30 @@ export const SIDE_CHOICES = [
  */
 export function transformPath(points: FieldPoint[], fromSide: string, toSide: string): FieldPoint[] {
     if (fromSide === toSide) {
-        return points.map((p) => ({ x: p.x, y: p.y }));
+        return points.map((p) => ({ ...p }));
     }
 
-    return points.map((p) => ({ x: p.x, y: 1 - p.y }));
+    return points.map((p) => ({ ...p, y: 1 - p.y }));
+}
+
+/**
+ * A point's recorded time, in [0,1] fraction of the path's normalized
+ * duration. Points saved before per-point timing existed have no `.t` —
+ * fall back to even spacing by index so old paths still animate (constant
+ * speed) instead of breaking.
+ */
+export function pointTime(point: FieldPoint, index: number, count: number): number {
+    if (typeof point.t === "number") return point.t;
+    return count > 1 ? index / (count - 1) : 0;
+}
+
+/**
+ * Red (t=0, path start) -> violet (t=1, path end) — the rainbow used to
+ * color a path by recorded time, shared by the canvas's gradient rendering
+ * and the timeline editor so the two always agree on what a given time
+ * "looks like".
+ */
+export function pathTimeColor(t: number): string {
+    const hue = Math.min(1, Math.max(0, t)) * 270;
+    return `hsl(${hue}, 85%, 50%)`;
 }

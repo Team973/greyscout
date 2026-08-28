@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // @ts-nocheck
 import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
+import AutoPathTimeline from "@/components/AutoPathTimeline.vue";
 import TextInput from "@/components/TextInput.vue";
 import Dropdown from "@/components/Dropdown.vue";
 
@@ -33,8 +34,19 @@ import "@material/web/button/filled-button";
                 </div>
             </div>
 
-            <AutoPathCanvas :points="points" :display-alliance="alliance" editable="true" large="true" color="#ff8c00"
-                @update:points="onPointsUpdate"></AutoPathCanvas>
+            <AutoPathCanvas :points="points" :display-alliance="alliance" editable="true" large="true"
+                time-gradient="true" :playing="isPlaying" :preview-progress="canvasPreviewProgress"
+                @update:points="onPointsUpdate" @finished="isPlaying = false"
+                @progress="scrubProgress = $event"></AutoPathCanvas>
+
+            <div class="autopath-preview-controls" v-if="points.length > 1">
+                <md-filled-button v-on:click="togglePlay" class="play-button">
+                    {{ isPlaying ? "■ STOP" : "▶ PLAY" }}
+                </md-filled-button>
+            </div>
+
+            <AutoPathTimeline v-if="points.length > 2" :points="points" :disabled="isPlaying"
+                v-model:scrub-progress="scrubProgress" @update:points="onPointsUpdate"></AutoPathTimeline>
 
             <div v-if="pathError" class="data-tile error-tile">Draw at least a couple of points before saving.</div>
 
@@ -79,6 +91,8 @@ export default {
             allianceIndex: 0,
             sideIndex: 0,
             points: [],
+            scrubProgress: 0,
+            isPlaying: false,
             nameError: false,
             pathError: false,
             isSubmitting: false,
@@ -93,6 +107,13 @@ export default {
         },
         side() {
             return this.SIDE_CHOICES[this.sideIndex]?.key ?? sideLeft;
+        },
+        // The scrub thumb only drives the marker while nothing is playing —
+        // otherwise it would permanently pin the marker at the scrub
+        // position (AutoPathCanvas treats any non-null previewProgress as
+        // taking priority over the play animation).
+        canvasPreviewProgress() {
+            return this.isPlaying ? null : this.scrubProgress;
         }
     },
     methods: {
@@ -118,6 +139,11 @@ export default {
         },
         resetPath() {
             this.points = [];
+            this.scrubProgress = 0;
+            this.isPlaying = false;
+        },
+        togglePlay() {
+            this.isPlaying = !this.isPlaying;
         },
         async save() {
             this.isSubmitting = true;
@@ -211,6 +237,11 @@ export default {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+.autopath-preview-controls {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .confirm-text {

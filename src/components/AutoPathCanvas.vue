@@ -15,12 +15,26 @@ import fieldImage from "@/assets/2026-field.png";
 
             <!-- Single-path mode (editor / per-path card view). -->
             <template v-if="!hasLayers">
-                <polyline v-if="displayPoints.length > 1" :points="pointsToPolyline(displayPoints)" class="path-line"
-                    :style="{ stroke: color }"></polyline>
+                <template v-if="timeGradient && gradientSegments.length > 0">
+                    <line v-for="(seg, idx) in gradientSegments" :key="idx" :x1="seg.x1" :y1="seg.y1" :x2="seg.x2"
+                        :y2="seg.y2" class="path-line" :style="{ stroke: seg.color }"></line>
+                </template>
+                <polyline v-else-if="displayPoints.length > 1" :points="pointsToPolyline(displayPoints)"
+                    class="path-line" :style="{ stroke: color }"></polyline>
                 <circle v-if="displayPoints.length > 0" v-bind="toView(displayPoints[0])" r="3.5" class="path-start"
-                    :style="{ fill: color }"></circle>
+                    :style="{ fill: timeGradient ? pathTimeColor(0) : color }"></circle>
+                <!-- The rainbow gradient already shows start (red) vs end
+                     (violet) at a glance; the flat single-color viewer
+                     (cards, not the editor) has no such cue, so it gets an
+                     end marker and text labels instead. -->
+                <template v-if="!timeGradient">
+                    <circle v-if="displayPoints.length > 1" v-bind="toView(displayPoints[displayPoints.length - 1])"
+                        r="3.5" class="path-end" :style="{ fill: color }"></circle>
+                    <text v-if="displayPoints.length > 0" v-bind="labelPos(displayPoints[0])" class="path-label">Start</text>
+                    <text v-if="displayPoints.length > 1" v-bind="labelPos(displayPoints[displayPoints.length - 1])" class="path-label">End</text>
+                </template>
                 <circle v-if="animatedMarker" v-bind="animatedMarker" r="6" class="path-robot"
-                    :style="{ fill: color }"></circle>
+                    :style="{ fill: timeGradient ? pathTimeColor(markerColorFraction) : color }"></circle>
             </template>
 
             <!-- Multi-path overlay mode (Match Preview). -->
@@ -46,6 +60,7 @@ import fieldImage from "@/assets/2026-field.png";
 
 <script lang="ts">
 import { allianceRed, allianceBlue } from "@/lib/constants";
+import { pointTime, pathTimeColor } from "@/lib/2026/auto-path-field";
 
 // Intrinsic aspect ratio of 2026-field.png (7992x3240), scaled down for a tidy viewBox.
 const VIEW_W = 740;
@@ -59,29 +74,26 @@ const VIEW_H = 300;
 // map into this sub-region, not the full canvas.
 const FIELD_BOUNDS = { left: 0.13113, right: 0.86874, top: 0.05278, bottom: 0.94691 };
 
-// Constant-speed position along a polyline of already-view-space {cx, cy}
-// points, at fraction `t` (0..1) of the path's own total arc length. Doing
-// this in view space (rather than the raw [0,1] point frame) matters because
-// VIEW_W/VIEW_H preserve the field image's true aspect ratio, so distances
-// there are physically proportional in both axes.
-function markerAtProgress(viewPoints, t) {
+// Position along a polyline of already-view-space {cx, cy} points at time
+// fraction `t` (0..1), using each point's own recorded time rather than
+// constant speed by arc length — this is what makes playback "time
+// relative": a stretch of points recorded close together in time (the scout
+// drew that part of the path quickly) plays back quickly, and a stretch
+// recorded far apart in time (drawn slowly, e.g. a scoring action) plays
+// back slowly, regardless of how much on-field distance either covers.
+function markerAtTime(points, viewPoints, t) {
     if (viewPoints.length < 2) return viewPoints[0] ?? null;
 
-    const cumulative = [0];
-    for (let i = 1; i < viewPoints.length; i++) {
-        const dx = viewPoints[i].cx - viewPoints[i - 1].cx;
-        const dy = viewPoints[i].cy - viewPoints[i - 1].cy;
-        cumulative.push(cumulative[i - 1] + Math.hypot(dx, dy));
-    }
+    const times = points.map((p, i) => pointTime(p, i, points.length));
+    const clamped = Math.min(1, Math.max(0, t));
 
-    const total = cumulative[cumulative.length - 1];
-    if (total === 0) return viewPoints[0];
+    if (clamped <= times[0]) return viewPoints[0];
+    if (clamped >= times[times.length - 1]) return viewPoints[viewPoints.length - 1];
 
-    const targetDist = Math.min(t, 1) * total;
-    for (let i = 1; i < cumulative.length; i++) {
-        if (targetDist <= cumulative[i]) {
-            const segLen = cumulative[i] - cumulative[i - 1];
-            const segT = segLen === 0 ? 0 : (targetDist - cumulative[i - 1]) / segLen;
+    for (let i = 1; i < times.length; i++) {
+        if (clamped <= times[i]) {
+            const span = times[i] - times[i - 1];
+            const segT = span === 0 ? 0 : (clamped - times[i - 1]) / span;
             return {
                 cx: viewPoints[i - 1].cx + (viewPoints[i].cx - viewPoints[i - 1].cx) * segT,
                 cy: viewPoints[i - 1].cy + (viewPoints[i].cy - viewPoints[i - 1].cy) * segT
@@ -91,9 +103,39 @@ function markerAtProgress(viewPoints, t) {
     return viewPoints[viewPoints.length - 1];
 }
 
+// The fractional RANK (0..1 by point order, never by recorded time) that
+// time `t` currently falls at, given each point's own recorded time. This
+// is the inverse of "where in time is rank R" — used so the animated
+// marker's color always matches whichever fixed-rank-colored segment
+// (see gradientSegments below) it's currently passing through, even though
+// the time-to-rank mapping is exactly what timing edits change.
+function rankAtTime(points, t) {
+    const n = points.length;
+    if (n < 2) return 0;
+
+    const times = points.map((p, i) => pointTime(p, i, n));
+    const clamped = Math.min(1, Math.max(0, t));
+
+    if (clamped <= times[0]) return 0;
+    if (clamped >= times[n - 1]) return 1;
+
+    for (let i = 1; i < times.length; i++) {
+        if (clamped <= times[i]) {
+            const span = times[i] - times[i - 1];
+            const segT = span === 0 ? 0 : (clamped - times[i - 1]) / span;
+            const rankBefore = (i - 1) / (n - 1);
+            const rankAfter = i / (n - 1);
+            return rankBefore + (rankAfter - rankBefore) * segT;
+        }
+    }
+    return 1;
+}
+
 export default {
     props: {
         // Points in the [0,1] frame already resolved for the alliance/side being displayed.
+        // Each point is { x, y, t } — t is the point's own recorded time,
+        // in [0,1] fraction of the path's normalized duration (see pointTime in auto-path-field.ts).
         points: {
             type: Array,
             default: () => []
@@ -110,6 +152,15 @@ export default {
             type: String,
             default: "#ff8c00"
         },
+        // Renders the path as a rainbow gradient (red = start, violet = end)
+        // colored by fixed point order, instead of a flat `color` — used by
+        // the editor. Colored by order rather than recorded time so editing
+        // timing on the timeline below never repaints the path; the
+        // timeline shows how many seconds each fixed color takes instead.
+        timeGradient: {
+            type: Boolean,
+            default: false
+        },
         // Optional multi-path overlay: [{ key, points, color }]. When set,
         // this takes over rendering instead of the single `points`/`color` props.
         layers: {
@@ -123,10 +174,11 @@ export default {
             type: Boolean,
             default: false
         },
-        // When true, animates a robot marker traveling along the path(s) at
-        // constant speed, reaching the end after `duration` ms regardless of
-        // path length or point count. Parent owns this flag (play/stop button)
-        // and should reset it to false on the `finished` event.
+        // When true, animates a robot marker traveling along the path(s),
+        // reaching the end after `duration` ms regardless of path length or
+        // point count — but at each point's own recorded pace in between
+        // (time-relative, see markerAtTime above). Parent owns this flag
+        // (play/stop button) and should reset it to false on the `finished` event.
         playing: {
             type: Boolean,
             default: false
@@ -134,9 +186,16 @@ export default {
         duration: {
             type: Number,
             default: 20000
+        },
+        // Optional static "scrub" position (0..1): shows the marker at this
+        // time without running the play animation, for the timeline editor's
+        // scrub handle. Takes precedence over the play animation's progress.
+        previewProgress: {
+            type: Number,
+            default: null
         }
     },
-    emits: ["update:points", "finished"],
+    emits: ["update:points", "finished", "progress"],
     data() {
         return {
             VIEW_W,
@@ -144,7 +203,17 @@ export default {
             isDrawing: false,
             animProgress: 0,
             animStartTime: null,
-            animFrame: null
+            animFrame: null,
+            // Recording state for per-point timing while drawing (see
+            // pushPoint/resyncTimestamps below). Parallel array to
+            // displayPoints, holding each point's elapsed *active* drawing
+            // time in ms — paused while the pointer is lifted between
+            // strokes, since a lift is just a recording pause (see
+            // docs/auto-paths.md's "continuous-path drawing"), not something
+            // the robot actually did.
+            drawTimestamps: [],
+            accumulatedMs: 0,
+            strokeAnchorTime: null
         };
     },
     computed: {
@@ -154,10 +223,16 @@ export default {
         displayPoints() {
             return this.points ?? [];
         },
+        effectiveProgress() {
+            return this.previewProgress !== null ? this.previewProgress : this.animProgress;
+        },
+        showMarker() {
+            return this.playing || this.animProgress > 0 || this.previewProgress !== null;
+        },
         animatedMarker() {
-            if (this.hasLayers || this.animProgress === 0 && !this.playing) return null;
+            if (this.hasLayers || !this.showMarker) return null;
             if (this.displayPoints.length < 2) return null;
-            return markerAtProgress(this.displayPoints.map((p) => this.toView(p)), this.animProgress);
+            return markerAtTime(this.displayPoints, this.displayPoints.map((p) => this.toView(p)), this.effectiveProgress);
         },
         animatedLayerMarkers() {
             if (!this.hasLayers || this.animProgress === 0 && !this.playing) return [];
@@ -166,8 +241,38 @@ export default {
                 .map((layer) => ({
                     key: layer.key,
                     color: layer.color,
-                    marker: markerAtProgress(layer.points.map((p) => this.toView(p)), this.animProgress)
+                    marker: markerAtTime(layer.points, layer.points.map((p) => this.toView(p)), this.animProgress)
                 }));
+        },
+        // Colored by fixed RANK (point order), never by recorded time — so
+        // editing timing on the timeline never repaints the path: "the red
+        // part of the path" always means the same stretch of drawing. Only
+        // how many seconds that fixed-colored stretch takes (shown on the
+        // timeline, see AutoPathTimeline.vue) is editable.
+        gradientSegments() {
+            if (!this.timeGradient || this.displayPoints.length < 2) return [];
+            const view = this.displayPoints.map((p) => this.toView(p));
+            const len = this.displayPoints.length;
+
+            const segments = [];
+            for (let i = 1; i < len; i++) {
+                segments.push({
+                    x1: view[i - 1].cx,
+                    y1: view[i - 1].cy,
+                    x2: view[i].cx,
+                    y2: view[i].cy,
+                    color: pathTimeColor(((i - 1) / (len - 1) + i / (len - 1)) / 2)
+                });
+            }
+            return segments;
+        },
+        // The marker's color follows whichever fixed-rank-colored segment
+        // it's currently passing through in time, via rankAtTime — not the
+        // raw time progress, which would drift out of sync with the path's
+        // (fixed) coloring as soon as timing is edited to be non-uniform.
+        markerColorFraction() {
+            if (this.hasLayers || this.displayPoints.length < 2) return 0;
+            return rankAtTime(this.displayPoints, this.effectiveProgress);
         }
     },
     watch: {
@@ -203,6 +308,12 @@ export default {
                 return `${cx},${cy}`;
             }).join(" ");
         },
+        // Small fixed offset from a start/end marker so the label text
+        // doesn't sit directly on top of the dot.
+        labelPos(p) {
+            const { cx, cy } = this.toView(p);
+            return { x: cx + 6, y: cy - 6 };
+        },
         fromEvent(event) {
             const svg = this.$refs.svg;
             const rect = svg.getBoundingClientRect();
@@ -222,17 +333,50 @@ export default {
 
             return { x: fx, y: fy };
         },
+        // Re-syncs drawTimestamps with displayPoints whenever they've
+        // diverged — e.g. the parent reset the path (points -> []), or
+        // loaded an existing saved path (points -> its stored {x,y,t}s) —
+        // so a resumed/continued stroke keeps counting from a sensible
+        // elapsed time instead of a stale one. Existing points' timing is
+        // reconstructed from their stored `t` (scaled by `duration`, purely
+        // as an internal bookkeeping unit — everything gets re-normalized
+        // to [0,1] on the next point anyway).
+        resyncTimestamps() {
+            if (this.drawTimestamps.length !== this.displayPoints.length) {
+                this.drawTimestamps = this.displayPoints.map((p, i) => pointTime(p, i, this.displayPoints.length) * this.duration);
+            }
+            this.accumulatedMs = this.drawTimestamps.length > 0 ? this.drawTimestamps[this.drawTimestamps.length - 1] : 0;
+        },
+        // Appends one freshly-drawn raw {x,y} point, records its elapsed
+        // active-drawing time, and emits the whole path re-normalized so
+        // every point's `t` is a [0,1] fraction of the total drawing time so far.
+        pushPoint(rawPoint) {
+            const elapsed = this.strokeAnchorTime !== null
+                ? this.accumulatedMs + (performance.now() - this.strokeAnchorTime)
+                : this.accumulatedMs;
+            this.drawTimestamps = [...this.drawTimestamps, elapsed];
+
+            const maxMs = this.drawTimestamps[this.drawTimestamps.length - 1] || 0;
+            const newPoints = [...this.displayPoints.map((p) => ({ x: p.x, y: p.y })), rawPoint];
+            this.$emit("update:points", newPoints.map((p, i) => ({
+                x: p.x,
+                y: p.y,
+                t: maxMs > 0 ? this.drawTimestamps[i] / maxMs : (i === 0 ? 0 : 1)
+            })));
+        },
         onPointerDown(event) {
             if (!this.editable) return;
             event.preventDefault();
             this.isDrawing = true;
             this.$refs.svg.setPointerCapture?.(event.pointerId);
-            this.$emit("update:points", [...this.displayPoints, this.fromEvent(event)]);
+            this.resyncTimestamps();
+            this.strokeAnchorTime = performance.now();
+            this.pushPoint(this.fromEvent(event));
         },
         onPointerMove(event) {
             if (!this.editable || !this.isDrawing) return;
             event.preventDefault();
-            this.$emit("update:points", [...this.displayPoints, this.fromEvent(event)]);
+            this.pushPoint(this.fromEvent(event));
         },
         onPointerUp() {
             // Deliberately does NOT clear the point buffer: lifting the pointer
@@ -240,6 +384,10 @@ export default {
             // point array so the saved/rendered path is one continuous line
             // even if the scout's real-world drawing wasn't (see issue #14).
             this.isDrawing = false;
+            if (this.strokeAnchorTime !== null) {
+                this.accumulatedMs += performance.now() - this.strokeAnchorTime;
+                this.strokeAnchorTime = null;
+            }
         },
         startAnimation() {
             this.animProgress = 0;
@@ -251,6 +399,7 @@ export default {
 
                 const elapsed = timestamp - this.animStartTime;
                 this.animProgress = Math.min(1, elapsed / this.duration);
+                this.$emit("progress", this.animProgress);
 
                 if (this.animProgress < 1) {
                     this.animFrame = requestAnimationFrame(step);
@@ -303,6 +452,20 @@ export default {
 
 .path-start {
     stroke: none;
+}
+
+.path-end {
+    stroke: none;
+    opacity: 0.6;
+}
+
+.path-label {
+    font-size: 9px;
+    font-weight: 600;
+    fill: var(--primary-text-color, #fff);
+    stroke: var(--tile-background-color, #000);
+    stroke-width: 2px;
+    paint-order: stroke fill;
 }
 
 .path-robot {
