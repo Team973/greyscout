@@ -3,7 +3,7 @@
 
 
 import { supabase } from "@/lib/supabase-client";
-import { matchScoutTable, matchScheduleTable, teamInfoTable, teamNumberColumn, pitScoutTable } from "@/lib/constants";
+import { matchScoutTable, matchScheduleTable, teamInfoTable, teamNumberColumn, pitScoutTable, eventInfoTable } from "@/lib/constants";
 
 // Qualification matches are the only ones with a schedule known ahead of
 // time (playoff pairings are only decided live), so schedule-based
@@ -73,6 +73,19 @@ export async function queryTeamMatchData(teamNumber, eventId) {
 
 export async function queryEventData(eventId) {
     const { data, error } = await supabase.from(matchScoutTable).select().eq('event', eventId);
+
+    if (error) {
+        console.log(error);
+        return [];
+    }
+
+    return data;
+}
+
+// All events, newest first — used to label assignments from past events by
+// name and sort them.
+export async function queryAllEvents() {
+    const { data, error } = await supabase.from(eventInfoTable).select('event_id, name, start_date').order('start_date', { ascending: false });
 
     if (error) {
         console.log(error);

@@ -111,8 +111,8 @@ export default {
                 return;
             }
 
-            this.authStore.checkUser();
-            this.$router.push("/picklist");
+            await this.authStore.checkUser();
+            this.$router.push(this.authStore.role === 'member' ? '/schedule' : '/picklist');
         },
         async sendPasswordReset() {
             this.resetError = "";
