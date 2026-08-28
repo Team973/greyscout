@@ -39,7 +39,7 @@ replacing that PNG and re-measuring `FIELD_BOUNDS` in
 | `name` | `text` | Scout-provided name, renameable |
 | `alliance` | `text` | `"red"` or `"blue"` — the alliance the path was **drawn** as |
 | `side` | `text` | `"left"` or `"right"` — the starting side it was **drawn** as |
-| `path` | `jsonb` | Array of `{ x, y }` points, each in `[0, 1]`, in the frame described below |
+| `path` | `jsonb` | Array of `{ x, y, t }` points, `x`/`y` in `[0, 1]` in the frame described below, `t` the point's recorded time as a `[0, 1]` fraction of the path's normalized duration (see "Timing" below). `t` is optional — paths saved before [issue #35](https://github.com/Team973/greyscout/issues/35) don't have it |
 | `is_default` | `boolean` | This team's default auto for Match Preview to pre-select (see below) |
 
 A partial unique index, `autopath_default_unique` on `(team_number, event)
@@ -115,10 +115,11 @@ straight through — optionally side-mirrored via `transformPath` — and let
 
 | File | Purpose |
 |---|---|
-| [`src/components/AutoPathCanvas.vue`](../src/components/AutoPathCanvas.vue) | The field SVG, background image is `src/assets/2026-field.png`. Two modes: single editable/viewable path (`points`/`color` props), or a read-only multi-path overlay (`layers` prop: `[{ key, points, color }]`) used by Match Preview. Drawing uses Pointer Events (`touch-action: none`) so mouse, touch, and pen all work the same way. |
-| [`src/components/AutoPathEditor.vue`](../src/components/AutoPathEditor.vue) | Create/edit form: name, alliance/side dropdowns, the canvas, Reset/Save/Cancel/Delete. Reuses `submitScoutData`/`updateScoutData` from `data-submission.ts` (same as pit scouting) so a failed save enqueues into the existing offline-queue FAB instead of a bespoke path. |
+| [`src/components/AutoPathCanvas.vue`](../src/components/AutoPathCanvas.vue) | The field SVG, background image is `src/assets/2026-field.png`. Two modes: single editable/viewable path (`points`/`color` props), or a read-only multi-path overlay (`layers` prop: `[{ key, points, color }]`) used by Match Preview. Drawing uses Pointer Events (`touch-action: none`) so mouse, touch, and pen all work the same way. Also owns per-point time recording and time-relative playback — see "Timing" below. |
+| [`src/components/AutoPathTimeline.vue`](../src/components/AutoPathTimeline.vue) | The scrub/timing-adjustment bar rendered below the canvas in the editor — see "Timing" below. |
+| [`src/components/AutoPathEditor.vue`](../src/components/AutoPathEditor.vue) | Create/edit form: name, alliance/side dropdowns, the canvas, the timeline, Reset/Save/Cancel/Delete. Reuses `submitScoutData`/`updateScoutData` from `data-submission.ts` (same as pit scouting) so a failed save enqueues into the existing offline-queue FAB instead of a bespoke path. |
 | [`src/components/AutoPathCard.vue`](../src/components/AutoPathCard.vue) | Read-only list card for Team Analysis: renders a saved path plus an alliance/side "view as" toggle (backed by `transformPath`), a default-auto badge/button, and an Edit button. |
-| [`src/lib/2026/auto-path-field.ts`](../src/lib/2026/auto-path-field.ts) | `transformPath()`, plus the alliance/side dropdown choice lists. |
+| [`src/lib/2026/auto-path-field.ts`](../src/lib/2026/auto-path-field.ts) | `transformPath()`, the alliance/side dropdown choice lists, and the timing helpers `pointTime()`/`pathTimeColor()` shared by the canvas and timeline. |
 | [`src/lib/auto-path-query.ts`](../src/lib/auto-path-query.ts) | Supabase queries: `fetchTeamAutoPaths`, `fetchAutoPathById`, `deleteAutoPath`, `setAutoPathDefault`. |
 
 The editor, card, and Match Preview overlay canvases all render at `large`
@@ -134,6 +135,158 @@ screen). `AutoPathCanvas` implements this by never clearing its point
 buffer on pointer-up — every stroke just keeps appending to the same
 ordered point array, which is rendered as one `<polyline>`. "Reset" in the
 editor is the only way to clear it.
+
+### Timing ([issue #35](https://github.com/Team973/greyscout/issues/35))
+
+Playback used to move the marker at constant speed along the path's arc
+length, taking `duration` (20s) end to end regardless of how the scout
+actually drew it. It's now **time-relative**: each point carries its own
+recorded time (`t`, `[0,1]` fraction of the normalized duration), and
+`markerAtTime()` in `AutoPathCanvas.vue` interpolates between points by
+that recorded time, not by distance — a stretch the scout drew quickly
+plays back quickly, a stretch drawn slowly (e.g. a scoring action) plays
+back slowly, independent of how much on-field distance either covers.
+
+- **Recording.** `AutoPathCanvas` tracks each point's *active* elapsed
+  drawing time in a parallel `drawTimestamps` array (raw ms, not yet
+  normalized) — active meaning the clock only runs while the pointer is
+  down, pausing across a lift/resume between strokes (a lift is a
+  recording pause per "Continuous-path drawing" above, not something the
+  robot did, so it shouldn't inject dead time into the pacing). Every
+  emitted point is normalized on the fly: `t = drawTimestamps[i] /
+  drawTimestamps[last]`, so the saved path's `t`s always span exactly
+  `[0, 1]` — this is what "normalized to a 20-second standard duration"
+  means: the *shape* of the pacing is recorded, and it's stretched or
+  compressed to fill `duration` at playback time (`t * duration`),
+  regardless of how many real seconds the scout spent drawing.
+- **Resuming a path.** If drawing resumes on top of points that already
+  have a `t` (continuing after a lift, or continuing to draw on a loaded
+  saved path), `resyncTimestamps()` reconstructs an assumed elapsed-ms
+  baseline from the existing `t`s (`t * duration`) so the new strokes'
+  timing stays on a comparable scale before everything gets re-normalized.
+- **Legacy paths.** Points saved before this existed have no `t`.
+  `pointTime()` in `auto-path-field.ts` falls back to even spacing by
+  index in that case, so old paths still animate (roughly their old
+  constant-speed behavior) instead of breaking. `transformPath()` passes
+  `t` through unchanged (via `{ ...p }`) — don't reintroduce a hand-picked
+  `{ x, y }` there, it'll silently drop timing again.
+- **Rainbow rendering, fixed by point order.** `AutoPathCanvas`'s
+  `time-gradient` prop (on for the editor only, off for cards/Match
+  Preview, which still use one flat `color` per path) renders the path as
+  many short colored segments instead of one `<polyline>`, hue driven by
+  each segment's midpoint **rank** — `((i-1) + i) / 2 / (len-1)` — via
+  `pathTimeColor()` (red at the start → violet at the end). Deliberately
+  **not** driven by each point's recorded `t`: coloring by rank means "the
+  red part of the path" always means the same stretch of drawing, however
+  its timing gets edited on the timeline below — the path's colors never
+  repaint. The animated marker's color follows suit via `rankAtTime()` (the
+  inverse of `markerAtTime()` — given the current time progress, what
+  fixed-rank color is that point in the path currently colored?), so the
+  marker's color always matches the segment it's visibly passing through
+  even after a non-uniform timing edit. The editor's canvas always has
+  `time-gradient` on, so a scout sees the same fixed coloring while
+  drawing, adjusting timing, and previewing.
+- **Start/End labels (flat-color viewer only).** The rainbow gradient
+  already shows direction at a glance (red = start, violet = end), so
+  `AutoPathCanvas` only draws an end-point dot and "Start"/"End" text labels
+  (`labelPos()`) when `time-gradient` is *off* — the flat single-`color`
+  viewer used by `AutoPathCard`/Match Preview has no such built-in cue.
+- **The timeline editor** (`AutoPathTimeline.vue`, rendered below the
+  canvas once `points.length > 2`): a horizontal bar that answers "how many
+  seconds does each (fixed) color take?", modeled as resizable regions
+  rather than draggable points — an earlier dot-based version (drag a small
+  floating circle to re-time the point under it) was hard to land a precise
+  drag on and had the two-neighbor clamping logic in `dragHandleTo` right
+  next to your finger/cursor, which read as "unexpected" behavior; a
+  region's own border is both a much bigger drag target and a much more
+  legible one, since you're visibly grabbing the edge of the thing you're
+  resizing.
+  - **Regions** (`regions`, one per pair of adjacent boundaries in
+    `handleIndices`): positioned and *widthed* by real time (`left`/`width`
+    from the boundary points' own `t`s, so a region's width literally is
+    how many seconds that stretch takes) and rendered as a `linear-gradient`
+    sampled at several stops across the region's own point-rank span (not
+    one flat midpoint color — a flat color only matches the canvas's
+    per-point coloring at the region's exact middle, drifting further off
+    at the edges the wider the region is; multiple gradient stops keep each
+    inter-stop hop small enough that the RGB-space interpolation CSS
+    gradients do stays visually indistinguishable from `pathTimeColor`'s
+    HSL-based hue sweep). Adjacent regions share a boundary point's exact
+    color as their touching gradient stop, so they meet with no visible
+    seam — the whole bar reads as one continuous rainbow that exactly
+    matches the canvas above it, stretching or compressing as regions are resized.
+  - **Draggable bounds** (`interiorBounds`): a divider rendered at the
+    border between two regions — a wide (~16px) invisible hit area
+    centered on the boundary's time position, with a slim visible line in
+    the middle, so a drag is easy to land without needing to hit a small
+    exact point. Dragging one resizes both neighboring regions
+    (`rescaleRange()` on each) without changing either region's color:
+    "red for 4 seconds" always means the same red stretch of the path,
+    just currently taking 4 seconds. The two `rescaleRange()` calls split
+    the point range at `cur.pointIndex + 1`, not `cur.pointIndex` — the
+    dragged boundary's own point is the shared edge between the two
+    ranges, and only the *first* call may touch it. An earlier version had
+    the second call start at `cur.pointIndex` too, so it read back the
+    value the first call had just written as its own "old" reference
+    instead of the true original — silently corrupting both the boundary's
+    saved time and every point after it. This is why the boundary's
+    persisted `t` must be checked against what it was dragged to, not just
+    that the UI *looks* right immediately after dragging.
+  - Dragging is also clamped to a `MIN_REGION_T` (~500ms of the 20s
+    duration) on either side of the boundary being moved, not just enough
+    to prevent inverting past a neighbor. A region allowed to shrink
+    arbitrarily thin gives `requestAnimationFrame` — which only samples
+    `animProgress` every ~16ms during playback — too few frames to render
+    through it, so the marker visibly teleports across that stretch instead
+    of gliding. (An earlier fix for the same symptom added a CSS
+    `transition` on the marker's `cx`/`cy` to fake a glide; that was
+    reverted — it desynced the marker's rendered *position* from its color
+    and from the timeline's scrub bar, which both still update instantly
+    off the same `animProgress`, since only position was artificially
+    delayed. Capping how thin a region can get fixes the root cause instead
+    of papering over it.)
+  - The bound set starts at 10 roughly-equal regions by point count (exposing every raw drawn point —
+    there can be hundreds — as its own region would be unusable) but isn't
+    fixed — double-click a region to split it (adds a bound at the point
+    nearest the clicked time), double-click a bound to remove it (merges
+    its two regions back into one). The bar's own far-left/far-right edges
+    are the two absolute end anchors (`t=0`/`t=1`) and aren't rendered as
+    interactive bounds at all — there's no region beyond them to resize.
+  - **The scrub thumb and the ruler below the bar** (`tickSeconds`,
+    1-second resolution, major/labeled every 5s) are also positioned by
+    real time, same as the regions and bounds — the ruler itself never
+    moves regardless of any edit, it's just seconds.
+  - Dragging a bound only re-seeds `handleIndices` (the set of point
+    indices with a bound) from scratch when `points.length` itself changes
+    (still drawing) — never by proportionally remapping the *existing*
+    indices, which was tried first and silently collapsed bounds onto each
+    other after enough small growth steps (rounding error compounds over
+    ~one recompute per drawn point in a stroke). A custom split/merge only
+    "sticks" once the scout has stopped drawing and the point count stops
+    changing, matching the normal draw-first-then-adjust workflow.
+- **Play preview while editing.** `AutoPathEditor.vue` has its own Play/Stop
+  button (mirroring `AutoPathCard.vue`'s), wired to the same canvas via
+  `:playing`/`@finished`. Its `previewProgress` binding
+  (`canvasPreviewProgress`) passes through the timeline's scrub value only
+  while *not* playing — `AutoPathCanvas` treats any non-null
+  `previewProgress` as taking priority over the play animation, so without
+  this guard the scrub thumb (which defaults to `0`, not `null`) would
+  permanently pin the marker and the play animation would never visibly move.
+  `AutoPathCanvas` also emits a `progress` event every animation frame
+  (alongside updating its own internal `animProgress`); the editor forwards
+  that straight into `scrubProgress`, so the timeline's white scrub bar
+  visibly tracks along in real time while playing, instead of sitting
+  frozen whereever it was last left from manual scrubbing — from the
+  timeline's own view, playback and scrubbing are the same "where is the
+  white bar" state, just driven by a different source.
+- **Timing edits are disabled while playing.** `AutoPathTimeline` takes a
+  `disabled` prop (`AutoPathEditor` passes `isPlaying`) that ignores bound
+  drag/split/merge and manual scrubbing, and a `disabled` watcher cleanly
+  drops any drag/scrub already in progress the instant playback starts.
+  Editing the same points the canvas is actively animating out from under
+  the edit was the original source of the timeline feeling "glitchy" and
+  getting stuck — the bounds dim and the hint text swaps to say playback is
+  in progress; pressing stop hands editing back.
 
 ---
 
@@ -223,6 +376,38 @@ Each alliance tile (Red/Blue) has an "Auto Path Preview" sub-tile:
   feel on a real mobile device in particular hasn't been confirmed by
   either party yet.
 
+**Timing (issue #35)** was verified live via Claude-in-Chrome: drew a path
+with deliberately slow-then-fast pacing, confirmed the saved `t`s were
+monotonic `[0,1]` and matched the drawn pacing, confirmed a handle drag
+persisted correctly, and confirmed scrub/play both landed the marker at the
+expected point via `markerAtTime`. Also confirmed two pre-existing
+(`t`-less) saved paths still load and play without error under the
+even-spacing fallback. One caveat found along the way: dispatching
+synthetic `PointerEvent`s with a fabricated `pointerId` from a JS console
+(as opposed to real input, or the browser-automation tool's own drag
+action) throws inside `setPointerCapture()`, silently aborting the
+drag-start handler — real user input never hits this, so it's a testing
+artifact rather than a product bug, but worth knowing if you reach for the
+same shortcut later.
+
+A later pass fixed the `rescaleRange()` double-processing bug described
+above (the boundary's saved `t` didn't match where it was dragged to) and
+re-verified it two ways: a standalone numeric replay of `dragHandleTo`'s
+exact logic against known before/after values (no browser needed), and live
+via Claude-in-Chrome — drew a 12-point path (the drawing tool's synthetic
+clicks each register as two points, pointerdown + a same-position
+pointermove — harmless, just denser than a real single click, and not
+something worth "fixing" since real input isn't affected), dragged an
+interior bound to a specific target time, saved, and confirmed via
+`supabase db query --linked` that the persisted point's `t` matched the
+drag target exactly. The same session also confirmed, by reading the live
+Vue component's `fill` style during playback against an independent
+recompute of `pathTimeColor(rankAtTime(...))`, that the marker's color
+stays exactly in sync with the timeline/canvas rainbow at every instant —
+this was checked specifically because the CSS-transition marker-smoothing
+approach mentioned above had briefly broken that sync before being reverted
+in favor of the `MIN_REGION_T` fix.
+
 ## Future work
 
 - Per-path thumbnail caching if the auto-path list grows long enough that
@@ -230,3 +415,8 @@ Each alliance tile (Red/Blue) has an "Auto Path Preview" sub-tile:
 - Undo (not just full Reset) while drawing.
 - Re-measure `FIELD_BOUNDS` if `2026-field.png` is ever swapped for a
   corrected or higher-res export.
+- The timeline's drag/double-click handle interactions haven't been
+  confirmed on a real touch device — `touch-action: none` is set, but
+  double-tap-to-add/remove in particular may need real hardware to
+  validate (see the `setPointerCapture` caveat above for why simulating
+  this from a script isn't reliable).
