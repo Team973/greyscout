@@ -52,4 +52,4 @@ export const useDefaultEvent = true;
 
 
 // View mode options.
-export const minWidthForDesktop = 820;
+export const minWidthForDesktop = 1000;

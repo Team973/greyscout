@@ -8,8 +8,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { useWatchlistStore } from '@/stores/watchlist-store';
-import { TIER_GROUPS } from '@/lib/picklist-query';
+import { TIERS, TIER_GROUPS } from '@/lib/picklist-query';
 import PicklistRow from '@/components/PicklistRow.vue';
+import PicklistUnrankedCard from '@/components/PicklistUnrankedCard.vue';
 
 const picklistStore = usePicklistStore();
 const authStore = useAuthStore();
@@ -384,25 +385,44 @@ function toggleTierCollapse(group: string) {
                     <p>No personal lists have been submitted yet — submit yours on the "My List" tab first.</p>
                 </div>
 
-                <!-- Tier-grouped sections -->
-                <div v-else class="tier-sections">
-                    <div v-for="group in TIER_GROUPS" :key="group" class="tier-section">
-                        <div class="tier-section-header" :class="`tier-section-header--${group}`"
-                            @click="toggleTierCollapse(group)">
-                            <span class="tier-section-collapse-icon"
-                                :class="{ 'tier-section-collapse-icon--collapsed': isTierCollapsed(group) }">▾</span>
-                            <span class="tier-section-name">{{ tierGroupLabel(group) }}</span>
-                            <span class="tier-section-count">{{ (picklistStore.activeSections[group] || []).length }}</span>
-                        </div>
+                <!-- Tier-grouped sections: ranked tiers on the left, the
+                     Unranked pool (bigger grid squares — photo/number/watch
+                     only) on the right on desktop, stacked below on mobile. -->
+                <div v-else class="picklist-columns">
+                    <div class="tier-sections-ranked">
+                        <div v-for="group in TIERS" :key="group" class="tier-section">
+                            <div class="tier-section-header" :class="`tier-section-header--${group}`"
+                                @click="toggleTierCollapse(group)">
+                                <span class="tier-section-collapse-icon"
+                                    :class="{ 'tier-section-collapse-icon--collapsed': isTierCollapsed(group) }">▾</span>
+                                <span class="tier-section-name">{{ tierGroupLabel(group) }}</span>
+                                <span class="tier-section-count">{{ (picklistStore.activeSections[group] || []).length }}</span>
+                            </div>
 
-                        <!-- Editable: draggable within and across tier sections -->
-                        <draggable v-if="isEditable" v-show="!isTierCollapsed(group)" :list="picklistStore.activeSections[group]"
-                            group="picklist" :item-key="(el) => el" handle=".picklist-drag-handle" animation="200"
-                            ghost-class="picklist-row--ghost" :force-fallback="true" :scroll="false"
-                            class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
-                            <template #item="{ element: teamNumber, index }">
-                                <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                    :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
+                            <!-- Editable: draggable within and across tier sections -->
+                            <draggable v-if="isEditable" v-show="!isTierCollapsed(group)" :list="picklistStore.activeSections[group]"
+                                group="picklist" :item-key="(el) => el" handle=".picklist-drag-handle" animation="200"
+                                ghost-class="picklist-row--ghost" :force-fallback="true" :scroll="false"
+                                class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
+                                <template #item="{ element: teamNumber, index }">
+                                    <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                        :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
+                                        :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
+                                        :is-picked="picklistStore.isTeamPicked(teamNumber)"
+                                        :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
+                                        :watched="watchlistStore.isWatched(teamNumber)"
+                                        :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
+                                        :expanded-data="expandedData" :expanded-loading="expandedLoading"
+                                        @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
+                                        @toggle-watch="toggleWatch(teamNumber)" />
+                                </template>
+                            </draggable>
+
+                            <!-- Read-only (democratic tab) -->
+                            <div v-else v-show="!isTierCollapsed(group)" class="tier-section-body tier-section-body--static">
+                                <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
+                                    :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                    :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
                                     :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                     :is-picked="picklistStore.isTeamPicked(teamNumber)"
                                     :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
@@ -411,27 +431,57 @@ function toggleTierCollapse(group: string) {
                                     :expanded-data="expandedData" :expanded-loading="expandedLoading"
                                     @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
                                     @toggle-watch="toggleWatch(teamNumber)" />
+                            </div>
+
+                            <div v-if="!isTierCollapsed(group) && (picklistStore.activeSections[group] || []).length === 0"
+                                class="tier-section-empty">
+                                {{ isEditable ? 'Drag teams here' : 'No teams in this tier' }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tier-section tier-section-unranked">
+                        <div class="tier-section-header tier-section-header--Unranked" @click="toggleTierCollapse('Unranked')">
+                            <span class="tier-section-collapse-icon"
+                                :class="{ 'tier-section-collapse-icon--collapsed': isTierCollapsed('Unranked') }">▾</span>
+                            <span class="tier-section-name">Unranked</span>
+                            <span class="tier-section-count">{{ (picklistStore.activeSections['Unranked'] || []).length }}</span>
+                        </div>
+
+                        <!-- Editable: same cross-tier drag group as the ranked
+                             lists above, so a team can be dragged either way
+                             between here and a ranked tier. Uses a real
+                             `handle`, same as every ranked tier's draggable —
+                             see PicklistUnrankedCard.vue for why relying on
+                             whole-card-drag + a `filter` exclusion instead
+                             broke both the move itself and every other list's
+                             dragging afterward. -->
+                        <draggable v-if="isEditable" v-show="!isTierCollapsed('Unranked')" :list="picklistStore.activeSections['Unranked']"
+                            group="picklist" :item-key="(el) => el" handle=".unranked-card-handle" animation="200"
+                            ghost-class="unranked-card--ghost" :force-fallback="true" :scroll="false"
+                            class="unranked-grid" @start="onDragStart" @end="onDragEnd" @change="saveList">
+                            <template #item="{ element: teamNumber }">
+                                <PicklistUnrankedCard :row-id="`picklist-unranked-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                    :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead"
+                                    :expanded="expandedTeam === teamNumber" :expanded-data="expandedData"
+                                    :expanded-loading="expandedLoading" @toggle-expand="toggleExpand(teamNumber)"
+                                    @toggle-watch="toggleWatch(teamNumber)" />
                             </template>
                         </draggable>
 
                         <!-- Read-only (democratic tab) -->
-                        <div v-else v-show="!isTierCollapsed(group)" class="tier-section-body tier-section-body--static">
-                            <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
-                                :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
-                                :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
-                                :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
-                                :watched="watchlistStore.isWatched(teamNumber)"
-                                :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
-                                :expanded-data="expandedData" :expanded-loading="expandedLoading"
-                                @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
+                        <div v-else v-show="!isTierCollapsed('Unranked')" class="unranked-grid">
+                            <PicklistUnrankedCard v-for="teamNumber in picklistStore.activeSections['Unranked']" :key="teamNumber"
+                                :row-id="`picklist-unranked-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead"
+                                :expanded="expandedTeam === teamNumber" :expanded-data="expandedData"
+                                :expanded-loading="expandedLoading" @toggle-expand="toggleExpand(teamNumber)"
                                 @toggle-watch="toggleWatch(teamNumber)" />
                         </div>
 
-                        <div v-if="!isTierCollapsed(group) && (picklistStore.activeSections[group] || []).length === 0"
+                        <div v-if="!isTierCollapsed('Unranked') && (picklistStore.activeSections['Unranked'] || []).length === 0"
                             class="tier-section-empty">
-                            {{ isEditable ? 'Drag teams here' : 'No teams in this tier' }}
+                            {{ isEditable ? 'Drag teams here' : 'No unranked teams' }}
                         </div>
                     </div>
                 </div>
@@ -444,6 +494,12 @@ function toggleTierCollapse(group: string) {
 .picklist-page {
     max-width: 860px;
     margin: 0 auto;
+}
+
+@media (min-width: 1000px) {
+    .picklist-page {
+        max-width: 1180px;
+    }
 }
 
 /* ── Header ── */
@@ -608,10 +664,62 @@ function toggleTierCollapse(group: string) {
 }
 
 /* ── Tier sections ── */
-.tier-sections {
+/* Ranked tiers stack on the left, Unranked pool on the right — on desktop
+   only (issue #34); both columns stack vertically on narrower viewports,
+   Unranked last. */
+.picklist-columns {
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+
+.tier-sections-ranked {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+}
+
+@media (min-width: 1000px) {
+    .picklist-columns {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .tier-sections-ranked {
+        flex: 1;
+    }
+
+    .tier-section-unranked {
+        width: 360px;
+        flex-shrink: 0;
+    }
+}
+
+/* flex-wrap, not CSS grid: SortableJS's index/swap math is unreliable
+   inside a `display: grid` container (well-documented upstream issue —
+   its direction-detection heuristics assume flex/block flow), which is
+   what made drag-and-drop into/out of this section fail in practice. Each
+   card gets a fixed one-third width instead, giving exactly 3 per row. */
+.unranked-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-height: 50px;
+}
+
+.unranked-grid > .unranked-card {
+    flex: 0 0 calc((100% - 20px) / 3);
+    max-width: calc((100% - 20px) / 3);
+}
+
+/* An expanded card takes the full row (~3 columns) instead of 1/3 — needs
+   equal-specificity + later source order to beat the rule above, since
+   PicklistUnrankedCard.vue's own `.unranked-card--expanded` sizing (lower
+   specificity than this parent-scoped selector) can't override it alone. */
+.unranked-grid > .unranked-card--expanded {
+    flex: 1 1 100%;
+    max-width: 100%;
 }
 
 .tier-section {

@@ -14,7 +14,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 
 <template>
     <!-- Mobile navigation bar (hamburger menu) -->
-    <div class="nav" v-if="viewMode?.isMobile && isLoggedIn">
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-if="viewMode?.isMobile && isLoggedIn">
         <HamburgerMenu>
             <template v-slot:menu-title>
                 {{ eventName }}
@@ -41,7 +41,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
         </HamburgerMenu>
 
     </div>
-    <div class="nav" v-else-if="viewMode?.isMobile && !isLoggedIn">
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else-if="viewMode?.isMobile && !isLoggedIn">
         <HamburgerMenu>
             <template v-slot:menu-title>
                 <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
@@ -58,7 +58,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             </template>
         </HamburgerMenu>
     </div>
-    <div class="nav" v-else-if="!viewMode?.isMobile && isLoggedIn">
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <!-- <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink> -->
         <RouterLink to="/schedule" class="nav-link">Schedule</RouterLink>
         <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
@@ -82,7 +82,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             <md-icon slot="icon" v-else>account_circle</md-icon>
         </div>
     </div>
-    <div class="nav" v-else>
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else>
         <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
 
         <div class="nav-dark-mode nav-right" @click="userLogin">
@@ -112,7 +112,12 @@ export default {
             eventStore: null,
             authStore: null,
             queueStore: null,
-            isOnline: navigator.onLine
+            isOnline: navigator.onLine,
+            // Hidden while scrolling down, shown again while scrolling up —
+            // see handleScroll below.
+            navHidden: false,
+            lastScrollTop: 0,
+            scrollContainer: null
         }
     },
     created() {
@@ -126,6 +131,16 @@ export default {
 
         window.addEventListener('online', () => { this.isOnline = true; });
         window.addEventListener('offline', () => { this.isOnline = false; });
+    },
+    mounted() {
+        // The whole SPA scrolls inside #app (position: fixed + overflow:
+        // auto in main.css), not the window — window scroll events never
+        // fire here, so the listener has to target #app directly.
+        this.scrollContainer = document.getElementById('app') || document.scrollingElement || document.documentElement;
+        this.scrollContainer.addEventListener('scroll', this.handleScroll, { passive: true });
+    },
+    beforeUnmount() {
+        this.scrollContainer?.removeEventListener('scroll', this.handleScroll);
     },
     computed: {
         eventName() {
@@ -142,6 +157,26 @@ export default {
         }
     },
     methods: {
+        // Hides the nav while scrolling down (past its own height, so it
+        // never hides right at the top of a short page), shows it again on
+        // any scroll up — a small dead zone (SCROLL_DELTA) ignores jitter
+        // from momentum/rubber-band scrolling so it doesn't flicker.
+        handleScroll() {
+            const SCROLL_DELTA = 4;
+            const NAV_HEIGHT = 65;
+            const scrollTop = Math.max(0, this.scrollContainer.scrollTop);
+            const delta = scrollTop - this.lastScrollTop;
+
+            if (scrollTop <= NAV_HEIGHT) {
+                this.navHidden = false;
+            } else if (delta > SCROLL_DELTA) {
+                this.navHidden = true;
+            } else if (delta < -SCROLL_DELTA) {
+                this.navHidden = false;
+            }
+
+            this.lastScrollTop = scrollTop;
+        },
         toggleUserDarkMode() {
             this.viewMode.toggleUserDarkMode();
         },
@@ -169,6 +204,12 @@ div.nav {
     height: 65px;
     position: fixed;
     display: block;
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+}
+
+div.nav.nav--hidden {
+    transform: translateY(-100%);
 }
 
 

@@ -32,6 +32,92 @@ Navigate to **Pick List** in the nav bar (or go to `/picklist`). You must be log
 
 On the **My List** or **Team List** tab, drag the `⠿` handle on the left of any row to change that team's rank. Click **Save List** when finished.
 
+### Unranked Teams ([issue #34](https://github.com/Team973/greyscout/issues/34))
+
+Teams with no tier assigned yet live in the **Unranked** section, rendered
+separately from the ranked tiers (S through DNP) rather than as just another
+row list:
+- **Layout**: on desktop (≥1000px, same breakpoint as the app-wide
+  `isMobile`/`minWidthForDesktop` switch — bumped from 820px to 1000px
+  alongside this issue, since the desktop nav bar's item count no longer
+  fit below that width; see `src/lib/constants.ts`), ranked tiers stack in
+  a left column and
+  Unranked renders in a fixed-width (360px) column on the right, so the
+  two are visible side by side while sorting; below that width both stack
+  vertically, Unranked last — same as before.
+- **Card style**: each unranked team is a big square grid card
+  (`PicklistUnrankedCard.vue`); collapsed it shows only the robot photo,
+  team number, and watchlist star — deliberately less information than a
+  ranked row (no name, tier-vote stats, or picked checkbox), since the
+  point of this view is fast visual triage of a large untriaged pool.
+  Cards render **exactly 3 per row** (`.unranked-grid` is `display: flex;
+  flex-wrap: wrap` with each card at `flex: 0 0 calc((100% - 20px) / 3)` —
+  deliberately *not* CSS `display: grid`, see the SortableJS gotcha below).
+  The collapsed photo uses `object-fit: contain` (not `cover`) so the full
+  robot is always visible rather than cropped by the team-number bar below
+  it.
+- **Drag-and-drop still works both ways**: the Unranked grid is a
+  `vuedraggable` list in the same `group="picklist"` as every ranked tier,
+  so a team can be dragged from Unranked into any tier, or dragged back
+  out of a tier into Unranked, exactly like dragging between two ranked
+  tiers. Drag starts from a small `⠿` handle badge in the card's top-left
+  corner (`handle=".unranked-card-handle"`, matching the `handle` pattern
+  the other 6 tier lists already use) — clicking the rest of the card
+  instead expands it (see below).
+- **Clicking a card** (anywhere but the handle/watch star) expands it to a
+  roughly 3×3-card footprint showing the full photo, name, aggregated match
+  stats, and scout comments — the same data a ranked row's expanded view
+  shows. Click again to collapse.
+- **Gotcha #1**: the card's `<img>` must have `draggable="false"` — without
+  it, starting a pointer-drag on top of the photo (which fills most of the
+  square) can be hijacked by the browser's own native image-drag-out
+  gesture instead of being picked up by SortableJS's fallback drag
+  handling, silently preventing the card from ever starting a sortable
+  drag. Ranked rows never hit this because their drag handle is a small
+  text/emoji span (`.picklist-drag-handle`), never the photo itself.
+- **Gotcha #2 — the real cause of "drag from Unranked doesn't stick, and
+  then no list drags at all"**: `PicklistUnrankedCard.vue`'s template used
+  to open with a template-level HTML comment placed *before* the root
+  `<div class="unranked-card">`. Vue compiles a component template with a
+  comment as a root-level sibling into a **fragment root** (comment node +
+  div, joined by whitespace text nodes), not a single element. vuedraggable
+  captures each list item's `vnode.el` to attach `__draggable_context` (the
+  data its `onDragStart` reads via `getUnderlyingVm`) — for a fragment
+  root, that `.el` is the fragment's anchor node, not the real card div, so
+  every Unranked card silently ended up with no drag context at all.
+  Starting *any* drag on *any* Unranked card (same-list reorder or
+  cross-list) then threw `Cannot read properties of null (reading
+  'element')` inside vuedraggable's internal `onDragStart`, before it ever
+  reached the point of moving the item or emitting `@start` — which is why
+  the move never stuck, autoscroll (driven off `@start`/`@end`, see
+  `PicklistView.vue`) never kicked in, and the exception corrupted
+  vuedraggable's shared module-level drag state badly enough that every
+  other list on the page stopped responding to drags too, until reload.
+  **The fix — and the rule going forward — is that a component with a
+  single-root template used inside a `vuedraggable` `#item` slot must
+  never have a comment (or any other node) as a template-level sibling of
+  that root**; put explanatory comments in the `<script>` block instead.
+- **Gotcha #3**: a card's
+  width comes from `PicklistView.vue`'s `.unranked-grid > .unranked-card`
+  rule, which only matches while the card is an actual DOM child of
+  `.unranked-grid`. But cross-list dragging in the same SortableJS `group`
+  doesn't just show a visual clone — it **actually moves the real dragged
+  element** into whichever list you're currently hovering over, live, as
+  part of previewing the drop position. The instant it's moved into a
+  ranked tier's `.tier-section-body` (a `flex-direction: column` list whose
+  children stretch to full width by default), the parent-scoped width rule
+  stops matching, the card has no width of its own, and `aspect-ratio: 1`
+  blows its height up to match — visually, the dragged photo balloons to
+  fill almost the entire tier column while dragging. The fix is a
+  self-contained fallback `max-width: 140px` directly on `.unranked-card`
+  in `PicklistUnrankedCard.vue` itself (lower priority than the parent's
+  grid rule via specificity, so it only kicks in once the card has actually
+  left `.unranked-grid`). This is also why the section briefly considered
+  and reverted CSS `display: grid` for the layout instead of `flex-wrap`:
+  grid was a red herring — the size-loses-on-reparent bug reproduced either
+  way, and flex-wrap is also just more predictable with SortableJS's
+  index/swap math in general.
+
 ### Expanding a Team Row
 
 Tap or click any team row to expand it. The expanded view shows:
@@ -114,7 +200,8 @@ See [users.md](./users.md) for the full `User` table schema, roles, and role-man
 
 | File | Purpose |
 |---|---|
-| [`src/views/PicklistView.vue`](../src/views/PicklistView.vue) | Main picklist page — tabs, draggable list, expand/collapse |
+| [`src/views/PicklistView.vue`](../src/views/PicklistView.vue) | Main picklist page — tabs, draggable list, expand/collapse, the desktop two-column ranked/Unranked layout |
+| [`src/components/PicklistUnrankedCard.vue`](../src/components/PicklistUnrankedCard.vue) | Big square grid card for the Unranked section — collapsed shows photo/number/watch-star, click to expand to full stats/comments; drag via the `⠿` handle badge |
 | [`src/stores/picklist-store.ts`](../src/stores/picklist-store.ts) | Pinia store: list state, CRUD actions, democratic computation |
 | [`src/lib/picklist-query.ts`](../src/lib/picklist-query.ts) | All Supabase queries for the picklist feature |
 | [`src/stores/offline-queue-store.ts`](../src/stores/offline-queue-store.ts) | Persistent offline save queue (localStorage) |
