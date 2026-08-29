@@ -13,8 +13,34 @@ import fieldImage from "@/assets/2026-field.png";
                  when displayAlliance is blue, since the field is point-symmetric. -->
             <image :href="fieldImage" x="0" y="0" :width="VIEW_W" :height="VIEW_H" preserveAspectRatio="none"></image>
 
-            <!-- Single-path mode (editor / per-path card view). -->
-            <template v-if="!hasLayers">
+            <!-- Multi-path overlay mode (read-only context: Match Preview / Strategy Preview
+                 and Auto Edit's background). Each layer carries its own alliance so red and
+                 blue can render together on one canvas. -->
+            <template v-if="hasLayers">
+                <g v-for="layer in layers" :key="layer.key">
+                    <polyline v-if="layer.points.length > 1" :points="pointsToPolyline(layer.points, layer.alliance)"
+                        class="path-line" :style="{ stroke: layer.color }"></polyline>
+                    <circle v-if="layer.points.length > 0" v-bind="toView(layer.points[0], layer.alliance)" r="3.5"
+                        class="path-start" :style="{ fill: layer.color }"></circle>
+                </g>
+                <template v-for="m in animatedLayerMarkers" :key="`robot-${m.key}`">
+                    <clipPath v-if="m.photoUrl" :id="`${markerClipId}-${m.key}`">
+                        <rect :x="m.marker.cx - MARKER_PHOTO_SIZE / 2" :y="m.marker.cy - MARKER_PHOTO_SIZE / 2"
+                            :width="MARKER_PHOTO_SIZE" :height="MARKER_PHOTO_SIZE"></rect>
+                    </clipPath>
+                    <image v-if="m.photoUrl" :href="m.photoUrl" :x="m.marker.cx - MARKER_PHOTO_SIZE / 2"
+                        :y="m.marker.cy - MARKER_PHOTO_SIZE / 2" :width="MARKER_PHOTO_SIZE" :height="MARKER_PHOTO_SIZE"
+                        preserveAspectRatio="xMidYMid slice" :clip-path="`url(#${markerClipId}-${m.key})`"
+                        class="path-robot-photo"></image>
+                    <circle v-else v-bind="m.marker" r="6" class="path-robot" :style="{ fill: m.color }"></circle>
+                </template>
+            </template>
+
+            <!-- Single editable/viewable path (editor / per-path card view / Auto Edit's
+                 in-place new path). Renders whenever there's no layers overlay at all, OR
+                 (alongside the layers above) while actively editable — Auto Edit draws a new
+                 path in the context of the existing read-only layers. -->
+            <template v-if="editable || !hasLayers">
                 <template v-if="timeGradient && gradientSegments.length > 0">
                     <line v-for="(seg, idx) in gradientSegments" :key="idx" :x1="seg.x1" :y1="seg.y1" :x2="seg.x2"
                         :y2="seg.y2" class="path-line" :style="{ stroke: seg.color }"></line>
@@ -33,20 +59,18 @@ import fieldImage from "@/assets/2026-field.png";
                     <text v-if="displayPoints.length > 0" v-bind="labelPos(displayPoints[0])" class="path-label">Start</text>
                     <text v-if="displayPoints.length > 1" v-bind="labelPos(displayPoints[displayPoints.length - 1])" class="path-label">End</text>
                 </template>
-                <circle v-if="animatedMarker" v-bind="animatedMarker" r="6" class="path-robot"
-                    :style="{ fill: timeGradient ? pathTimeColor(markerColorFraction) : color }"></circle>
-            </template>
-
-            <!-- Multi-path overlay mode (Match Preview). -->
-            <template v-else>
-                <g v-for="layer in layers" :key="layer.key">
-                    <polyline v-if="layer.points.length > 1" :points="pointsToPolyline(layer.points)"
-                        class="path-line" :style="{ stroke: layer.color }"></polyline>
-                    <circle v-if="layer.points.length > 0" v-bind="toView(layer.points[0])" r="3.5" class="path-start"
-                        :style="{ fill: layer.color }"></circle>
-                </g>
-                <circle v-for="m in animatedLayerMarkers" :key="`robot-${m.key}`" v-bind="m.marker" r="6"
-                    class="path-robot" :style="{ fill: m.color }"></circle>
+                <template v-if="animatedMarker">
+                    <clipPath v-if="robotPhotoUrl" :id="markerClipId">
+                        <rect :x="animatedMarker.cx - MARKER_PHOTO_SIZE / 2" :y="animatedMarker.cy - MARKER_PHOTO_SIZE / 2"
+                            :width="MARKER_PHOTO_SIZE" :height="MARKER_PHOTO_SIZE"></rect>
+                    </clipPath>
+                    <image v-if="robotPhotoUrl" :href="robotPhotoUrl" :x="animatedMarker.cx - MARKER_PHOTO_SIZE / 2"
+                        :y="animatedMarker.cy - MARKER_PHOTO_SIZE / 2" :width="MARKER_PHOTO_SIZE" :height="MARKER_PHOTO_SIZE"
+                        preserveAspectRatio="xMidYMid slice" :clip-path="`url(#${markerClipId})`"
+                        class="path-robot-photo"></image>
+                    <circle v-else v-bind="animatedMarker" r="6" class="path-robot"
+                        :style="{ fill: timeGradient ? pathTimeColor(markerColorFraction) : color }"></circle>
+                </template>
             </template>
 
             <g v-if="editable && displayPoints.length === 0">
@@ -73,6 +97,11 @@ const VIEW_H = 300;
 // player stations) outside this rectangle, so path coordinates only ever
 // map into this sub-region, not the full canvas.
 const FIELD_BOUNDS = { left: 0.13113, right: 0.86874, top: 0.05278, bottom: 0.94691 };
+
+// Robot photo marker's square side length, in the same view-space units as
+// VIEW_W/VIEW_H. 0.8x of the original 3x-enlarged size (48) per issue #32
+// follow-up feedback.
+const MARKER_PHOTO_SIZE = 38;
 
 // Position along a polyline of already-view-space {cx, cy} points at time
 // fraction `t` (0..1), using each point's own recorded time rather than
@@ -193,6 +222,14 @@ export default {
         previewProgress: {
             type: Number,
             default: null
+        },
+        // Robot photo URL for the single-path marker (parent fetches via
+        // fetchRobotPhotoUrl — this component stays Supabase-free). Falls
+        // back to the flat-color circle when absent (team has no synced
+        // photo). Multi-path layers carry their own optional `photoUrl`.
+        robotPhotoUrl: {
+            type: String,
+            default: null
         }
     },
     emits: ["update:points", "finished", "progress"],
@@ -200,7 +237,12 @@ export default {
         return {
             VIEW_W,
             VIEW_H,
+            MARKER_PHOTO_SIZE,
             isDrawing: false,
+            // Unique per component instance so multiple canvases on one page
+            // (e.g. several AutoPathCards) don't collide on SVG clipPath ids,
+            // which are global to the document.
+            markerClipId: `robot-clip-${Math.random().toString(36).slice(2)}`,
             animProgress: 0,
             animStartTime: null,
             animFrame: null,
@@ -238,11 +280,22 @@ export default {
             if (!this.hasLayers || this.animProgress === 0 && !this.playing) return [];
             return this.layers
                 .filter((layer) => layer.points.length >= 2)
-                .map((layer) => ({
-                    key: layer.key,
-                    color: layer.color,
-                    marker: markerAtTime(layer.points, layer.points.map((p) => this.toView(p)), this.animProgress)
-                }));
+                .map((layer) => {
+                    // A delayed layer stays parked at its start point until
+                    // its own delay fraction of the animation has elapsed,
+                    // then plays out its remaining path compressed into the
+                    // remaining time — a visualization-only approximation
+                    // (duration itself doesn't extend for delayed layers).
+                    const layerT = layer.delayFraction > 0
+                        ? Math.max(0, (this.animProgress - layer.delayFraction) / Math.max(0.0001, 1 - layer.delayFraction))
+                        : this.animProgress;
+                    return {
+                        key: layer.key,
+                        color: layer.color,
+                        photoUrl: layer.photoUrl ?? null,
+                        marker: markerAtTime(layer.points, layer.points.map((p) => this.toView(p, layer.alliance)), layerT)
+                    };
+                });
         },
         // Colored by fixed RANK (point order), never by recorded time — so
         // editing timing on the timeline never repaints the path: "the red
@@ -290,11 +343,14 @@ export default {
     methods: {
         // Own-relative [0,1] point -> pixel position in the full field image,
         // rotating 180 degrees first when displaying for blue (see field-image
-        // comment above).
-        toView(p) {
+        // comment above). Accepts an optional per-call alliance override so
+        // multi-path layers mode can place red and blue layers together on
+        // one canvas without a canvas-wide displayAlliance prop — this stays
+        // the one place alliance-based rotation happens either way.
+        toView(p, alliance = this.displayAlliance) {
             let x = p.x;
             let y = p.y;
-            if (this.displayAlliance === allianceBlue) {
+            if (alliance === allianceBlue) {
                 x = 1 - x;
                 y = 1 - y;
             }
@@ -302,9 +358,9 @@ export default {
             const fy = FIELD_BOUNDS.top + y * (FIELD_BOUNDS.bottom - FIELD_BOUNDS.top);
             return { cx: fx * VIEW_W, cy: fy * VIEW_H };
         },
-        pointsToPolyline(points) {
+        pointsToPolyline(points, alliance = this.displayAlliance) {
             return points.map((p) => {
-                const { cx, cy } = this.toView(p);
+                const { cx, cy } = this.toView(p, alliance);
                 return `${cx},${cy}`;
             }).join(" ");
         },
@@ -410,10 +466,14 @@ export default {
             };
             this.animFrame = requestAnimationFrame(step);
         },
+        // Deliberately does NOT reset animProgress: the marker should stay
+        // parked wherever playback left it (its final position when a path
+        // finishes naturally, or wherever it was when manually stopped)
+        // instead of snapping back to the start. startAnimation() is the
+        // only place that resets progress to 0, for a fresh play-through.
         stopAnimation() {
             if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
             this.animFrame = null;
-            this.animProgress = 0;
         }
     }
 };
@@ -421,6 +481,7 @@ export default {
 
 <style scoped>
 .autopath-canvas {
+    position: relative;
     width: 100%;
     max-width: 480px;
 }
@@ -471,6 +532,10 @@ export default {
 .path-robot {
     stroke: #fff;
     stroke-width: 1.5;
+}
+
+.path-robot-photo {
+    stroke: #fff;
 }
 
 .empty-hint-bg {

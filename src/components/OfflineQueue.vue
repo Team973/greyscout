@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { upsertPersonalPicklist, upsertTeamPicklist } from '@/lib/picklist-query';
 import { submitScoutData, updateScoutData } from '@/lib/data-submission';
-import { matchScoutTable, pitScoutTable, autoPathTable } from '@/lib/constants';
+import { matchScoutTable, pitScoutTable, autoPathTable, strategyBoardTable } from '@/lib/constants';
 
 const queueStore = useOfflineQueueStore();
 const isOpen = ref(false);
@@ -50,6 +50,21 @@ const retryHandlers = {
             payload.data as Record<string, unknown>,
             payload.table as string
         );
+    },
+    // Same shape as scout_data ({ table, data, id }) — the strategy board's
+    // debounced auto-save reuses submitScoutData/updateScoutData directly.
+    strategy_board: async (payload: Record<string, unknown>) => {
+        if (payload.id != null) {
+            return await updateScoutData(
+                payload.id as number,
+                payload.data as Record<string, unknown>,
+                payload.table as string
+            );
+        }
+        return await submitScoutData(
+            payload.data as Record<string, unknown>,
+            payload.table as string
+        );
     }
 };
 
@@ -73,6 +88,7 @@ function typeLabel(item: { type: string; payload: Record<string, unknown> }) {
         if (item.payload?.table === autoPathTable) return 'Auto Path';
         return 'Scouting Data';
     }
+    if (item.type === 'strategy_board') return 'Strategy Board';
     return item.type;
 }
 

@@ -4,11 +4,13 @@ import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
 import AutoPathTimeline from "@/components/AutoPathTimeline.vue";
 import TextInput from "@/components/TextInput.vue";
 import Dropdown from "@/components/Dropdown.vue";
+import FullscreenTile from "@/components/FullscreenTile.vue";
 
 import { autoPathTable, allianceRed, sideLeft } from "@/lib/constants";
 import { ALLIANCE_CHOICES, SIDE_CHOICES } from "@/lib/2026/auto-path-field";
 import { submitScoutData, updateScoutData } from "@/lib/data-submission";
 import { fetchAutoPathById, deleteAutoPath } from "@/lib/auto-path-query";
+import { fetchRobotPhotoUrl } from "@/lib/robot-photo-query";
 import { useEventStore } from "@/stores/event-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 
@@ -18,7 +20,7 @@ import "@material/web/button/filled-button";
 <template>
     <div class="autopath-editor">
         <div v-if="!loaded">Loading…</div>
-        <template v-else>
+        <FullscreenTile v-else>
             <div class="autopath-form-row">
                 <TextInput v-model="name" label="Path Name" :required="true" :error="nameError"></TextInput>
             </div>
@@ -36,7 +38,7 @@ import "@material/web/button/filled-button";
 
             <AutoPathCanvas :points="points" :display-alliance="alliance" editable="true" large="true"
                 time-gradient="true" :playing="isPlaying" :preview-progress="canvasPreviewProgress"
-                @update:points="onPointsUpdate" @finished="isPlaying = false"
+                :robot-photo-url="robotPhotoUrl" @update:points="onPointsUpdate" @finished="isPlaying = false"
                 @progress="scrubProgress = $event"></AutoPathCanvas>
 
             <div class="autopath-preview-controls" v-if="points.length > 1">
@@ -65,7 +67,7 @@ import "@material/web/button/filled-button";
                 <md-filled-button v-on:click="cancel" class="cancel-button">CANCEL</md-filled-button>
                 <md-filled-button v-on:click="save" class="submit-button">SAVE</md-filled-button>
             </div>
-        </template>
+        </FullscreenTile>
     </div>
 </template>
 
@@ -93,6 +95,8 @@ export default {
             points: [],
             scrubProgress: 0,
             isPlaying: false,
+            autoPlayTimer: null,
+            robotPhotoUrl: null,
             nameError: false,
             pathError: false,
             isSubmitting: false,
@@ -116,6 +120,26 @@ export default {
             return this.isPlaying ? null : this.scrubProgress;
         }
     },
+    watch: {
+        // Auto-play a short idle period after the most recent point is
+        // drawn — there's no explicit "done drawing" signal in the data
+        // model (pointer-up is deliberately just a pause, not completion,
+        // per the continuous-path drawing design), so idle time after the
+        // last edit is the practical stand-in for "fully drawn." Only
+        // reschedules when points actually change, so it won't re-fire just
+        // because the scout manually stopped playback while idle.
+        points() {
+            clearTimeout(this.autoPlayTimer);
+            if (this.points.length > 1) {
+                this.autoPlayTimer = setTimeout(() => {
+                    if (!this.isPlaying) this.isPlaying = true;
+                }, 1200);
+            }
+        }
+    },
+    beforeUnmount() {
+        clearTimeout(this.autoPlayTimer);
+    },
     methods: {
         async load() {
             this.loaded = false;
@@ -132,12 +156,14 @@ export default {
                 }
             }
 
+            this.robotPhotoUrl = await fetchRobotPhotoUrl(this.teamNumber);
             this.loaded = true;
         },
         onPointsUpdate(newPoints) {
             this.points = newPoints;
         },
         resetPath() {
+            clearTimeout(this.autoPlayTimer);
             this.points = [];
             this.scrubProgress = 0;
             this.isPlaying = false;
