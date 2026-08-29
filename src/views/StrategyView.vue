@@ -621,7 +621,7 @@ export default {
     gap: 10px;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1000px) {
     .autopath-side-by-side {
         flex-direction: column;
         gap: 24px;
