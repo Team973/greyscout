@@ -6,7 +6,8 @@ import '@material/web/select/outlined-select';
 </script>
 
 <template>
-    <md-outlined-select class="choice-select" v-bind:display-text="getActiveChoice.text" :error="error">
+    <md-outlined-select class="choice-select" :key="modelValue" v-bind:display-text="getActiveChoice.text"
+        :error="error">
         <md-select-option v-for="choice, idx in choices" v-bind:selected="idx == modelValue" :key="choice.key"
             :ref="getActiveChoice.key" v-bind:aria-label="choice.text" @click="setChoice(idx)">
             <div slot="headline">{{ choice.text }}</div>

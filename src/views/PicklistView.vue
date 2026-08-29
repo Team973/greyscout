@@ -215,6 +215,15 @@ async function resetTeamFromDemocratic() {
     await saveList();
 }
 
+// ─── Reset Team List to empty ─────────────────────────────────────────────────
+
+const confirmingTeamReset = ref(false);
+async function resetTeamListEmpty() {
+    picklistStore.resetTeamList();
+    confirmingTeamReset.value = false;
+    await saveList();
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 function exportTeamListCsv() {
@@ -357,6 +366,22 @@ function toggleTierCollapse(group: string) {
                         title="Download the current team pick list as a CSV" @click="exportTeamListCsv">
                         ⬇ Export CSV
                     </button>
+                    <template v-if="activeTab === 'team' && !confirmingTeamReset">
+                        <button id="btn-reset-team-list" class="picklist-reset-btn picklist-reset-btn--danger"
+                            title="Clear the entire team pick list" @click="confirmingTeamReset = true">
+                            ✕ Reset Team List
+                        </button>
+                    </template>
+                    <template v-else-if="activeTab === 'team'">
+                        <span class="picklist-confirm-text">Clear the entire team list?</span>
+                        <button id="btn-cancel-team-reset" class="picklist-reset-btn" @click="confirmingTeamReset = false">
+                            Cancel
+                        </button>
+                        <button id="btn-confirm-team-reset" class="picklist-reset-btn picklist-reset-btn--danger"
+                            @click="resetTeamListEmpty">
+                            Yes, Clear It
+                        </button>
+                    </template>
                     <transition name="fade">
                         <span v-if="picklistStore.lastSaveSuccess" class="save-status save-status--ok">
                             ✓ Saved
@@ -661,6 +686,21 @@ function toggleTierCollapse(group: string) {
 .picklist-reset-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.picklist-reset-btn--danger {
+    color: #d32f2f;
+    border-color: #d32f2f;
+}
+
+.picklist-reset-btn--danger:hover:not(:disabled) {
+    background: rgba(211, 47, 47, 0.1);
+}
+
+.picklist-confirm-text {
+    font-size: 14px;
+    color: var(--primary-text-color);
+    margin-right: auto;
 }
 
 /* ── Tier sections ── */

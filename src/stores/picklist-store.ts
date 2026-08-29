@@ -234,6 +234,11 @@ export const usePicklistStore = defineStore('picklist', {
             this.teamTierSections = cloned;
         },
 
+        /** Clear the team list's tiers/order entirely. */
+        resetTeamList() {
+            this.teamTierSections = emptyTierSections();
+        },
+
         async savePersonalList(userId: string, eventId: string) {
             this.isSaving = true;
             this.lastSaveError = null;

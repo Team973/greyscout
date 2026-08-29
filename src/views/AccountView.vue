@@ -37,7 +37,7 @@ import { fetchAllUsers, updateUserRole } from "@/lib/user-query";
                         <td class="people-role">{{ person.role }}</td>
                         <td>
                             <select v-if="person.user_id !== authStore.currentUserId && allowedRoles(person.role).length > 0"
-                                :value="pendingRole[person.user_id] || ''"
+                                class="role-select" :value="pendingRole[person.user_id] || ''"
                                 @change="changeRole(person, $event.target.value)">
                                 <option disabled value="">Change role…</option>
                                 <option v-for="r in allowedRoles(person.role)" :key="r" :value="r">{{ r }}</option>
@@ -151,5 +151,25 @@ export default {
 
 .form-error {
     color: #c0392b;
+}
+
+.role-select {
+    display: block;
+    padding: 10px 8px;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    background-color: transparent;
+    color: var(--primary-text-color);
+    cursor: pointer;
+}
+
+.role-select:hover {
+    border-color: rgba(128, 128, 128, 0.6);
+}
+
+.role-select option {
+    color: initial;
+    background-color: initial;
 }
 </style>

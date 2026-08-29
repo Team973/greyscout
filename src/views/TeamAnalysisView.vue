@@ -13,7 +13,7 @@ import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import "@material/web/button/filled-button";
 import draggable from 'vuedraggable'
-import Dropdown from "@/components/Dropdown.vue";
+import SearchableDropdown from "@/components/SearchableDropdown.vue";
 import Tile from "@/components/Tile.vue";
 import PitScoutingSection from "@/components/PitScoutingSection.vue";
 import AutoPathEditor from "@/components/AutoPathEditor.vue";
@@ -35,7 +35,8 @@ import { minWidthForDesktop } from "@/lib/constants";
         <div v-if="teamLoaded && isDataAvailable">
             <!-- Only show this if the team data is loaded. -->
             <div class="team-select-row">
-                <Dropdown :choices="teamFilters" v-model="currentTeamIndex" @update:modelValue="setTeam"></Dropdown>
+                <SearchableDropdown :choices="teamFilters" :model-value="currentTeamNumber" placeholder="Search team…"
+                    @update:modelValue="setTeam"></SearchableDropdown>
                 <button v-if="isTeamWatched || isUserLead" type="button" class="watch-star"
                     :class="{ 'watch-star--active': isTeamWatched, 'watch-star--readonly': !isUserLead }"
                     :disabled="!isUserLead" @click="toggleTeamWatch"
@@ -159,7 +160,7 @@ export default {
             photoCacheBust: 0,
             teamPhotoUploading: false,
             teamFilters: [],
-            currentTeamIndex: 0,
+            currentTeamNumber: null,
             currentLayout: [],
             tileModelList: [],
             teamComments: [],
@@ -287,6 +288,10 @@ export default {
                 this.teamFilters.push(teamMap[element])
             });
 
+            if (!this.teamFilters.some(t => t.key === this.currentTeamNumber)) {
+                this.currentTeamNumber = this.teamFilters[0]?.key ?? null;
+            }
+
             this.getRobotPhoto();
         },
         async refreshTiles() {
@@ -350,14 +355,10 @@ export default {
             this.currentLayout = newLayout;
         },
         getTeamNumber() {
-            if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
-                return -1;
-            }
-
-            return this.teamFilters[this.currentTeamIndex].key;
+            return this.currentTeamNumber ?? -1;
         },
-        setTeam(idx: int) {
-            this.currentTeamIndex = idx;
+        setTeam(teamNumber) {
+            this.currentTeamNumber = teamNumber;
             this.photoCacheBust = 0;
 
             // Switching teams always drops any in-progress auto-path form back to view mode.
@@ -425,13 +426,12 @@ export default {
             return this.photoCacheBust ? `${this.teamPhotoUrl}?v=${this.photoCacheBust}` : this.teamPhotoUrl;
         },
         getCurrentTeam() {
-            if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
-                return {};
-            }
-
-            return this.teamFilters[this.currentTeamIndex];
+            return this.teamFilters.find((t) => t.key === this.currentTeamNumber) ?? {};
         },
         isUserWriteAccess() {
+            // Robot photo upload and auto-path add/edit are Member+, same as
+            // pit scouting data on this page (PitScoutingSection gates its
+            // own edits at Member+ independently).
             return this.authStore.isWriteAuthorized;
         },
         isUserLead() {
@@ -443,11 +443,7 @@ export default {
             return this.watchlistStore.isWatched(teamNumber);
         },
         teamNumber() {
-            if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
-                return -1;
-            }
-
-            return this.teamFilters[this.currentTeamIndex].key;
+            return this.currentTeamNumber ?? -1;
         }
     },
     created() {

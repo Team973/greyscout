@@ -11,6 +11,7 @@ import "@material/web/chips/chip-set";
 import "@material/web/chips/filter-chip";
 
 import Dropdown from "@/components/Dropdown.vue";
+import SearchableDropdown from "@/components/SearchableDropdown.vue";
 import ResizableList from "@/components/ResizableList.vue";
 import Chart from "@/components/charts/Chart.vue";
 
@@ -40,8 +41,8 @@ import { defaultTeamNumber, minWidthForDesktop, teamNumberColumn, matchNumberCol
         </div>
         <div>
             <div v-if="isTeamNumbersReady && isTeamNumberRequired">
-                Team: <Dropdown :choices="teamNumbers" v-model="activeTeamNumberIndex" @update:modelValue="setTeamNumber">
-                </Dropdown>
+                Team: <SearchableDropdown :choices="teamNumbers" v-model="activeTeamNumber" placeholder="Search team…"
+                    @update:modelValue="setTeamNumber"></SearchableDropdown>
             </div>
 
             Independent: <Dropdown :choices="independentColumns" v-model="activeIndependentColumnIndex"
@@ -149,7 +150,7 @@ export default {
             activeAggregationTypeIndex: 0,
             teamNumbers: [],
             matchNumbers: [],
-            activeTeamNumberIndex: 0,
+            activeTeamNumber: defaultTeamNumber,
             independentColumns: [
                 { key: matchNumberColumn, text: "Match Number" },
                 { key: teamNumberColumn, text: "Team Number" }
@@ -236,8 +237,8 @@ export default {
             this.activeAggregationTypeIndex = index;
             this.loadNewData();
         },
-        setTeamNumber(index: int) {
-            this.activeTeamNumberIndex = index;
+        setTeamNumber(teamNumber) {
+            this.activeTeamNumber = teamNumber;
             this.loadNewData();
         },
         toggleChip(index: int) {
@@ -314,6 +315,9 @@ export default {
             Object.keys(teamMap).forEach(element => {
                 this.teamNumbers.push(teamMap[element])
             });
+            if (!this.teamNumbers.some(t => t.key === this.activeTeamNumber)) {
+                this.activeTeamNumber = this.teamNumbers[0]?.key ?? defaultTeamNumber;
+            }
             this.isTeamNumbersReady = true;
 
             this.loadNewData();
@@ -433,7 +437,7 @@ export default {
             if (!this.isTeamNumbersReady) {
                 return defaultTeamNumber;
             }
-            return this.teamNumbers[this.activeTeamNumberIndex].key;
+            return this.activeTeamNumber ?? defaultTeamNumber;
         }
 
     },

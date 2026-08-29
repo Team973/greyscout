@@ -27,15 +27,15 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
             </template>
             <template v-slot:menu-content>
                 <!-- <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink> -->
-                <RouterLink to="/schedule" class="nav-link nav-link-mobile">Schedule</RouterLink>
-                <RouterLink to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
-                <RouterLink to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
+                <RouterLink v-if="isMember" to="/schedule" class="nav-link nav-link-mobile">Schedule</RouterLink>
+                <RouterLink to="/data-status" class="nav-link nav-link-mobile">Data Status</RouterLink>
+                <RouterLink v-if="isMember" to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
+                <RouterLink v-if="isMember" to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
-                <RouterLink to="/strategy" class="nav-link nav-link-mobile">Strategy</RouterLink>
-                <RouterLink to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
+                <RouterLink v-if="isMember" to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
+                <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile">Strategy</RouterLink>
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
-                <RouterLink to="/data-status" class="nav-link nav-link-mobile">Data Status</RouterLink>
                 <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
             </template>
         </HamburgerMenu>
@@ -60,15 +60,15 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
     </div>
     <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else-if="!viewMode?.isMobile && isLoggedIn">
         <!-- <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink> -->
-        <RouterLink to="/schedule" class="nav-link">Schedule</RouterLink>
-        <RouterLink to="/match" class="nav-link">Match Scouting</RouterLink>
-        <RouterLink to="/pit" class="nav-link">Pit Scouting</RouterLink>
+        <RouterLink v-if="isMember" to="/schedule" class="nav-link">Schedule</RouterLink>
+        <RouterLink to="/data-status" class="nav-link">Data Status</RouterLink>
+        <RouterLink v-if="isMember" to="/pit" class="nav-link">Pit Scouting</RouterLink>
+        <RouterLink v-if="isMember" to="/match" class="nav-link">Match Scouting</RouterLink>
         <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
-        <RouterLink to="/strategy" class="nav-link">Strategy</RouterLink>
-        <RouterLink to="/picklist" class="nav-link">Pick List</RouterLink>
+        <RouterLink v-if="isMember" to="/picklist" class="nav-link">Pick List</RouterLink>
+        <RouterLink v-if="isLead" to="/strategy" class="nav-link">Strategy</RouterLink>
         <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
-        <RouterLink to="/data-status" class="nav-link">Data Status</RouterLink>
 
         <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
             <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
@@ -154,6 +154,12 @@ export default {
         },
         isWriteAccess() {
             return this.authStore?.isWriteAuthorized;
+        },
+        isMember() {
+            return this.authStore?.isMember;
+        },
+        isLead() {
+            return this.authStore?.isLead;
         }
     },
     methods: {

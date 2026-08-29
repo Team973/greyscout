@@ -18,7 +18,7 @@ import AccountView from "@/views/AccountView.vue";
 import PicklistView from "@/views/PicklistView.vue";
 import DataStatusView from "@/views/DataStatusView.vue";
 import ScoutScheduleView from "@/views/ScoutScheduleView.vue";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAuthStore, roleRank } from "@/stores/auth-store";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -49,7 +49,8 @@ const router = createRouter({
       name: "Match Scouting | GreyScout",
       component: MatchScoutView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
       }
     },
     {
@@ -57,7 +58,8 @@ const router = createRouter({
       name: "Team Analysis | GreyScout",
       component: TeamAnalysisView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'observer'
       }
     },
     {
@@ -65,7 +67,8 @@ const router = createRouter({
       name: "Pit Scouting | GreyScout",
       component: PitScoutingView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
       }
     },
     {
@@ -81,7 +84,8 @@ const router = createRouter({
       name: "Strategy | GreyScout",
       component: StrategyView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'lead'
       }
     },
     {
@@ -120,7 +124,8 @@ const router = createRouter({
       name: "Pick List | GreyScout",
       component: PicklistView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
       }
     },
     {
@@ -128,7 +133,8 @@ const router = createRouter({
       name: "Data Status | GreyScout",
       component: DataStatusView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'observer'
       }
     },
     {
@@ -136,7 +142,8 @@ const router = createRouter({
       name: "Schedule | GreyScout",
       component: ScoutScheduleView,
       meta: {
-        requiresAuth: isSiteReadPrivate
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
       }
     }
   ],
@@ -153,6 +160,18 @@ router.beforeEach(async (to, from, next) => {
   if (isSiteReadPrivate && to.meta.requiresAuth && !authStore.isUserLoggedIn) {
     next('/login');
     return;
+  }
+
+  if (to.meta.minRole) {
+    const rank = authStore.role ? roleRank[authStore.role] : -1;
+    if (rank < roleRank[to.meta.minRole]) {
+      // Every role can reach Data Status — redirecting there (rather than
+      // "/", which renders a login form even for an already-logged-in user)
+      // avoids a confusing re-login prompt for someone who's just lacking
+      // a permission, not a session.
+      next('/data-status');
+      return;
+    }
   }
 
   document.title = to.name;
