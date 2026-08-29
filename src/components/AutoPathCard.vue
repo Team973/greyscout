@@ -2,6 +2,7 @@
 // @ts-nocheck
 import AutoPathCanvas from "@/components/AutoPathCanvas.vue";
 import Dropdown from "@/components/Dropdown.vue";
+import FullscreenTile from "@/components/FullscreenTile.vue";
 
 import { ALLIANCE_CHOICES, SIDE_CHOICES, transformPath } from "@/lib/2026/auto-path-field";
 
@@ -10,39 +11,47 @@ import "@material/web/button/filled-button";
 
 <template>
     <li class="autopath-card">
-        <div class="autopath-card-header">
-            <span class="autopath-name">{{ path.name }}</span>
-            <span v-if="isEffectivelyDefault" class="autopath-default-badge">★ Default</span>
-            <span class="autopath-author">by {{ path.author }}</span>
-        </div>
+        <FullscreenTile>
+            <div class="autopath-card-header">
+                <span class="autopath-name">{{ path.name }}</span>
+                <span v-if="isEffectivelyDefault" class="autopath-default-badge">★ Default</span>
+                <span class="autopath-author">by {{ path.author }}</span>
+            </div>
 
-        <AutoPathCanvas :points="displayPoints" :display-alliance="viewAlliance" :editable="false" large="true"
-            :color="cardColor" :playing="isPlaying" @finished="isPlaying = false"></AutoPathCanvas>
+            <AutoPathCanvas :points="displayPoints" :display-alliance="viewAlliance" :editable="false" large="true"
+                :color="cardColor" :playing="isPlaying" :robot-photo-url="robotPhotoUrl"
+                @finished="isPlaying = false"></AutoPathCanvas>
 
-        <div class="autopath-view-controls">
-            <span class="autopath-view-label">View as:</span>
-            <Dropdown :choices="ALLIANCE_CHOICES" v-model="viewAllianceIndex"></Dropdown>
-            <Dropdown :choices="SIDE_CHOICES" v-model="viewSideIndex"></Dropdown>
-            <md-filled-button v-on:click="togglePlay" class="play-button">
-                {{ isPlaying ? "■ STOP" : "▶ PLAY" }}
-            </md-filled-button>
-        </div>
+            <div class="autopath-view-controls">
+                <span class="autopath-view-label">View as:</span>
+                <Dropdown :choices="ALLIANCE_CHOICES" v-model="viewAllianceIndex"></Dropdown>
+                <Dropdown :choices="SIDE_CHOICES" v-model="viewSideIndex"></Dropdown>
+                <md-filled-button v-on:click="togglePlay" class="play-button">
+                    {{ isPlaying ? "■ STOP" : "▶ PLAY" }}
+                </md-filled-button>
+            </div>
 
-        <div class="autopath-card-actions" v-if="canEdit">
-            <md-filled-button v-if="!isEffectivelyDefault" v-on:click="$emit('set-default', path.id)"
-                class="default-button">SET AS DEFAULT</md-filled-button>
-            <md-filled-button v-on:click="$emit('edit', path.id)">EDIT</md-filled-button>
-        </div>
+            <div class="autopath-card-actions" v-if="canEdit">
+                <md-filled-button v-if="!isEffectivelyDefault" v-on:click="$emit('set-default', path.id)"
+                    class="default-button">SET AS DEFAULT</md-filled-button>
+                <md-filled-button v-on:click="$emit('edit', path.id)">EDIT</md-filled-button>
+            </div>
+        </FullscreenTile>
     </li>
 </template>
 
 <script lang="ts">
 import { allianceRed, sideLeft } from "@/lib/constants";
+import { fetchRobotPhotoUrl } from "@/lib/robot-photo-query";
 
 export default {
     props: {
         path: {
             type: Object,
+            required: true
+        },
+        teamNumber: {
+            type: Number,
             required: true
         },
         canEdit: {
@@ -66,6 +75,7 @@ export default {
             viewAllianceIndex: 0,
             viewSideIndex: 0,
             isPlaying: false,
+            robotPhotoUrl: null,
             ALLIANCE_CHOICES,
             SIDE_CHOICES
         };
@@ -89,11 +99,12 @@ export default {
             return this.path.isDefault || this.isOnlyPath;
         }
     },
-    created() {
+    async created() {
         this.viewAllianceIndex = ALLIANCE_CHOICES.findIndex((c) => c.key === this.path.alliance);
         if (this.viewAllianceIndex < 0) this.viewAllianceIndex = 0;
         this.viewSideIndex = SIDE_CHOICES.findIndex((c) => c.key === this.path.side);
         if (this.viewSideIndex < 0) this.viewSideIndex = 0;
+        this.robotPhotoUrl = await fetchRobotPhotoUrl(this.teamNumber);
     }
 };
 </script>

@@ -2,7 +2,11 @@
 
 Implements [issue #14](https://github.com/Team973/greyscout/issues/14): scouts can draw a
 team's autonomous path on a field map, save it, and later preview how up to
-three teams' autos fit together on the same alliance.
+three teams' autos fit together on the same alliance. [Issue #32](https://github.com/Team973/greyscout/issues/32)
+added editor/viewer polish (fullscreen, auto-play, a robot-photo marker) and
+merged the old separate "Match Preview" page into a single **Strategy**
+view (`/strategy`) with three modes — Preview, Auto Edit, and Whiteboard —
+described below.
 
 ## Overview
 
@@ -10,7 +14,9 @@ three teams' autos fit together on the same alliance.
 |---|---|
 | Drawing a path | **Team Analysis** → "Auto Paths" section, below Pit Scouting |
 | Viewing/flipping a saved path | Same section — each saved path is a card with its own alliance/side "view as" toggle |
-| Combining several teams' autos | **Match Preview** (`/match-preview`) — new "Auto Path Preview" tile under each alliance |
+| Combining several teams' autos | **Strategy** (`/strategy`, formerly "Match Preview") → Preview mode — one combined field showing all 6 teams at once |
+| Drawing a new auto path in match context | **Strategy** → Auto Edit mode |
+| Freehand whiteboard strategy per match | **Strategy** → Whiteboard mode (see "Strategy Mode (Whiteboard)" below) |
 
 The field background is the real 2026 field overlay
 (`src/assets/2026-field.png`, provided by the team). It depicts the field
@@ -115,12 +121,15 @@ straight through — optionally side-mirrored via `transformPath` — and let
 
 | File | Purpose |
 |---|---|
-| [`src/components/AutoPathCanvas.vue`](../src/components/AutoPathCanvas.vue) | The field SVG, background image is `src/assets/2026-field.png`. Two modes: single editable/viewable path (`points`/`color` props), or a read-only multi-path overlay (`layers` prop: `[{ key, points, color }]`) used by Match Preview. Drawing uses Pointer Events (`touch-action: none`) so mouse, touch, and pen all work the same way. Also owns per-point time recording and time-relative playback — see "Timing" below. |
+| [`src/components/AutoPathCanvas.vue`](../src/components/AutoPathCanvas.vue) | The field SVG, background image is `src/assets/2026-field.png`. Two rendering blocks that can now render *simultaneously*: a read-only multi-path overlay (`layers` prop: `[{ key, points, color, alliance, photoUrl?, delayFraction? }]`, each layer carrying its own alliance so red and blue combine on one canvas — see "Strategy Preview" below) and a single editable/viewable path (`points`/`color`/`editable` props), the latter used both standalone (Editor/Card) and as the "draw a new path in context" overlay in Auto Edit mode. Drawing uses Pointer Events (`touch-action: none`) so mouse, touch, and pen all work the same way. Also owns per-point time recording and time-relative playback (see "Timing" below), and a `robotPhotoUrl`/`layers[].photoUrl`-driven marker (a `MARKER_PHOTO_SIZE`-square clipped photo instead of a circle, falling back to the circle when no photo is synced). Has **no fullscreen logic of its own** — that lives in `FullscreenTile.vue`, one level up (see below). `stopAnimation()` deliberately does not reset `animProgress` on stop, so the marker stays parked wherever playback left it (its final position on natural completion, or wherever it was when manually stopped) instead of snapping back to the start; only `startAnimation()` resets progress, for a fresh play-through. |
 | [`src/components/AutoPathTimeline.vue`](../src/components/AutoPathTimeline.vue) | The scrub/timing-adjustment bar rendered below the canvas in the editor — see "Timing" below. |
-| [`src/components/AutoPathEditor.vue`](../src/components/AutoPathEditor.vue) | Create/edit form: name, alliance/side dropdowns, the canvas, the timeline, Reset/Save/Cancel/Delete. Reuses `submitScoutData`/`updateScoutData` from `data-submission.ts` (same as pit scouting) so a failed save enqueues into the existing offline-queue FAB instead of a bespoke path. |
-| [`src/components/AutoPathCard.vue`](../src/components/AutoPathCard.vue) | Read-only list card for Team Analysis: renders a saved path plus an alliance/side "view as" toggle (backed by `transformPath`), a default-auto badge/button, and an Edit button. |
+| [`src/components/FullscreenTile.vue`](../src/components/FullscreenTile.vue) | Generic fullscreen wrapper: a `<div>` + toggle button using the Fullscreen API on itself, exposed via a default `<slot>`. Wraps an entire tile's content (heading, dropdowns, canvas, buttons) in `AutoPathEditor.vue`, `AutoPathCard.vue`, and `StrategyView.vue`'s combined Preview/Auto Edit/Whiteboard tile, so fullscreen covers every control for whichever mode is active — not just an inner canvas. |
+| [`src/components/AutoPathEditor.vue`](../src/components/AutoPathEditor.vue) | Create/edit form: name, alliance/side dropdowns, the canvas, the timeline, Reset/Save/Cancel/Delete — wrapped in `FullscreenTile`. Reuses `submitScoutData`/`updateScoutData` from `data-submission.ts` (same as pit scouting) so a failed save enqueues into the existing offline-queue FAB instead of a bespoke path. Auto-plays ~1.2s after the most recent point is drawn (a `watch` on `points` with a debounce timer) — there's no true "done drawing" signal in the data model (pointer-up is deliberately just a pause, see "Continuous-path drawing" below), so idle time is the practical stand-in for "fully drawn." |
+| [`src/components/AutoPathCard.vue`](../src/components/AutoPathCard.vue) | Read-only list card for Team Analysis: renders a saved path plus an alliance/side "view as" toggle (backed by `transformPath`), a default-auto badge/button, and an Edit button — wrapped in `FullscreenTile`. Takes a `teamNumber` prop to fetch that team's robot photo for the marker. |
+| [`src/components/ColorSwatchPicker.vue`](../src/components/ColorSwatchPicker.vue) | Click-to-pick row of color blocks (`choices: {key, text, hex}[]`, index-based `v-model`) — used in `StrategyView.vue`'s Red/Blue Alliance tiles so a scout can choose a team's color from a fixed 8-color palette instead of a text dropdown. |
 | [`src/lib/2026/auto-path-field.ts`](../src/lib/2026/auto-path-field.ts) | `transformPath()`, the alliance/side dropdown choice lists, and the timing helpers `pointTime()`/`pathTimeColor()` shared by the canvas and timeline. |
 | [`src/lib/auto-path-query.ts`](../src/lib/auto-path-query.ts) | Supabase queries: `fetchTeamAutoPaths`, `fetchAutoPathById`, `deleteAutoPath`, `setAutoPathDefault`. |
+| [`src/lib/robot-photo-query.ts`](../src/lib/robot-photo-query.ts) | `fetchRobotPhotoUrl(teamNumber)` — single-team robot photo lookup for the playback marker. `null` on failure/absence so callers fall back to the flat-color circle. |
 
 The editor, card, and Match Preview overlay canvases all render at `large`
 size (`AutoPathCanvas`'s `large` prop drops its `max-width` cap entirely),
@@ -316,44 +325,174 @@ enforced in `AutoPathCard.vue`/`TeamAnalysisView.vue`:
   as part of setting the new one. The "Set as Default" button simply
   doesn't render on whichever path is already effectively default.
 
-## Match Preview
+## Strategy view (`/strategy`, formerly Match Preview)
 
-`MatchPreviewView.vue` already existed but was effectively dead — its nav
+`MatchPreviewView.vue` originally existed but was effectively dead — its nav
 links were commented out in `NavBar.vue`, **and its route was registered
 at `/match`, silently shadowed by Match Scouting's identical `/match`
-route.** Both are fixed as part of this work: the route moved to
-`/match-preview`, and the nav links were uncommented. The old per-alliance
-"highlights" stat tile was removed — it never actually rendered anything,
-since its data source (`getAllianceOverview`'s `highlightColumns`) is an
-empty stub — along with the now-dead `teamsData` aggregation, `queryEventData`/`aggregateData`
+route.** Both were fixed early on: the route moved to `/match-preview`, and
+the nav links were uncommented. The old per-alliance "highlights" stat tile
+was removed — it never actually rendered anything, since its data source
+(`getAllianceOverview`'s `highlightColumns`) is an empty stub — along with
+the now-dead `teamsData` aggregation, `queryEventData`/`aggregateData`
 calls, and `allianceHighlights`/`getTeamNumbers` methods that fed it.
 
-Each alliance tile (Red/Blue) has an "Auto Path Preview" sub-tile:
-- A color swatch next to each team-selector dropdown too (not just the
-  auto-path row), so it's easy to see at a glance which color belongs to
-  which teammate slot.
-- Two dropdowns per teammate slot: which of that team's saved auto paths
-  to preview (populated via `fetchTeamAutoPaths`, refreshed whenever that
-  slot's team changes; each option's text is prefixed with the team
-  number, e.g. `"973 - Left Corner Auto"`), and which side (left/right) to
-  preview it as. Picking a team pre-selects their **default** auto (see
-  above) instead of "No Auto Selected"; picking an auto path resets the
-  side dropdown to that path's own recorded side, which can then be
-  flipped independently.
-- A single `AutoPathCanvas` in overlay (`layers`) mode draws all three
-  selected paths on one field. Side is applied via `transformPath` (the
-  one legitimate use of it outside the card); the tile's fixed
-  `display-alliance` ("red" or "blue") alone places all three consistently
-  on that alliance, even if a given path was originally recorded under the
-  other alliance.
-- Each slot keeps a stable color *within* its own alliance tile, but the
-  two tiles use **separate palettes** (`autoPathSlotColorsRed` /
-  `autoPathSlotColorsBlue` in `MatchPreviewView.vue`) rather than one
-  shared-by-position palette: paths cluster near their own tile's wall, and
-  blue/purple read poorly against the field art's blue tower on the Blue
-  tile, so that tile swaps in orange/green/magenta instead. This means a
-  slot's color is no longer guaranteed to match between the Red and Blue
-  tiles — a deliberate readability trade-off.
+[Issue #32](https://github.com/Team973/greyscout/issues/32) renamed the view
+to `StrategyView.vue` at route `/strategy` ("Strategy" in the nav) and added
+a 3-way mode toggle (`strategyMode: 'preview' | 'autoEdit' | 'whiteboard'`)
+above the team-assignment tiles. Match number entry, schedule auto-fill
+(`applyScheduleTeams`/`queryMatchTeams`), and Manual Team Selection are
+unchanged and apply across all three modes.
+
+### One shared tile for all three modes
+
+Preview, Auto Edit, and Whiteboard all render inside **one** `FullscreenTile`
+(mode toggle at the top, mode-specific content below) rather than separate
+tiles — switching modes never means scrolling away from the field, and
+fullscreen covers whichever mode's controls are currently showing. The
+field itself is full tile width (`.autopath-canvas-full`); per-slot controls
+render in **two columns below it** (red left, blue right — still lined up
+by alliance) rather than flanking/narrowing the canvas. Note: the shared
+`.data-tile` class is a centered flex column (`align-items: center`), which
+shrink-wraps block children to their content width by default —
+`align-self: stretch` on the specific full-width sections
+(`.autopath-canvas-full`, `.autopath-side-by-side`, `.strategy-board-content`)
+opts them back into filling the tile.
+
+### Preview mode
+
+Replaces the old two-canvas (one per alliance) layout with a **single
+combined canvas** showing all 6 teams' autos at once:
+- One control group per slot (in the two-column layout above): which saved
+  auto path to preview, which side to view it as, and a **Delay (s)**
+  `NumberInput` — a visualization-only stagger, not persisted to the DB (no
+  "delay" column exists on `AutoPath`). A delayed layer's marker stays
+  parked at its start point until its delay fraction of the animation has
+  elapsed, then plays its remaining path compressed into the remaining
+  time — see `layer.delayFraction` handling in `AutoPathCanvas`'s
+  `animatedLayerMarkers`. This is a deliberate simplification (total
+  playback `duration` doesn't extend for delayed layers).
+- Two **Show Red / Show Blue** switches (`Switch.vue`, same pattern as
+  Manual Team Selection), plus the single **Play/Stop** button, sit below
+  the field (not above it) and filter which alliance's layers are included
+  in the `combinedLayers` computed before it's handed to the canvas.
+- To combine both alliances on one canvas, `layers[]` entries gained a
+  per-entry `alliance` field, and `AutoPathCanvas.toView()`/`pointsToPolyline()`
+  now accept an optional per-call alliance override (defaulting to the
+  `display-alliance` prop) instead of relying solely on one canvas-wide
+  prop. This keeps the architectural invariant from "Coordinate frame"
+  above intact — alliance-based rotation still happens in exactly one
+  place (`toView`), just parameterized per layer instead of per canvas.
+  Side, unlike alliance, is still a real mirror applied via `transformPath`
+  before points reach the canvas.
+- Each of the 6 slots has a **user-chosen color** (`ColorSwatchPicker.vue`
+  in the Red/Blue Alliance tiles, backed by a fixed 8-color palette — red,
+  orange, yellow, green, blue, purple, magenta, white — defaulting to the
+  first 6 for automatic distinctness). `StrategyView.slotColor(slot)` looks
+  up the chosen color's hex by index; this replaced the earlier fixed
+  per-alliance palette approach.
+- Each layer also carries an optional `photoUrl` (fetched per slot via
+  `fetchRobotPhotoUrl` whenever that slot's team changes) so the combined
+  canvas's markers show robot photos too, same as the single-path viewer.
+
+### Auto Edit mode
+
+Draws a brand-new auto path in place, in the context of the Preview mode's
+read-only layers. This needed `AutoPathCanvas`'s template to stop
+treating `layers` and `editable`/`points` as mutually exclusive — they now
+render as two independent blocks, so a read-only multi-team overlay and one
+actively-drawn path can be shown simultaneously. A slot selector picks which
+of the 6 teams the new path belongs to (driving `display-alliance` and
+`alliance` for the save); Side and Path Name fields sit alongside it. Saving
+mirrors `AutoPathEditor.save()` exactly — `submitScoutData(data, autoPathTable)`,
+falling back to the same `queueStore.enqueue('scout_data', ...)` offline
+path on failure — then refreshes that slot's dropdown via
+`loadAutoPathChoices()` and clears the draw canvas.
+
+**Default naming** (`autoEditDefaultName()`): `` `Match ${matchNumber} Path` ``
+when teams are schedule-driven (not manually selected) and a match number
+is entered; **blank** when Manual Team Selection is on, since a hand-picked
+match number may not correspond to a real scheduled match, so naming from it
+would be misleading — the scout types their own name instead. A `watch` on
+`matchNumber`/`manualTeamSelection` (`refreshAutoEditDefaultName()`) keeps
+the name in sync as either changes, but only while the current name still
+equals the *last auto-applied* default (`previousAutoEditDefault`) — so it
+won't clobber a name the scout has already typed over.
+
+---
+
+## Strategy Mode (Whiteboard)
+
+The third mode: a freehand whiteboard for match strategy, one board per
+match (`event` + `match_number`), auto-saved on every edit. Deliberately
+**not** built on `AutoPathCanvas` — the data model and drawing semantics are
+different enough (non-continuous per-team strokes, no timing/playback) that
+sharing would fight that component's continuous-path architecture. Scope
+for v1 (per product decision when implementing issue #32): freehand
+strokes only, no text/action annotations.
+
+### Data model
+
+New `StrategyBoard` table (migrations
+[`20260828120000_add_strategyboard.sql`](../supabase/migrations/20260828120000_add_strategyboard.sql)
++ [`20260828120500_add_strategyboard_unique.sql`](../supabase/migrations/20260828120500_add_strategyboard_unique.sql),
+same RLS/grant pattern as `AutoPath`):
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `bigint` (PK, identity) | |
+| `created_at` / `updated_at` | `timestamptz` | Default `now()` |
+| `event` | `text` | |
+| `match_number` | `smallint` | |
+| `scouted_by` | `uuid` | FK → `User.user_id`, default `auth.uid()` |
+| `board` | `jsonb` | Array of `{ slot, strokes: {x,y}[][] }` — see below |
+
+A real (non-partial) unique index, `strategyboard_match_unique` on
+`(event, match_number)`, enforces exactly one board per match — unlike
+`AutoPath`'s "at most one default," every match gets at most one board, no
+clear-before-set dance needed.
+
+**No alliance-relative reframing.** Unlike `AutoPath`, a strategy board's
+points are drawn directly onto the real, fixed-orientation field (red
+always left, blue always right in `2026-field.png`) — there's no
+"own-relative + `toView` flip" concept to replicate, since a board isn't
+reused across alliances/sides the way a single team's auto path is.
+`StrategyCanvas.vue` places points with the same `FIELD_BOUNDS` math as
+`AutoPathCanvas`, just without any alliance parameter at all.
+
+**Non-continuous, per-team strokes.** `board` is keyed by slot (0-5, same
+slot numbering as Preview/Auto Edit), each holding an array of independent
+strokes (`{x,y}[][]`) rather than one flat point array. This is the literal
+inverse of `AutoPathCanvas.onPointerUp`'s "never clear the buffer" behavior
+(see "Continuous-path drawing" above): `StrategyCanvas.onPointerDown`
+starts a *new* stroke for the active slot; `onPointerUp` really does end
+it. No per-point timing (`t`) — there's no playback in Whiteboard mode.
+
+### Components and flow
+
+- [`src/lib/strategy-query.ts`](../src/lib/strategy-query.ts) —
+  `fetchStrategyBoard(eventId, matchNumber)` → `{id, board}` or
+  `{id: null, board: []}` if none exists yet. No bespoke insert/update; like
+  every other domain, writes reuse `submitScoutData`/`updateScoutData` from
+  `data-submission.ts`.
+- [`src/components/StrategyCanvas.vue`](../src/components/StrategyCanvas.vue) —
+  the field SVG + drawing logic described above. Emits `update:board` with
+  the whole updated array on every new point; owns no persistence itself.
+- [`src/components/StrategyBoard.vue`](../src/components/StrategyBoard.vue) —
+  the mode-level component: team/slot selector + palette (same
+  `autoPathSlotColorsRed`/`Blue` as Preview/Auto Edit, for visual
+  consistency across all three modes), a per-team "Clear Strokes" button
+  (necessary given strokes have no other undo once drawn), and the
+  debounced (~800ms) auto-save watcher on `board`. First save for a match
+  needs the new row's `id` for subsequent updates — since
+  `submitScoutData` doesn't return inserted data, it re-calls
+  `fetchStrategyBoard` once right after a successful first insert.
+- Offline support: `useOfflineQueueStore`'s `QueueItem['type']` union gained
+  `'strategy_board'`, with the same dedup-on-enqueue pattern as the
+  `picklist_*` types (keyed by `event` + `match_number` instead of
+  `userId`/`eventId`), and `OfflineQueue.vue` registered a retry handler for
+  the new type (identical shape to the existing `scout_data` handler, since
+  the payload is the same `{table, data, id}`).
 
 ---
 
@@ -408,6 +547,65 @@ this was checked specifically because the CSS-transition marker-smoothing
 approach mentioned above had briefly broken that sync before being reverted
 in favor of the `MIN_REGION_T` fix.
 
+**Issue #32** (editor polish + Strategy view merge) was verified live via
+Claude-in-Chrome, logged in as the test account: drew and saved an auto
+path, confirmed auto-play fires ~1.2s after drawing pauses (both in the
+Editor and again on opening an existing path for edit — a byproduct of
+`points` being the only available "changed" signal, not something worth
+adding a one-shot flag to suppress), confirmed the robot-photo marker
+renders as a clipped square in both the Editor and Card and in the
+Strategy view's combined multi-layer canvas. On Strategy: confirmed the
+combined red+blue canvas places multiple layers correctly (including one
+path re-alliance-flipped and side-flipped), confirmed Show Red/Show Blue
+independently hide their alliance's layers, confirmed Auto Edit renders
+read-only context layers and an editable overlay simultaneously and saves
+a new path end-to-end (dropdown refresh, offline-queue fallback path
+unexercised but code-identical to `AutoPathEditor.save()`), and confirmed
+Whiteboard mode's non-continuous per-team strokes render as disconnected
+polylines, auto-save (debounced, "Saved" status shown), and persist across
+a full page reload for two different teams simultaneously. Migrations were
+pushed via `supabase db push --linked` (see "Data model" above).
+
+One environment-specific caveat: the Fullsceen API's `requestFullscreen()`
+call rejects with `TypeError: not granted` when triggered by the
+browser-automation tool's synthetic click in this environment, even though
+`document.fullscreenEnabled` is `true` — most likely a transient-user-
+-activation quirk of that automation path rather than an app bug (the
+click handler and element reference were confirmed correct by inspection).
+Worth a real click from an actual user to confirm end to end. This caveat
+carried over unchanged when fullscreen moved from `AutoPathCanvas` to
+`FullscreenTile`.
+
+**A follow-up round of user-testing feedback** on the Strategy view (still
+issue #32) was implemented and verified the same way: robot photo markers
+enlarged then rescaled to a final `MARKER_PHOTO_SIZE = 38` (3x the original
+16px, then 0.8x of that 48px); confirmed a played-out path's marker stays
+parked at its actual final point after `finished` fires (previously
+`stopAnimation()` reset `animProgress` to 0, snapping it back to the start)
+— verified by an explicit Play → wait-for-full-duration → screenshot cycle,
+since idle-triggered auto-play doesn't exist in Auto Edit mode (only in
+`AutoPathEditor.vue`). Confirmed the merged single-tile mode toggle
+(Preview/Auto Edit/Whiteboard together), the full-width field with two-column
+per-slot controls below it, the `ColorSwatchPicker` swatches (default 6
+distinct colors, 2 spare), and both `autoEditDefaultName()` branches (schedule
+mode → `"Match 12 Path"`; Manual Team Selection → blank) — the latter tested
+against a **real live match's data** (Warren Warbots/Bear Metal/etc., match
+12) already synced from the team's own TBA schedule, not synthetic test data.
+
+One implementation snag worth noting for future `<script setup>` +
+`<script lang="ts">` files in this codebase: a plain `const` declared at the
+top of `<script setup>` is **not** visible from the separate Options-API
+`<script lang="ts">` block the way an *imported* binding is — imports are
+real ES-module top-level bindings, but a `<script setup>`-local `const`
+compiles into that block's `setup()` closure, a different scope the Options
+block's methods can't reach. (`COLOR_CHOICES` hit exactly this as a
+`ReferenceError` at runtime, despite `vue-tsc`/`vite build` both passing
+cleanly — the type-checker and bundler don't catch this class of
+cross-block scoping mistake.) Fix: declare such constants in the plain
+`<script lang="ts">` block instead (same place as `VIEW_W`/`FIELD_BOUNDS` in
+`AutoPathCanvas.vue`), and add them to `data()` if the template also needs
+them, mirroring how `SIDE_CHOICES` (an actual import) is handled.
+
 ## Future work
 
 - Per-path thumbnail caching if the auto-path list grows long enough that
@@ -415,6 +613,13 @@ in favor of the `MIN_REGION_T` fix.
 - Undo (not just full Reset) while drawing.
 - Re-measure `FIELD_BOUNDS` if `2026-field.png` is ever swapped for a
   corrected or higher-res export.
+- Strategy Preview's per-slot delay is a visualization-only approximation
+  (a delayed layer's remaining path is compressed into the remaining
+  playback time rather than the total duration extending) — revisit if
+  scouts want literal absolute-time delay instead.
+- Strategy Mode (Whiteboard) is freehand-only for v1; text/action
+  annotations (e.g. "defend 973") were explicitly deferred, per product
+  decision when implementing issue #32.
 - The timeline's drag/double-click handle interactions haven't been
   confirmed on a real touch device — `touch-action: none` is set, but
   double-tap-to-add/remove in particular may need real hardware to

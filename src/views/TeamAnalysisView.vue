@@ -126,9 +126,9 @@ import { minWidthForDesktop } from "@/lib/constants";
                             </div>
                             <ul class="autopath-list">
                                 <AutoPathCard v-for="(path, idx) in teamAutoPaths" :key="path.id" :path="path"
-                                    :can-edit="isUserWriteAccess" :card-color="autoPathColor(idx)"
-                                    :is-only-path="teamAutoPaths.length === 1" @edit="startEditAutoPath"
-                                    @set-default="setAutoPathAsDefault">
+                                    :team-number="teamNumber" :can-edit="isUserWriteAccess"
+                                    :card-color="autoPathColor(idx)" :is-only-path="teamAutoPaths.length === 1"
+                                    @edit="startEditAutoPath" @set-default="setAutoPathAsDefault">
                                 </AutoPathCard>
                             </ul>
                         </template>

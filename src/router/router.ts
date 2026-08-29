@@ -9,7 +9,7 @@ import MatchScoutView from "@/views/MatchScoutView.vue";
 import PitScoutingView from "@/views/PitScoutingView.vue";
 import TeamAnalysisView from "@/views/TeamAnalysisView.vue";
 import EventAnalysisView from "@/views/EventAnalysisView.vue";
-import MatchPreviewView from "@/views/MatchPreviewView.vue";
+import StrategyView from "@/views/StrategyView.vue";
 import CustomDataVisualizationView from "@/views/CustomDataVisualizationView.vue";
 import LoginView from "@/views/LoginView.vue";
 import RegisterView from "@/views/RegisterView.vue";
@@ -77,9 +77,9 @@ const router = createRouter({
       }
     },
     {
-      path: "/match-preview",
-      name: "Match Preview | GreyScout",
-      component: MatchPreviewView,
+      path: "/strategy",
+      name: "Strategy | GreyScout",
+      component: StrategyView,
       meta: {
         requiresAuth: isSiteReadPrivate
       }
