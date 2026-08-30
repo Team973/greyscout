@@ -16,6 +16,7 @@ import RegisterView from "@/views/RegisterView.vue";
 import ResetPasswordView from "@/views/ResetPasswordView.vue";
 import AccountView from "@/views/AccountView.vue";
 import PicklistView from "@/views/PicklistView.vue";
+import PickEmView from "@/views/PickEmView.vue";
 import DataStatusView from "@/views/DataStatusView.vue";
 import ScoutScheduleView from "@/views/ScoutScheduleView.vue";
 import { useAuthStore, roleRank } from "@/stores/auth-store";
@@ -123,6 +124,15 @@ const router = createRouter({
       path: "/picklist",
       name: "Pick List | GreyScout",
       component: PicklistView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
+      }
+    },
+    {
+      path: "/pickem",
+      name: "Pick'em | GreyScout",
+      component: PickEmView,
       meta: {
         requiresAuth: isSiteReadPrivate,
         minRole: 'member'
