@@ -2,6 +2,7 @@
 // @ts-nocheck
 
 import CollapsibleSection from "@/components/CollapsibleSection.vue";
+import SearchableDropdown from "@/components/SearchableDropdown.vue";
 
 import { useEventStore } from "@/stores/event-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -82,15 +83,12 @@ import { queryScoutAssignments, queryScoutAssignmentsForUser, assignScout, assig
                                     :class="[slotKey.startsWith('red') ? 'red-cell' : 'blue-cell', cellInFillRange(rowIndex, colIndex) ? 'fill-range' : '']"
                                     :data-row="rowIndex" :data-col="colIndex"
                                     @mouseover="onFillDragEnter(rowIndex, colIndex)">
-                                    <select class="assignment-select"
-                                        :value="adminScoutFor(match.match_number, slotKey)"
+                                    <SearchableDropdown class="assignment-select"
+                                        :class="{ 'assignment-select--filled': !!adminScoutFor(match.match_number, slotKey) }"
                                         :style="scoutSelectStyle(adminScoutFor(match.match_number, slotKey))"
-                                        @change="onAdminAssignChange(match.match_number, slotKey, $event.target.value)">
-                                        <option value="">Unassigned</option>
-                                        <option v-for="person in assignableUsers" :key="person.user_id" :value="person.user_id">
-                                            {{ person.name || 'Unnamed user' }}
-                                        </option>
-                                    </select>
+                                        :choices="scoutChoices" :model-value="adminScoutFor(match.match_number, slotKey)"
+                                        @update:modelValue="onAdminAssignChange(match.match_number, slotKey, $event)">
+                                    </SearchableDropdown>
                                     <div class="fill-handle" @mousedown="startFillDrag(rowIndex, colIndex, $event)"></div>
                                 </td>
                             </tr>
@@ -166,6 +164,15 @@ export default {
             return this.people
                 .filter((person) => person.role !== 'observer')
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        },
+        // Includes the "Unassigned" option as a real choice (key '', matching
+        // adminScoutFor's empty-string default) rather than a placeholder, so
+        // it displays and searches like any other choice.
+        scoutChoices() {
+            return [
+                { key: '', text: 'Unassigned' },
+                ...this.assignableUsers.map((person) => ({ key: person.user_id, text: person.name || 'Unnamed user' }))
+            ];
         }
     },
     methods: {
@@ -458,27 +465,24 @@ export default {
     flex-shrink: 0;
 }
 
+/* scoutSelectStyle() sets this wrapper's background inline (falls through to
+   the SearchableDropdown component's root element); the input itself stays
+   transparent (see SearchableDropdown.vue) so that color shows through. */
 .assignment-select {
     display: block;
-    width: 100%;
+    border-radius: 6px;
+}
+
+.assignment-select :deep(.searchable-dropdown-input) {
     padding: 10px 8px;
     font-size: 1rem;
-    border-radius: 6px;
-    border: 1px solid rgba(128, 128, 128, 0.35);
-    background-color: transparent;
-    color: var(--primary-text-color);
-    cursor: pointer;
 }
 
-.assignment-select:hover {
-    border-color: rgba(128, 128, 128, 0.6);
-}
-
-/* When a scout is assigned, scoutSelectStyle() sets an inline
-   background/text color per-scout, overriding these defaults. */
-.assignment-select option {
-    color: initial;
-    background-color: initial;
+/* When a scout is assigned, scoutSelectStyle() also sets white text — the
+   input's own explicit `color` declaration would otherwise win over the
+   inherited color from this wrapper. */
+.assignment-select--filled :deep(.searchable-dropdown-input) {
+    color: #fff;
 }
 
 .assignment-cell {

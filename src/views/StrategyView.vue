@@ -52,6 +52,8 @@ import "@material/web/button/filled-button";
                     turn on Manual Team Selection to pick teams yourself.</p>
             </div>
 
+            <p class="color-hint">💡 Click a team's color swatch to choose a different color.</p>
+
             <h2>Red Alliance</h2>
             <div class="data-tile red-alliance">
                 <div class="autopath-preview-selectors">
@@ -122,8 +124,8 @@ import "@material/web/button/filled-button";
                             :points="strategyMode === 'autoEdit' ? autoEditPoints : []"
                             :display-alliance="autoEditAlliance" :time-gradient="strategyMode === 'autoEdit'"
                             :robot-photo-url="strategyMode === 'autoEdit' ? robotPhotoUrls[autoEditSlot] : null"
-                            large="true" :playing="isPlaying" @update:points="autoEditPoints = $event"
-                            @finished="isPlaying = false"></AutoPathCanvas>
+                            :station-labels="stationLabels" large="true" :playing="isPlaying"
+                            @update:points="autoEditPoints = $event" @finished="isPlaying = false"></AutoPathCanvas>
                     </div>
 
                     <div class="autopath-bottom-controls">
@@ -152,7 +154,10 @@ import "@material/web/button/filled-button";
                     <div class="autopath-side-by-side">
                         <div class="autopath-side-column">
                             <div v-for="slot in [0, 1, 2]" :key="slot" class="autopath-slot-controls">
-                                <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                                <div class="autopath-slot-header">
+                                    <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                                    <span class="autopath-slot-team">{{ teamAtSlot(slot)?.text ?? 'Unassigned' }}</span>
+                                </div>
                                 <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
                                     @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
                                 <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
@@ -163,7 +168,10 @@ import "@material/web/button/filled-button";
 
                         <div class="autopath-side-column">
                             <div v-for="slot in [3, 4, 5]" :key="slot" class="autopath-slot-controls">
-                                <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                                <div class="autopath-slot-header">
+                                    <span class="autopath-preview-swatch" :style="{ backgroundColor: slotColor(slot) }"></span>
+                                    <span class="autopath-slot-team">{{ teamAtSlot(slot)?.text ?? 'Unassigned' }}</span>
+                                </div>
                                 <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
                                     @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
                                 <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
@@ -348,7 +356,14 @@ export default {
             }
         },
         slotColor(slot: int) {
-            return COLOR_CHOICES[this.slotColorIndex[slot]]?.hex ?? '#ff8c00';
+            const choice = COLOR_CHOICES[this.slotColorIndex[slot]];
+            if (!choice) return '#ff8c00';
+            // 'white' is unusable against light mode's white/near-white
+            // canvas and field backgrounds — draw it as black there instead,
+            // matching ColorSwatchPicker's swatch-only override so what the
+            // picker shows is also what actually gets drawn.
+            if (choice.key === 'white' && !this.deviceViewMode?.darkMode) return '#000000';
+            return choice.hex;
         },
         onAutoPathChoiceChange(slot: int, choiceIdx: int) {
             this.selectedAutoPathIndex[slot] = choiceIdx;
@@ -504,6 +519,18 @@ export default {
                 text: `${labels[slot]} — ${this.teamAtSlot(slot)?.text ?? 'Unassigned'}`
             }));
         },
+        // Big on-field driver-station labels (see AutoPathCanvas's
+        // stationLabels prop) — skips unassigned slots so an empty alliance
+        // spot doesn't clutter the field with a placeholder.
+        stationLabels() {
+            return [0, 1, 2, 3, 4, 5]
+                .filter((slot) => this.teamNumbers[slot])
+                .map((slot) => ({
+                    slot,
+                    text: String(this.teamNumbers[slot]),
+                    color: this.slotColor(slot)
+                }));
+        },
         autoEditAlliance() {
             return this.autoEditSlot < 3 ? allianceRed : allianceBlue;
         }
@@ -539,6 +566,15 @@ export default {
 
 .blue-alliance {
     border: 2px solid blue;
+}
+
+/* The global .data-tile class sets overflow: auto, which would otherwise
+   clip (and add a scrollbar around) ColorSwatchPicker's expanded palette
+   popup — these two tiles only ever hold that picker plus a couple of
+   dropdowns, nothing that actually needs to scroll. */
+.data-tile.red-alliance,
+.data-tile.blue-alliance {
+    overflow: visible;
 }
 
 .autopath-preview-heading {
@@ -584,14 +620,34 @@ export default {
     font-weight: bold;
 }
 
+.color-hint {
+    font-size: 13px;
+    color: rgba(128, 128, 128, 0.85);
+    margin: -4px 0 12px;
+}
+
 .strategy-mode-toggle {
     display: flex;
     gap: 10px;
     margin-bottom: 24px;
 }
 
-.strategy-mode-toggle md-filled-button.mode-inactive {
+.strategy-mode-toggle md-filled-button.mode-inactive,
+.tool-toggle md-filled-button.mode-inactive {
     --md-filled-button-container-color: rgba(128, 128, 128, 0.4);
+}
+
+.whiteboard-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.tool-toggle {
+    display: flex;
+    gap: 8px;
 }
 
 .autopath-form-row {
@@ -654,6 +710,16 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.autopath-slot-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.autopath-slot-team {
+    font-weight: 600;
 }
 
 @media (max-width: 1000px) {

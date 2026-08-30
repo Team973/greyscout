@@ -5,8 +5,8 @@
 
 <template>
     <div class="searchable-dropdown">
-        <input type="text" class="searchable-dropdown-input" :placeholder="placeholder" :value="displayValue"
-            @input="onInput" @focus="onFocus" @blur="onBlur" @keydown="onKeydown" />
+        <input type="text" class="searchable-dropdown-input" :style="{ minWidth: minWidthCh }" :placeholder="placeholder"
+            :value="displayValue" @input="onInput" @focus="onFocus" @blur="onBlur" @keydown="onKeydown" />
         <ul v-if="isOpen" class="searchable-dropdown-list">
             <li v-if="filteredChoices.length === 0" class="searchable-dropdown-empty">No matches</li>
             <li v-for="choice in filteredChoices" :key="choice.key" class="searchable-dropdown-option"
@@ -49,6 +49,15 @@ export default {
             const q = (this.query ?? '').trim().toLowerCase();
             if (!q) return this.choices;
             return this.choices.filter((c) => c.text.toLowerCase().includes(q));
+        },
+        // Sized to the widest possible choice (not just the current value) so
+        // the box never visually clips a selection's text — a plain <input>
+        // otherwise defaults to a fixed browser width regardless of its
+        // value's length — and so it doesn't reflow narrower/wider as the
+        // user picks between differently-sized choices.
+        minWidthCh() {
+            const longest = this.choices.reduce((max, c) => Math.max(max, (c.text ?? '').length), this.placeholder.length);
+            return `${Math.max(longest + 2, 10)}ch`;
         }
     },
     methods: {

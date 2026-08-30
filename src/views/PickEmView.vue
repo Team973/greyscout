@@ -253,11 +253,29 @@ watch(compareAgainst, async (teamNumber) => {
 });
 
 // One entry per matchup side, so the template renders both with a single
-// v-for instead of duplicating the card/stats/pit markup twice.
+// v-for instead of duplicating the card/comments/pit markup twice.
 const matchupSides = computed(() => [
     { teamNumber: candidate.value, team: candidateTeam.value, data: candidateData.value },
     { teamNumber: compareAgainst.value, team: compareTeam.value, data: compareData.value }
 ]);
+
+// ─── Per-team "More Info" modal ────────────────────────────────────────────
+// Stats/comments/pit data live behind this modal (rather than always
+// inline) specifically so the two picker cards above stay short enough to
+// both fit on screen at once on mobile without scrolling — see issue #45
+// follow-up. It shows one team at a time (a side-by-side comparison layout
+// doesn't have room to work on a narrow screen), opened via a "More Info"
+// button under whichever card the user taps.
+
+const infoModalSide = ref<'candidate' | 'compare' | null>(null);
+
+// Close automatically when a winner is picked and a new matchup loads —
+// otherwise the modal would keep showing a team that's no longer on screen.
+watch(candidate, () => { infoModalSide.value = null; });
+
+const infoModalTeam = computed(() => infoModalSide.value === 'candidate' ? candidateTeam.value : compareTeam.value);
+const infoModalData = computed(() => infoModalSide.value === 'candidate' ? candidateData.value : compareData.value);
+const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ? candidate.value : compareAgainst.value);
 </script>
 
 <template>
@@ -292,43 +310,77 @@ const matchupSides = computed(() => [
                             <div class="pickem-card-number">{{ side.team.team_number }}</div>
                             <div class="pickem-card-name">{{ side.team.name }}</div>
                         </button>
-
-                        <div class="data-tile pickem-info-card">
-                            <div v-if="!side.data" class="pickem-no-data">Loading stats…</div>
-                            <template v-else>
-                                <div v-if="side.data.stats.length > 0" class="pickem-stats-grid">
-                                    <div v-for="stat in computeFlagStats(side.data.stats)" :key="stat.label"
-                                        class="pickem-stat">
-                                        <div class="stat-label">{{ stat.label }}</div>
-                                        <div class="stat-avg">{{ stat.pct }}%</div>
-                                    </div>
-                                    <div v-for="stat in computeBasicStats(side.data.stats)" :key="stat.label"
-                                        class="pickem-stat">
-                                        <div class="stat-label">{{ stat.label }}</div>
-                                        <div class="stat-avg">{{ stat.avg }}</div>
-                                    </div>
-                                </div>
-                                <div v-else class="pickem-no-data">No match data available.</div>
-
-                                <ul v-if="side.data.comments.length > 0" class="pickem-comments">
-                                    <li v-for="(comment, cIdx) in side.data.comments" :key="cIdx" class="pickem-comment">
-                                        <div class="comment-meta">
-                                            <span class="comment-author">{{ comment.author }}</span>
-                                            <span class="comment-source-badge">{{ comment.source }}</span>
-                                        </div>
-                                        <p class="comment-text">{{ comment.comment }}</p>
-                                    </li>
-                                </ul>
-                            </template>
-                        </div>
-
-                        <PitScoutingSection :team-number="side.teamNumber"></PitScoutingSection>
+                        <button type="button" class="pickem-more-info-button" :disabled="!side.data"
+                            @click="infoModalSide = idx === 0 ? 'candidate' : 'compare'">
+                            More Info
+                        </button>
                     </div>
 
                     <div v-if="idx === 0" class="pickem-vs">VS</div>
                 </template>
             </div>
         </template>
+
+        <div v-if="infoModalSide" class="pickem-modal-overlay" @click.self="infoModalSide = null">
+            <div class="pickem-modal" role="dialog" aria-modal="true"
+                :aria-label="`Team ${infoModalTeamNumber} info`">
+                <div class="pickem-modal-header">
+                    <h2>{{ infoModalTeam?.team_number }} - {{ infoModalTeam?.name }}</h2>
+                    <button type="button" class="pickem-modal-close" @click="infoModalSide = null"
+                        aria-label="Close">✕</button>
+                </div>
+
+                <div class="pickem-modal-body">
+                    <!-- Same expanded-detail data summary as the ranked Pick List rows
+                         (PicklistRow.vue) — full photo, per-match-count stat cards, and
+                         comments with their match number — so a team looks the same
+                         whether you're reviewing it here or on the Pick List. -->
+                    <div class="pickem-detail-photo" v-if="infoModalTeam?.photo_url">
+                        <img :src="infoModalTeam.photo_url" :alt="`Team ${infoModalTeamNumber} robot (full)`"
+                            class="pickem-full-photo" />
+                    </div>
+
+                    <div class="pickem-detail-section" v-if="infoModalData?.stats.length > 0">
+                        <h3 class="pickem-detail-heading">Match Stats ({{ infoModalData.stats.length }} matches)</h3>
+                        <div class="pickem-stats-grid">
+                            <div v-for="stat in computeFlagStats(infoModalData.stats)" :key="stat.label"
+                                class="pickem-stat">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.pct }}%</div>
+                                <div class="stat-sub">{{ stat.count }} / {{ stat.total }} matches</div>
+                            </div>
+                            <div v-for="stat in computeBasicStats(infoModalData.stats)" :key="stat.label"
+                                class="pickem-stat">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.avg }}</div>
+                                <div class="stat-sub">avg &nbsp;|&nbsp; max {{ stat.max }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p v-else class="pickem-no-data">No match data available.</p>
+
+                    <div class="pickem-detail-section" v-if="infoModalData?.comments.length > 0">
+                        <h3 class="pickem-detail-heading">Scout Comments</h3>
+                        <ul class="pickem-comments">
+                            <li v-for="(comment, cIdx) in infoModalData.comments" :key="cIdx" class="pickem-comment">
+                                <div class="comment-meta">
+                                    <span class="comment-author">{{ comment.author }}</span>
+                                    <span class="comment-source-badge">{{ comment.source }}</span>
+                                    <span class="comment-match" v-if="comment.match_number != null">Match
+                                        {{ comment.match_number }}</span>
+                                </div>
+                                <p class="comment-text">{{ comment.comment }}</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <p v-else-if="infoModalData?.stats.length === 0" class="pickem-no-data">
+                        No scouting data available for this team.
+                    </p>
+
+                    <PitScoutingSection :team-number="infoModalTeamNumber"></PitScoutingSection>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -438,49 +490,147 @@ const matchupSides = computed(() => [
     text-align: center;
 }
 
-.pickem-info-card {
-    width: 100%;
-    margin: 0;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
 .pickem-no-data {
     font-size: 13px;
     color: rgba(128, 128, 128, 0.6);
     font-style: italic;
 }
 
+.pickem-more-info-button {
+    width: 100%;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    background-color: var(--accent-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+}
+
+.pickem-more-info-button:hover:not(:disabled) {
+    background-color: var(--header-hover-color);
+}
+
+.pickem-more-info-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.pickem-modal-overlay {
+    position: fixed;
+    inset: 0;
+    /* Above NavBar.vue's fixed header (z-index: 9999) so the modal's own
+       header/close button never end up hidden underneath it. */
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.pickem-modal {
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--tile-background-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.pickem-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.pickem-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.pickem-modal-close {
+    border: none;
+    background: transparent;
+    color: var(--primary-text-color);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.pickem-modal-body {
+    padding: 16px 20px 20px;
+    overflow-y: auto;
+}
+
+.pickem-detail-photo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 18px;
+}
+
+.pickem-full-photo {
+    max-width: 340px;
+    width: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.pickem-detail-section {
+    margin-bottom: 18px;
+}
+
+.pickem-detail-heading {
+    font-size: 14px;
+    font-weight: 700;
+    color: #b05703;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 .pickem-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
 }
 
 .pickem-stat {
     background: rgba(176, 87, 3, 0.08);
     border: 1px solid rgba(176, 87, 3, 0.2);
-    border-radius: 8px;
-    padding: 6px 8px;
+    border-radius: 10px;
+    padding: 10px 12px;
     text-align: center;
 }
 
 .stat-label {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(128, 128, 128, 0.75);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
 }
 
 .stat-avg {
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 700;
     color: #b05703;
     line-height: 1.1;
+}
+
+.stat-sub {
+    font-size: 10px;
+    color: rgba(128, 128, 128, 0.6);
+    margin-top: 2px;
 }
 
 .pickem-comments {
@@ -523,6 +673,12 @@ const matchupSides = computed(() => [
     letter-spacing: 0.05em;
 }
 
+.comment-match {
+    font-size: 10px;
+    color: rgba(128, 128, 128, 0.6);
+    margin-left: auto;
+}
+
 .comment-text {
     font-size: 12px;
     color: var(--primary-text-color);
@@ -531,8 +687,46 @@ const matchupSides = computed(() => [
 }
 
 @media (max-width: 700px) {
+    /* Both cards need to stay in view together without scrolling, so they
+       stay side-by-side (never stacked) and shrink to fit instead — the
+       heavier stats/comments/pit content that used to sit inline under each
+       card now lives behind the per-team More Info modal for exactly this
+       reason. */
     .pickem-matchup {
-        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 10px;
+    }
+
+    .pickem-column {
+        width: auto;
+        max-width: none;
+        flex: 1 1 0;
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .pickem-vs {
+        flex-shrink: 0;
+        margin-top: 40px;
+        font-size: 16px;
+    }
+
+    .pickem-card {
+        padding: 10px;
+    }
+
+    .pickem-card-number {
+        font-size: 18px;
+        margin-top: 8px;
+    }
+
+    .pickem-card-name {
+        font-size: 12px;
+    }
+
+    .pickem-more-info-button {
+        padding: 8px 10px;
+        font-size: 0.85em;
     }
 }
 </style>
