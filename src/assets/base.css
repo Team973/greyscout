@@ -353,4 +353,34 @@ div.tile-item {
 /* Picklist page max-width wrapper */
 .picklist-page {
   max-width: 860px;
+}
+
+/* On mobile, the tile classes' full-size margin/padding above eats a large
+   share of an already-narrow screen — shrink both here so tiles fill
+   nearly the full width, keeping just enough margin/padding to still read
+   as a distinct tile rather than the page background. */
+@media (max-width: 700px) {
+  div.main-content {
+    padding: 0.75rem;
+  }
+
+  .tile-container,
+  .login-tile,
+  .user-tile,
+  .data-tile,
+  .graph-tile,
+  .comment-tile,
+  .image-tile,
+  .file-upload-tile {
+    margin: 6px;
+    padding: 12px;
+  }
+
+  .scout-form-tile {
+    padding: 12px 5px;
+  }
+
+  div.tile-item {
+    margin: 6px;
+  }
 }

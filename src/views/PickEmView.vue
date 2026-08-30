@@ -253,11 +253,51 @@ watch(compareAgainst, async (teamNumber) => {
 });
 
 // One entry per matchup side, so the template renders both with a single
-// v-for instead of duplicating the card/stats/pit markup twice.
+// v-for instead of duplicating the card/comments/pit markup twice.
 const matchupSides = computed(() => [
     { teamNumber: candidate.value, team: candidateTeam.value, data: candidateData.value },
     { teamNumber: compareAgainst.value, team: compareTeam.value, data: compareData.value }
 ]);
+
+// ─── Compare Stats modal ──────────────────────────────────────────────────
+// Stats/comments/pit data live behind this modal (rather than always
+// inline) specifically so the two picker cards above stay short enough to
+// both fit on screen at once on mobile without scrolling — see issue #45
+// follow-up.
+
+const showCompareModal = ref(false);
+
+// Close automatically when a winner is picked and a new matchup loads —
+// otherwise the modal would keep showing the previous pair's stats.
+watch(candidate, () => { showCompareModal.value = false; });
+
+// Merges each side's independently-computed stat lists into one row per
+// label so the modal can render a single side-by-side table instead of two
+// separate grids — the two teams' stat schemas are normally identical
+// (same match-scouting fields), but a team with zero scouted matches
+// returns an empty list, hence the '—' fallback below.
+const compareStatRows = computed(() => {
+    if (!candidateData.value || !compareData.value) return [];
+
+    const leftFlags = computeFlagStats(candidateData.value.stats);
+    const rightFlags = computeFlagStats(compareData.value.stats);
+    const leftBasic = computeBasicStats(candidateData.value.stats);
+    const rightBasic = computeBasicStats(compareData.value.stats);
+
+    const toRows = (leftList, rightList, formatValue) => {
+        const labels = [...new Set([...leftList.map((s) => s.label), ...rightList.map((s) => s.label)])];
+        return labels.map((label) => ({
+            label,
+            left: formatValue(leftList.find((s) => s.label === label)),
+            right: formatValue(rightList.find((s) => s.label === label))
+        }));
+    };
+
+    return [
+        ...toRows(leftFlags, rightFlags, (s) => (s ? `${s.pct}%` : '—')),
+        ...toRows(leftBasic, rightBasic, (s) => s?.avg ?? '—')
+    ];
+});
 </script>
 
 <template>
@@ -292,43 +332,71 @@ const matchupSides = computed(() => [
                             <div class="pickem-card-number">{{ side.team.team_number }}</div>
                             <div class="pickem-card-name">{{ side.team.name }}</div>
                         </button>
-
-                        <div class="data-tile pickem-info-card">
-                            <div v-if="!side.data" class="pickem-no-data">Loading stats…</div>
-                            <template v-else>
-                                <div v-if="side.data.stats.length > 0" class="pickem-stats-grid">
-                                    <div v-for="stat in computeFlagStats(side.data.stats)" :key="stat.label"
-                                        class="pickem-stat">
-                                        <div class="stat-label">{{ stat.label }}</div>
-                                        <div class="stat-avg">{{ stat.pct }}%</div>
-                                    </div>
-                                    <div v-for="stat in computeBasicStats(side.data.stats)" :key="stat.label"
-                                        class="pickem-stat">
-                                        <div class="stat-label">{{ stat.label }}</div>
-                                        <div class="stat-avg">{{ stat.avg }}</div>
-                                    </div>
-                                </div>
-                                <div v-else class="pickem-no-data">No match data available.</div>
-
-                                <ul v-if="side.data.comments.length > 0" class="pickem-comments">
-                                    <li v-for="(comment, cIdx) in side.data.comments" :key="cIdx" class="pickem-comment">
-                                        <div class="comment-meta">
-                                            <span class="comment-author">{{ comment.author }}</span>
-                                            <span class="comment-source-badge">{{ comment.source }}</span>
-                                        </div>
-                                        <p class="comment-text">{{ comment.comment }}</p>
-                                    </li>
-                                </ul>
-                            </template>
-                        </div>
-
-                        <PitScoutingSection :team-number="side.teamNumber"></PitScoutingSection>
                     </div>
 
                     <div v-if="idx === 0" class="pickem-vs">VS</div>
                 </template>
             </div>
+
+            <div class="pickem-compare-row">
+                <button type="button" class="pickem-compare-button" :disabled="!candidateData || !compareData"
+                    @click="showCompareModal = true">
+                    Compare Stats
+                </button>
+            </div>
         </template>
+
+        <div v-if="showCompareModal" class="pickem-modal-overlay" @click.self="showCompareModal = false">
+            <div class="pickem-modal" role="dialog" aria-modal="true" aria-label="Compare teams">
+                <div class="pickem-modal-header">
+                    <h2>{{ candidateTeam?.team_number }} vs {{ compareTeam?.team_number }}</h2>
+                    <button type="button" class="pickem-modal-close" @click="showCompareModal = false"
+                        aria-label="Close">✕</button>
+                </div>
+
+                <div class="pickem-modal-body">
+                    <table v-if="compareStatRows.length > 0" class="pickem-compare-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>{{ candidateTeam?.team_number }} - {{ candidateTeam?.name }}</th>
+                                <th>{{ compareTeam?.team_number }} - {{ compareTeam?.name }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in compareStatRows" :key="row.label">
+                                <td class="compare-row-label">{{ row.label }}</td>
+                                <td>{{ row.left }}</td>
+                                <td>{{ row.right }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p v-else class="pickem-no-data">No match data available for either team.</p>
+
+                    <div class="pickem-compare-comments">
+                        <div v-for="side in matchupSides" :key="`comments-${side.teamNumber}`"
+                            class="pickem-compare-comments-col">
+                            <h3>{{ side.team?.team_number }} Comments</h3>
+                            <ul v-if="side.data?.comments.length > 0" class="pickem-comments">
+                                <li v-for="(comment, cIdx) in side.data.comments" :key="cIdx" class="pickem-comment">
+                                    <div class="comment-meta">
+                                        <span class="comment-author">{{ comment.author }}</span>
+                                        <span class="comment-source-badge">{{ comment.source }}</span>
+                                    </div>
+                                    <p class="comment-text">{{ comment.comment }}</p>
+                                </li>
+                            </ul>
+                            <p v-else class="pickem-no-data">No comments yet.</p>
+                        </div>
+                    </div>
+
+                    <div class="pickem-compare-pit">
+                        <PitScoutingSection v-for="side in matchupSides" :key="`pit-${side.teamNumber}`"
+                            :team-number="side.teamNumber"></PitScoutingSection>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -438,49 +506,126 @@ const matchupSides = computed(() => [
     text-align: center;
 }
 
-.pickem-info-card {
-    width: 100%;
-    margin: 0;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
 .pickem-no-data {
     font-size: 13px;
     color: rgba(128, 128, 128, 0.6);
     font-style: italic;
 }
 
-.pickem-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-    gap: 8px;
+.pickem-compare-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
 }
 
-.pickem-stat {
-    background: rgba(176, 87, 3, 0.08);
-    border: 1px solid rgba(176, 87, 3, 0.2);
+.pickem-compare-button {
+    padding: 10px 20px;
     border-radius: 8px;
-    padding: 6px 8px;
-    text-align: center;
+    border: none;
+    background-color: var(--accent-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
 }
 
-.stat-label {
-    font-size: 10px;
-    color: rgba(128, 128, 128, 0.75);
-    margin-bottom: 2px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+.pickem-compare-button:hover:not(:disabled) {
+    background-color: var(--header-hover-color);
 }
 
-.stat-avg {
-    font-size: 16px;
-    font-weight: 700;
-    color: #b05703;
-    line-height: 1.1;
+.pickem-compare-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.pickem-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.pickem-modal {
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--tile-background-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.pickem-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.pickem-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.pickem-modal-close {
+    border: none;
+    background: transparent;
+    color: var(--primary-text-color);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.pickem-modal-body {
+    padding: 16px 20px 20px;
+    overflow-y: auto;
+}
+
+.pickem-compare-table {
+    width: 100%;
+    box-shadow: none;
+    margin-bottom: 20px;
+}
+
+.compare-row-label {
+    text-align: left;
+    font-weight: 600;
+}
+
+.pickem-compare-comments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.pickem-compare-comments-col {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.pickem-compare-comments-col h3 {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.pickem-compare-pit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pickem-compare-pit > * {
+    flex: 1 1 260px;
+    min-width: 0;
 }
 
 .pickem-comments {
@@ -531,8 +676,47 @@ const matchupSides = computed(() => [
 }
 
 @media (max-width: 700px) {
+    /* Both cards need to stay in view together without scrolling, so they
+       stay side-by-side (never stacked) and shrink to fit instead — the
+       heavier stats/comments/pit content that used to sit inline under each
+       card now lives behind the Compare Stats modal for exactly this
+       reason. */
     .pickem-matchup {
-        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 10px;
+    }
+
+    .pickem-column {
+        width: auto;
+        max-width: none;
+        flex: 1 1 0;
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .pickem-vs {
+        flex-shrink: 0;
+        margin-top: 40px;
+        font-size: 16px;
+    }
+
+    .pickem-card {
+        padding: 10px;
+    }
+
+    .pickem-card-number {
+        font-size: 18px;
+        margin-top: 8px;
+    }
+
+    .pickem-card-name {
+        font-size: 12px;
+    }
+
+    .pickem-compare-table th,
+    .pickem-compare-table td {
+        padding: 8px 6px;
+        font-size: 0.85em;
     }
 }
 </style>
