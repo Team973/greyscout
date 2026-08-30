@@ -34,6 +34,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
                 <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
                 <RouterLink v-if="isMember" to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
+                <RouterLink v-if="isMember" to="/pickem" class="nav-link nav-link-mobile">Pick'em</RouterLink>
                 <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile">Strategy</RouterLink>
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
                 <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
@@ -67,6 +68,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
         <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
         <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
         <RouterLink v-if="isMember" to="/picklist" class="nav-link">Pick List</RouterLink>
+        <RouterLink v-if="isMember" to="/pickem" class="nav-link">Pick'em</RouterLink>
         <RouterLink v-if="isLead" to="/strategy" class="nav-link">Strategy</RouterLink>
         <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
 

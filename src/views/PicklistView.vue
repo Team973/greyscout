@@ -224,6 +224,15 @@ async function resetTeamListEmpty() {
     await saveList();
 }
 
+// ─── Reset My List to empty ────────────────────────────────────────────────────
+
+const confirmingPersonalReset = ref(false);
+async function resetPersonalListEmpty() {
+    picklistStore.resetPersonalList();
+    confirmingPersonalReset.value = false;
+    await saveList();
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 function exportTeamListCsv() {
@@ -379,6 +388,23 @@ function toggleTierCollapse(group: string) {
                         </button>
                         <button id="btn-confirm-team-reset" class="picklist-reset-btn picklist-reset-btn--danger"
                             @click="resetTeamListEmpty">
+                            Yes, Clear It
+                        </button>
+                    </template>
+                    <template v-if="activeTab === 'personal' && !confirmingPersonalReset">
+                        <button id="btn-reset-personal-list" class="picklist-reset-btn picklist-reset-btn--danger"
+                            title="Unrank every team on your personal list" @click="confirmingPersonalReset = true">
+                            ✕ Reset My List
+                        </button>
+                    </template>
+                    <template v-else-if="activeTab === 'personal'">
+                        <span class="picklist-confirm-text">Unrank every team on your list?</span>
+                        <button id="btn-cancel-personal-reset" class="picklist-reset-btn"
+                            @click="confirmingPersonalReset = false">
+                            Cancel
+                        </button>
+                        <button id="btn-confirm-personal-reset" class="picklist-reset-btn picklist-reset-btn--danger"
+                            @click="resetPersonalListEmpty">
                             Yes, Clear It
                         </button>
                     </template>

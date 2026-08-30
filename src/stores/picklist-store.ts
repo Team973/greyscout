@@ -29,6 +29,15 @@ export interface TeamEntry {
     photo_url: string | null;
 }
 
+/**
+ * Fixed tier sizes pick'em sorts its top-32 ranked teams into — 3+7+8+10+4
+ * = 32, so everyone ranked below that lands in DNP. Not used by the
+ * general drag-and-drop picklist, which stays free-form.
+ */
+const PICKEM_TIER_SIZES: Record<Exclude<Tier, 'DNP'>, number> = {
+    S: 3, A: 7, B: 8, C: 10, D: 4
+};
+
 function emptyTierSections(): Record<TierGroup, number[]> {
     const groups = {} as Record<TierGroup, number[]>;
     TIER_GROUPS.forEach((g) => { groups[g] = []; });
@@ -123,6 +132,11 @@ export const usePicklistStore = defineStore('picklist', {
 
         personalFlatOrder(): number[] {
             return TIER_GROUPS.flatMap((g) => this.personalTierSections[g] ?? []);
+        },
+
+        /** Like personalFlatOrder, but only the actually-ranked tiers (S-DNP) — excludes Unranked. */
+        personalRankedFlatOrder(): number[] {
+            return TIERS.flatMap((g) => this.personalTierSections[g] ?? []);
         },
 
         personalTiersMap(): Record<number, Tier> {
@@ -237,6 +251,47 @@ export const usePicklistStore = defineStore('picklist', {
         /** Clear the team list's tiers/order entirely. */
         resetTeamList() {
             this.teamTierSections = emptyTierSections();
+        },
+
+        /** Unrank every team on the personal list, back to all-Unranked. */
+        resetPersonalList() {
+            this.personalTierSections = buildTierSections([], {}, this.allTeams);
+        },
+
+        /**
+         * Moves a team out of wherever it currently sits (Unranked or any
+         * ranked tier) and into the given position of the overall ranked
+         * order — used by pick'em both to place a brand-new team (binary
+         * search converging on where it belongs) and to move an
+         * already-ranked team during continuous refinement (removing the
+         * mover first means inserting it at its target index naturally
+         * shifts everyone at/after that index down one).
+         *
+         * Tier boundaries are fixed sizes (PICKEM_TIER_SIZES), not
+         * "whichever tier currently has room" — the top 32 ranked teams
+         * split 3/7/8/10/4 across S/A/B/C/D, everyone else lands in DNP —
+         * so every call re-slices the whole ranked order into those fixed
+         * buckets rather than splicing into just one tier's array.
+         * flatIndex is always within [0, personalRankedFlatOrder.length]
+         * by construction.
+         */
+        placeTeamAtFlatIndex(teamNumber: number, flatIndex: number) {
+            const flat = TIERS.flatMap((t) => this.personalTierSections[t]).filter((n) => n !== teamNumber);
+            flat.splice(flatIndex, 0, teamNumber);
+
+            let cursor = 0;
+            TIERS.forEach((tier) => {
+                if (tier === 'DNP') {
+                    this.personalTierSections.DNP = flat.slice(cursor);
+                } else {
+                    const size = PICKEM_TIER_SIZES[tier];
+                    this.personalTierSections[tier] = flat.slice(cursor, cursor + size);
+                    cursor += size;
+                }
+            });
+
+            this.personalTierSections.Unranked =
+                this.personalTierSections.Unranked.filter((n) => n !== teamNumber);
         },
 
         async savePersonalList(userId: string, eventId: string) {
