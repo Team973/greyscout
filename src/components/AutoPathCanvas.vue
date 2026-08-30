@@ -78,6 +78,17 @@ import fieldImage from "@/assets/2026-field.png";
                 </rect>
                 <text :x="VIEW_W / 2" :y="VIEW_H / 2" class="empty-hint">Draw the auto path here</text>
             </g>
+
+            <!-- Big team-number/name labels next to the field art's printed
+                 R1/R2/R3 and B1/B2/B3 driver-station markings, so it's
+                 obvious at a glance which team is standing where. Only shown
+                 when the caller (Strategy Preview) hands us assignments.
+                 Drawn last (on top of paths/markers) since a path's start
+                 point sits right where these labels do. -->
+            <template v-for="label in stationLabelViews" :key="`station-${label.slot}`">
+                <text :x="label.cx" :y="label.cy" :text-anchor="label.anchor" class="station-label"
+                    :style="{ fill: label.color }">{{ label.text }}</text>
+            </template>
         </svg>
     </div>
 </template>
@@ -102,6 +113,34 @@ const FIELD_BOUNDS = { left: 0.13113, right: 0.86874, top: 0.05278, bottom: 0.94
 // VIEW_W/VIEW_H. 0.8x of the original 3x-enlarged size (48) per issue #32
 // follow-up feedback.
 const MARKER_PHOTO_SIZE = 38;
+
+// Vertical position (fraction of the FULL field image, top to bottom) of
+// the field art's printed "1"/"2"/"3" driver-station row for a red-side
+// slot, measured directly from src/assets/2026-field.png. Blue's rows sit
+// at the point-symmetric mirror of these (1 - y) — same 180-degree
+// point-symmetry the rest of this file already relies on (see toView) —
+// which is also why Red N and Blue N end up diagonally opposite each
+// other rather than side-by-side.
+const STATION_ROW_Y = [0.1628, 0.3637, 0.6966];
+
+// Where each of the 6 alliance slots' driver-station label anchors, in FULL
+// image fraction coordinates (not the FIELD_BOUNDS sub-rectangle path
+// points use) — these sit just OUTSIDE the playing field's own edge (red to
+// its left, blue to its right), in the margin where the field art's
+// driver-station markings already are, never over the playing surface.
+function stationPosition(slot) {
+    const isRed = slot < 3;
+    const row = slot % 3;
+    return {
+        x: isRed ? FIELD_BOUNDS.left : FIELD_BOUNDS.right,
+        y: isRed ? STATION_ROW_Y[row] : 1 - STATION_ROW_Y[row],
+        // Anchored away from the field: red text ends at the field edge and
+        // grows further left (into the margin); blue starts at the field
+        // edge and grows further right — so neither ever renders over the
+        // field itself.
+        anchor: isRed ? 'end' : 'start'
+    };
+}
 
 // Position along a polyline of already-view-space {cx, cy} points at time
 // fraction `t` (0..1), using each point's own recorded time rather than
@@ -230,6 +269,14 @@ export default {
         robotPhotoUrl: {
             type: String,
             default: null
+        },
+        // Optional [{ slot: 0-5, text, color }] — big team labels drawn next
+        // to the field art's printed driver-station markings. slot follows
+        // the same 0-2 red / 3-5 blue convention as everywhere else (see
+        // STATION_POSITIONS below for the physical position each maps to).
+        stationLabels: {
+            type: Array,
+            default: () => []
         }
     },
     emits: ["update:points", "finished", "progress"],
@@ -261,6 +308,20 @@ export default {
     computed: {
         hasLayers() {
             return this.layers.length > 0;
+        },
+        stationLabelViews() {
+            const PADDING = 8;
+            return this.stationLabels.map((label) => {
+                const pos = stationPosition(label.slot);
+                return {
+                    slot: label.slot,
+                    text: label.text,
+                    color: label.color,
+                    anchor: pos.anchor,
+                    cx: pos.x * VIEW_W + (pos.anchor === 'start' ? PADDING : -PADDING),
+                    cy: pos.y * VIEW_H
+                };
+            });
         },
         displayPoints() {
             return this.points ?? [];
@@ -518,6 +579,12 @@ export default {
 .path-end {
     stroke: none;
     opacity: 0.6;
+}
+
+.station-label {
+    font-size: 18px;
+    font-weight: 700;
+    dominant-baseline: middle;
 }
 
 .path-label {

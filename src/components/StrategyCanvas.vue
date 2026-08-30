@@ -6,8 +6,9 @@ import fieldImage from "@/assets/2026-field.png";
 <template>
     <div class="strategy-canvas">
         <svg :viewBox="`0 0 ${VIEW_W} ${VIEW_H}`" preserveAspectRatio="xMidYMid meet" ref="svg"
-            @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
-            @pointercancel="onPointerUp" @pointerleave="onPointerUp">
+            :class="{ 'strategy-canvas-svg--erase': tool === 'erase' }" @pointerdown="onPointerDown"
+            @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
+            @pointerleave="onPointerUp">
             <!-- Strategy board coordinates are always drawn directly onto this
                  real fixed-orientation field (red-left, blue-right) — unlike
                  AutoPath, there's no per-team own-relative reframing to undo,
@@ -35,6 +36,10 @@ import fieldImage from "@/assets/2026-field.png";
 const VIEW_W = 740;
 const VIEW_H = 300;
 const FIELD_BOUNDS = { left: 0.13113, right: 0.86874, top: 0.05278, bottom: 0.94691 };
+// Hit-test radius for the eraser tool, in the same view-space units as
+// VIEW_W/VIEW_H — generous enough to catch a stroke without requiring
+// pixel-perfect aim on a touch device.
+const ERASE_RADIUS = 12;
 
 export default {
     props: {
@@ -51,9 +56,16 @@ export default {
         slotColor: {
             type: Function,
             required: true
+        },
+        // 'draw' appends to the active slot's strokes as before; 'erase'
+        // instead removes whichever whole strokes (from any slot) the
+        // pointer passes over.
+        tool: {
+            type: String,
+            default: 'draw'
         }
     },
-    emits: ["update:board"],
+    emits: ["update:board", "stroke-start"],
     data() {
         return {
             VIEW_W,
@@ -107,16 +119,55 @@ export default {
 
             this.$emit("update:board", board);
         },
+        // Removes every whole stroke (from any slot, not just activeSlot —
+        // the eraser is a shared whiteboard tool for tidying up the board,
+        // not a per-team action) that passes within ERASE_RADIUS of
+        // rawPoint. Whole-stroke removal rather than partial/pixel erasing
+        // keeps the hit-testing simple: a stroke is either touched or not.
+        eraseAt(rawPoint) {
+            const target = this.toView(rawPoint);
+            let changed = false;
+
+            const board = this.board
+                .map((entry) => ({
+                    ...entry,
+                    strokes: entry.strokes.filter((stroke) => {
+                        const hit = stroke.some((p) => {
+                            const v = this.toView(p);
+                            const dx = v.cx - target.cx;
+                            const dy = v.cy - target.cy;
+                            return dx * dx + dy * dy <= ERASE_RADIUS * ERASE_RADIUS;
+                        });
+                        if (hit) changed = true;
+                        return !hit;
+                    })
+                }))
+                .filter((entry) => entry.strokes.length > 0);
+
+            if (changed) this.$emit("update:board", board);
+        },
         onPointerDown(event) {
             event.preventDefault();
             this.isDrawing = true;
             this.$refs.svg.setPointerCapture?.(event.pointerId);
-            this.pushPoint(this.fromEvent(event), true);
+            // Emitted before the first mutation of this drag so the parent
+            // can snapshot the board for undo — one snapshot per drag,
+            // whether it ends up drawing one stroke or erasing several.
+            this.$emit("stroke-start");
+            if (this.tool === 'erase') {
+                this.eraseAt(this.fromEvent(event));
+            } else {
+                this.pushPoint(this.fromEvent(event), true);
+            }
         },
         onPointerMove(event) {
             if (!this.isDrawing) return;
             event.preventDefault();
-            this.pushPoint(this.fromEvent(event), false);
+            if (this.tool === 'erase') {
+                this.eraseAt(this.fromEvent(event));
+            } else {
+                this.pushPoint(this.fromEvent(event), false);
+            }
         },
         onPointerUp() {
             this.isDrawing = false;
@@ -139,6 +190,10 @@ export default {
     -webkit-user-select: none;
     user-select: none;
     cursor: crosshair;
+}
+
+.strategy-canvas svg.strategy-canvas-svg--erase {
+    cursor: cell;
 }
 
 .board-stroke {

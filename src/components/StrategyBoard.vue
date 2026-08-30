@@ -25,17 +25,32 @@ import "@material/web/button/filled-button";
                     Drawing For:
                     <Dropdown :choices="slotChoices" v-model="activeSlot"></Dropdown>
                 </div>
-                <md-filled-button v-on:click="clearActiveSlot" class="reset-button">
-                    CLEAR {{ activeTeamLabel }}'S STROKES
-                </md-filled-button>
             </div>
-            <StrategyCanvas :board="board" :active-slot="activeSlot" :slot-color="slotColor"
-                @update:board="onBoardUpdate"></StrategyCanvas>
+            <div class="whiteboard-toolbar">
+                <div class="tool-toggle">
+                    <md-filled-button type="button" v-on:click="tool = 'draw'"
+                        :class="{ 'mode-inactive': tool !== 'draw' }">Draw</md-filled-button>
+                    <md-filled-button type="button" v-on:click="tool = 'erase'"
+                        :class="{ 'mode-inactive': tool !== 'erase' }">Erase</md-filled-button>
+                </div>
+                <md-filled-button type="button" v-on:click="undo" :disabled="undoStack.length === 0"
+                    class="reset-button">Undo</md-filled-button>
+                <md-filled-button type="button" v-on:click="clearActiveSlot" :disabled="!activeSlotHasStrokes"
+                    class="reset-button">
+                    Clear {{ activeTeamLabel }}'s Strokes
+                </md-filled-button>
+                <md-filled-button type="button" v-on:click="clearAllStrokes" :disabled="board.length === 0"
+                    class="reset-button">Clear All Strokes</md-filled-button>
+            </div>
+            <StrategyCanvas :board="board" :active-slot="activeSlot" :slot-color="slotColor" :tool="tool"
+                @update:board="onBoardUpdate" @stroke-start="pushHistory"></StrategyCanvas>
         </template>
     </div>
 </template>
 
 <script lang="ts">
+const MAX_UNDO_STEPS = 50;
+
 export default {
     props: {
         matchNumber: {
@@ -62,6 +77,13 @@ export default {
             boardId: null,
             board: [],
             activeSlot: 0,
+            // 'draw' or 'erase' — passed straight through to StrategyCanvas.
+            tool: 'draw',
+            // Snapshots of `board` taken right before each destructive action
+            // (a new stroke/erase drag, or a clear), so Undo can pop back to
+            // them. Capped so a long whiteboard session can't grow this
+            // unbounded.
+            undoStack: [],
             saveStatus: '',
             saveTimer: null,
             statusTimer: null
@@ -77,6 +99,9 @@ export default {
         },
         activeTeamLabel() {
             return this.teamFilters.find((t) => t.key === this.teamNumbers[this.activeSlot])?.text ?? 'Team';
+        },
+        activeSlotHasStrokes() {
+            return this.board.some((entry) => entry.slot === this.activeSlot && entry.strokes.length > 0);
         }
     },
     watch: {
@@ -86,6 +111,10 @@ export default {
     },
     methods: {
         async loadBoard() {
+            // A freshly loaded board is a new editing session — old undo
+            // steps would refer to a different match's strokes.
+            this.undoStack = [];
+
             if (!this.matchNumber) {
                 this.board = [];
                 this.boardId = null;
@@ -100,8 +129,26 @@ export default {
             this.board = newBoard;
             this.scheduleSave();
         },
+        // Snapshots the current board onto the undo stack — called right
+        // before any destructive change (a new draw/erase drag, or a clear)
+        // so that change can be undone as one step.
+        pushHistory() {
+            this.undoStack.push(JSON.parse(JSON.stringify(this.board)));
+            if (this.undoStack.length > MAX_UNDO_STEPS) this.undoStack.shift();
+        },
+        undo() {
+            if (this.undoStack.length === 0) return;
+            this.board = this.undoStack.pop();
+            this.scheduleSave();
+        },
         clearActiveSlot() {
+            this.pushHistory();
             this.board = this.board.filter((entry) => entry.slot !== this.activeSlot);
+            this.scheduleSave();
+        },
+        clearAllStrokes() {
+            this.pushHistory();
+            this.board = [];
             this.scheduleSave();
         },
         scheduleSave() {

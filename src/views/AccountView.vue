@@ -4,6 +4,7 @@
 
 import "@material/web/button/filled-button";
 import TextInput from '@/components/TextInput.vue';
+import SearchableDropdown from '@/components/SearchableDropdown.vue';
 
 import { supabase } from "@/lib/supabase-client";
 
@@ -36,12 +37,11 @@ import { fetchAllUsers, updateUserRole } from "@/lib/user-query";
                         <td>{{ person.name || 'Unnamed user' }}</td>
                         <td class="people-role">{{ person.role }}</td>
                         <td>
-                            <select v-if="person.user_id !== authStore.currentUserId && allowedRoles(person.role).length > 0"
-                                class="role-select" :value="pendingRole[person.user_id] || ''"
-                                @change="changeRole(person, $event.target.value)">
-                                <option disabled value="">Change role…</option>
-                                <option v-for="r in allowedRoles(person.role)" :key="r" :value="r">{{ r }}</option>
-                            </select>
+                            <SearchableDropdown
+                                v-if="person.user_id !== authStore.currentUserId && allowedRoles(person.role).length > 0"
+                                class="role-select" :choices="roleChoices(person.role)"
+                                :model-value="pendingRole[person.user_id] || ''" placeholder="Change role…"
+                                @update:modelValue="changeRole(person, $event)"></SearchableDropdown>
                         </td>
                     </tr>
                 </tbody>
@@ -74,6 +74,9 @@ export default {
             this.peopleLoaded = false;
             this.people = await fetchAllUsers();
             this.peopleLoaded = true;
+        },
+        roleChoices(targetRole) {
+            return this.allowedRoles(targetRole).map((r) => ({ key: r, text: r }));
         },
         allowedRoles(targetRole) {
             const actorRank = roleRank[this.authStore.role] ?? -1;
@@ -155,21 +158,6 @@ export default {
 
 .role-select {
     display: block;
-    padding: 10px 8px;
-    font-size: 1rem;
-    border-radius: 6px;
-    border: 1px solid rgba(128, 128, 128, 0.35);
-    background-color: transparent;
-    color: var(--primary-text-color);
-    cursor: pointer;
-}
-
-.role-select:hover {
-    border-color: rgba(128, 128, 128, 0.6);
-}
-
-.role-select option {
-    color: initial;
-    background-color: initial;
+    min-width: 160px;
 }
 </style>
