@@ -42,7 +42,7 @@ export default {
             type: [Number, String],
             default: null
         },
-        teamIndices: {
+        teamNumbers: {
             type: Array,
             required: true
         },
@@ -72,11 +72,11 @@ export default {
             const labels = ['Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
             return [0, 1, 2, 3, 4, 5].map((slot) => ({
                 key: slot,
-                text: `${labels[slot]} — ${this.teamFilters[this.teamIndices[slot]]?.text ?? 'Unassigned'}`
+                text: `${labels[slot]} — ${this.teamFilters.find((t) => t.key === this.teamNumbers[slot])?.text ?? 'Unassigned'}`
             }));
         },
         activeTeamLabel() {
-            return this.teamFilters[this.teamIndices[this.activeSlot]]?.text ?? 'Team';
+            return this.teamFilters.find((t) => t.key === this.teamNumbers[this.activeSlot])?.text ?? 'Team';
         }
     },
     watch: {

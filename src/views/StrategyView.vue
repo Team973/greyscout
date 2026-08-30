@@ -3,6 +3,7 @@
 // @ts-nocheck
 
 import { useEventStore } from "@/stores/event-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useViewModeStore } from '@/stores/view-mode-store';
 import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 import { teamInfoTable, autoPathTable, allianceRed, allianceBlue } from "@/lib/constants";
@@ -15,6 +16,7 @@ import { SIDE_CHOICES, transformPath } from "@/lib/2026/auto-path-field";
 import '@material/web/select/outlined-select';
 import '@material/web/select/select-option';
 import Dropdown from "@/components/Dropdown.vue";
+import SearchableDropdown from "@/components/SearchableDropdown.vue";
 import NumberInput from "@/components/Number.vue";
 import TextInput from "@/components/TextInput.vue";
 import Switch from "@/components/Switch.vue";
@@ -30,7 +32,12 @@ import "@material/web/button/filled-button";
 <template>
     <div class="main-content">
         <h1>Strategy</h1>
-        <div v-if="teamsLoaded && isDataAvailable">
+        <div v-if="!isLead" class="strategy-locked">
+            <div class="strategy-locked-icon">🔒</div>
+            <h2>Not available</h2>
+            <p>Strategy is only available to leads and admins.</p>
+        </div>
+        <div v-else-if="teamsLoaded && isDataAvailable">
             <!-- Only show this if the team data is loaded. -->
             <div class="data-tile">
                 <div class="autopath-preview-selector">
@@ -51,9 +58,10 @@ import "@material/web/button/filled-button";
                     <div v-for="(slot, i) in [0, 1, 2]" :key="slot" class="autopath-preview-selector alliance-slot-row">
                         <span class="alliance-slot-label">Red {{ i + 1 }}:</span>
                         <ColorSwatchPicker :choices="COLOR_CHOICES" v-model="slotColorIndex[slot]"></ColorSwatchPicker>
-                        <Dropdown v-if="manualTeamSelection" :choices="teamFilters" v-model="teamIndices[slot]"
-                            @update:modelValue="setTeam(slot, $event)"></Dropdown>
-                        <span v-else class="assigned-team">{{ teamFilters[teamIndices[slot]]?.text ?? 'Unassigned' }}</span>
+                        <SearchableDropdown v-if="manualTeamSelection" :choices="teamFilters"
+                            :model-value="teamNumbers[slot]" placeholder="Search team…"
+                            @update:modelValue="setTeam(slot, $event)"></SearchableDropdown>
+                        <span v-else class="assigned-team">{{ teamAtSlot(slot)?.text ?? 'Unassigned' }}</span>
                     </div>
                 </div>
             </div>
@@ -64,9 +72,10 @@ import "@material/web/button/filled-button";
                     <div v-for="(slot, i) in [3, 4, 5]" :key="slot" class="autopath-preview-selector alliance-slot-row">
                         <span class="alliance-slot-label">Blue {{ i + 1 }}:</span>
                         <ColorSwatchPicker :choices="COLOR_CHOICES" v-model="slotColorIndex[slot]"></ColorSwatchPicker>
-                        <Dropdown v-if="manualTeamSelection" :choices="teamFilters" v-model="teamIndices[slot]"
-                            @update:modelValue="setTeam(slot, $event)"></Dropdown>
-                        <span v-else class="assigned-team">{{ teamFilters[teamIndices[slot]]?.text ?? 'Unassigned' }}</span>
+                        <SearchableDropdown v-if="manualTeamSelection" :choices="teamFilters"
+                            :model-value="teamNumbers[slot]" placeholder="Search team…"
+                            @update:modelValue="setTeam(slot, $event)"></SearchableDropdown>
+                        <span v-else class="assigned-team">{{ teamAtSlot(slot)?.text ?? 'Unassigned' }}</span>
                     </div>
                 </div>
             </div>
@@ -166,7 +175,7 @@ import "@material/web/button/filled-button";
                 </template>
 
                 <template v-else-if="strategyMode === 'whiteboard'">
-                    <StrategyBoard :match-number="matchNumber" :team-indices="teamIndices" :team-filters="teamFilters"
+                    <StrategyBoard :match-number="matchNumber" :team-numbers="teamNumbers" :team-filters="teamFilters"
                         :slot-color="slotColor"></StrategyBoard>
                 </template>
             </FullscreenTile>
@@ -199,10 +208,14 @@ export default {
         return {
             deviceViewMode: null,
             eventStore: null,
+            authStore: null,
             queueStore: null,
             teamsLoaded: false,
             teamFilters: [],
-            teamIndices: [0, 0, 0, 0, 0, 0],
+            // Values, not indices — a team-number key (string, matching
+            // teamFilters[i].key) or null for an unassigned slot, since an
+            // index can't survive SearchableDropdown's live-filtered list.
+            teamNumbers: [null, null, null, null, null, null],
             matchNumber: null,
             matchLookupFailed: false,
             // Default is schedule-driven auto-assignment; flip on to hand-pick
@@ -213,7 +226,7 @@ export default {
             // whiteboard strategy board behind one toggle.
             strategyMode: 'preview',
             // Per-slot dropdown choices ({key, text, path}) of that slot's team's saved auto paths,
-            // plus a leading "None" option. Index aligns with teamIndices (0-2 red, 3-5 blue).
+            // plus a leading "None" option. Index aligns with teamNumbers (0-2 red, 3-5 blue).
             autoPathChoices: [[], [], [], [], [], []],
             selectedAutoPathIndex: [0, 0, 0, 0, 0, 0],
             // Which side (left/right) to preview each slot's chosen path as — defaults to
@@ -286,28 +299,37 @@ export default {
             this.teamsLoaded = true;
 
             // Load auto path choices for whichever team currently occupies each slot.
-            for (var slot = 0; slot < this.teamIndices.length; slot++) {
+            for (var slot = 0; slot < this.teamNumbers.length; slot++) {
                 this.loadAutoPathChoices(slot);
             }
+        },
+        teamAtSlot(slot: int) {
+            return this.teamFilters.find((t) => t.key === this.teamNumbers[slot]);
         },
         async loadAutoPathChoices(slot: int) {
             this.selectedAutoPathIndex[slot] = 0;
             this.selectedSideIndex[slot] = 0;
             this.robotPhotoUrls[slot] = null;
 
-            if (slot >= this.teamIndices.length || this.teamFilters.length === 0) {
+            const teamKey = this.teamNumbers[slot];
+            if (slot >= this.teamNumbers.length || !teamKey) {
                 this.autoPathChoices[slot] = [{ key: 'none', text: 'No Auto Selected', path: null }];
                 return;
             }
 
-            const teamIndex = this.teamIndices[slot];
-            const teamNumber = Number(this.teamFilters[teamIndex].key);
+            const teamNumber = Number(teamKey);
             const paths = await fetchTeamAutoPaths(teamNumber, this.eventStore.eventId);
             fetchRobotPhotoUrl(teamNumber).then((url) => { this.robotPhotoUrls[slot] = url; });
 
             // A lone path is treated as the default even if is_default was never
-            // explicitly set — matches AutoPathCard's isOnlyPath rule.
-            const defaultId = paths.length === 1 ? paths[0].id : paths.find((p) => p.isDefault)?.id;
+            // explicitly set — matches AutoPathCard's isOnlyPath rule. With
+            // several paths and none explicitly marked default either, fall
+            // back to the first saved path rather than leaving the slot on
+            // "None" — a team with real saved paths should never silently
+            // show as if it had none.
+            const defaultId = paths.length === 1
+                ? paths[0].id
+                : (paths.find((p) => p.isDefault)?.id ?? paths[0]?.id);
 
             this.autoPathChoices[slot] = [
                 { key: 'none', text: 'No Auto Selected', path: null },
@@ -320,9 +342,7 @@ export default {
 
             // Default to the team's marked-default auto instead of "None" — or,
             // with only one saved path, that path is the default by definition.
-            const defaultChoiceIdx = paths.length === 1
-                ? 1
-                : this.autoPathChoices[slot].findIndex((c) => c.path?.isDefault);
+            const defaultChoiceIdx = this.autoPathChoices[slot].findIndex((c) => c.key === String(defaultId));
             if (defaultChoiceIdx > 0) {
                 this.onAutoPathChoiceChange(slot, defaultChoiceIdx);
             }
@@ -340,8 +360,8 @@ export default {
             const sideIdx = SIDE_CHOICES.findIndex((c) => c.key === side);
             this.selectedSideIndex[slot] = sideIdx >= 0 ? sideIdx : 0;
         },
-        setTeam(idx: int, data: int) {
-            this.teamIndices[idx] = data;
+        setTeam(idx: int, teamKey) {
+            this.teamNumbers[idx] = teamKey;
             this.loadAutoPathChoices(idx);
         },
         async onMatchNumberChange(value) {
@@ -364,12 +384,12 @@ export default {
                 return;
             }
 
-            // Slot order matches teamIndices: 0-2 red, 3-5 blue (see template).
+            // Slot order matches teamNumbers: 0-2 red, 3-5 blue (see template).
             const slots = [matchTeams.red1, matchTeams.red2, matchTeams.red3, matchTeams.blue1, matchTeams.blue2, matchTeams.blue3];
             slots.forEach((teamNumber, slot) => {
                 if (!teamNumber) return;
-                const teamIdx = this.teamFilters.findIndex((t) => Number(t.key) === teamNumber);
-                if (teamIdx >= 0) this.setTeam(slot, teamIdx);
+                const teamKey = this.teamFilters.find((t) => Number(t.key) === teamNumber)?.key;
+                if (teamKey !== undefined) this.setTeam(slot, teamKey);
             });
         },
         onManualToggle(value) {
@@ -408,8 +428,7 @@ export default {
             this.autoEditPathError = this.autoEditPoints.length < 2;
             if (this.autoEditNameError || this.autoEditPathError) return;
 
-            const teamIndex = this.teamIndices[this.autoEditSlot];
-            const teamNumber = Number(this.teamFilters[teamIndex]?.key);
+            const teamNumber = Number(this.teamNumbers[this.autoEditSlot]);
             const data = {
                 team_number: teamNumber,
                 name: this.autoEditName.trim(),
@@ -434,6 +453,9 @@ export default {
         }
     },
     computed: {
+        isLead() {
+            return this.authStore?.isLead;
+        },
         isDataAvailable() {
             return this.teamFilters.length > 0;
         },
@@ -479,7 +501,7 @@ export default {
             const labels = ['Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'];
             return [0, 1, 2, 3, 4, 5].map((slot) => ({
                 key: slot,
-                text: `${labels[slot]} — ${this.teamFilters[this.teamIndices[slot]]?.text ?? 'Unassigned'}`
+                text: `${labels[slot]} — ${this.teamAtSlot(slot)?.text ?? 'Unassigned'}`
             }));
         },
         autoEditAlliance() {
@@ -489,15 +511,28 @@ export default {
     created() {
         this.deviceViewMode = useViewModeStore();
         this.eventStore = useEventStore();
+        this.authStore = useAuthStore();
         this.queueStore = useOfflineQueueStore();
         this.autoEditName = this.autoEditDefaultName();
         this.previousAutoEditDefault = this.autoEditName;
+        if (!this.authStore.isLead) return;
         this.loadTeamsData();
     }
 }
 </script>
 
 <style>
+.strategy-locked {
+    text-align: center;
+    padding: 60px 0;
+    color: rgba(128, 128, 128, 0.8);
+}
+
+.strategy-locked-icon {
+    font-size: 52px;
+    margin-bottom: 12px;
+}
+
 .red-alliance {
     border: 2px solid red;
 }

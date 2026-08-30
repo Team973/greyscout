@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // @ts-nocheck
-import Dropdown from "@/components/Dropdown.vue";
+import SearchableDropdown from "@/components/SearchableDropdown.vue";
 import PitScoutingSection from "@/components/PitScoutingSection.vue";
 
 import { useEventStore } from "@/stores/event-store";
@@ -10,7 +10,8 @@ import { queryTeamNumbers } from "@/lib/data-query";
 <template>
     <div class="main-content">
         <div v-if="isDataAvailable">
-            <Dropdown :choices="teamFilters" v-model="currentTeamIndex"></Dropdown>
+            <SearchableDropdown :choices="teamFilters" v-model="currentTeamNumber" placeholder="Search team…">
+            </SearchableDropdown>
 
             <PitScoutingSection :team-number="teamNumber"></PitScoutingSection>
         </div>
@@ -27,7 +28,7 @@ export default {
             eventStore: null,
             teamsLoaded: false,
             teamFilters: [],
-            currentTeamIndex: 0
+            currentTeamNumber: null
         }
     },
     methods: {
@@ -51,6 +52,10 @@ export default {
                 this.teamFilters.push(teamMap[element])
             });
 
+            if (!this.teamFilters.some(t => t.key === this.currentTeamNumber)) {
+                this.currentTeamNumber = this.teamFilters[0]?.key ?? null;
+            }
+
             this.teamsLoaded = true;
         }
     },
@@ -59,11 +64,7 @@ export default {
             return this.teamFilters.length > 0;
         },
         teamNumber() {
-            if (this.currentTeamIndex >= this.teamFilters.length || this.teamFilters.length == 0) {
-                return -1;
-            }
-
-            return this.teamFilters[this.currentTeamIndex].key;
+            return this.currentTeamNumber ?? -1;
         }
     },
     created() {
