@@ -331,31 +331,51 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
                 </div>
 
                 <div class="pickem-modal-body">
-                    <div v-if="infoModalData?.stats.length > 0" class="pickem-stats-grid">
-                        <div v-for="stat in computeFlagStats(infoModalData.stats)" :key="stat.label"
-                            class="pickem-stat">
-                            <div class="stat-label">{{ stat.label }}</div>
-                            <div class="stat-avg">{{ stat.pct }}%</div>
-                        </div>
-                        <div v-for="stat in computeBasicStats(infoModalData.stats)" :key="stat.label"
-                            class="pickem-stat">
-                            <div class="stat-label">{{ stat.label }}</div>
-                            <div class="stat-avg">{{ stat.avg }}</div>
+                    <!-- Same expanded-detail data summary as the ranked Pick List rows
+                         (PicklistRow.vue) — full photo, per-match-count stat cards, and
+                         comments with their match number — so a team looks the same
+                         whether you're reviewing it here or on the Pick List. -->
+                    <div class="pickem-detail-photo" v-if="infoModalTeam?.photo_url">
+                        <img :src="infoModalTeam.photo_url" :alt="`Team ${infoModalTeamNumber} robot (full)`"
+                            class="pickem-full-photo" />
+                    </div>
+
+                    <div class="pickem-detail-section" v-if="infoModalData?.stats.length > 0">
+                        <h3 class="pickem-detail-heading">Match Stats ({{ infoModalData.stats.length }} matches)</h3>
+                        <div class="pickem-stats-grid">
+                            <div v-for="stat in computeFlagStats(infoModalData.stats)" :key="stat.label"
+                                class="pickem-stat">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.pct }}%</div>
+                                <div class="stat-sub">{{ stat.count }} / {{ stat.total }} matches</div>
+                            </div>
+                            <div v-for="stat in computeBasicStats(infoModalData.stats)" :key="stat.label"
+                                class="pickem-stat">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.avg }}</div>
+                                <div class="stat-sub">avg &nbsp;|&nbsp; max {{ stat.max }}</div>
+                            </div>
                         </div>
                     </div>
                     <p v-else class="pickem-no-data">No match data available.</p>
 
-                    <h3 class="pickem-modal-section-title">Comments</h3>
-                    <ul v-if="infoModalData?.comments.length > 0" class="pickem-comments">
-                        <li v-for="(comment, cIdx) in infoModalData.comments" :key="cIdx" class="pickem-comment">
-                            <div class="comment-meta">
-                                <span class="comment-author">{{ comment.author }}</span>
-                                <span class="comment-source-badge">{{ comment.source }}</span>
-                            </div>
-                            <p class="comment-text">{{ comment.comment }}</p>
-                        </li>
-                    </ul>
-                    <p v-else class="pickem-no-data">No comments yet.</p>
+                    <div class="pickem-detail-section" v-if="infoModalData?.comments.length > 0">
+                        <h3 class="pickem-detail-heading">Scout Comments</h3>
+                        <ul class="pickem-comments">
+                            <li v-for="(comment, cIdx) in infoModalData.comments" :key="cIdx" class="pickem-comment">
+                                <div class="comment-meta">
+                                    <span class="comment-author">{{ comment.author }}</span>
+                                    <span class="comment-source-badge">{{ comment.source }}</span>
+                                    <span class="comment-match" v-if="comment.match_number != null">Match
+                                        {{ comment.match_number }}</span>
+                                </div>
+                                <p class="comment-text">{{ comment.comment }}</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <p v-else-if="infoModalData?.stats.length === 0" class="pickem-no-data">
+                        No scouting data available for this team.
+                    </p>
 
                     <PitScoutingSection :team-number="infoModalTeamNumber"></PitScoutingSection>
                 </div>
@@ -550,40 +570,67 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
     overflow-y: auto;
 }
 
-.pickem-modal-section-title {
+.pickem-detail-photo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 18px;
+}
+
+.pickem-full-photo {
+    max-width: 340px;
+    width: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.pickem-detail-section {
+    margin-bottom: 18px;
+}
+
+.pickem-detail-heading {
     font-size: 14px;
-    margin: 20px 0 8px;
+    font-weight: 700;
+    color: #b05703;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .pickem-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-    gap: 8px;
-    margin-bottom: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
 }
 
 .pickem-stat {
     background: rgba(176, 87, 3, 0.08);
     border: 1px solid rgba(176, 87, 3, 0.2);
-    border-radius: 8px;
-    padding: 6px 8px;
+    border-radius: 10px;
+    padding: 10px 12px;
     text-align: center;
 }
 
 .stat-label {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(128, 128, 128, 0.75);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
 }
 
 .stat-avg {
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 700;
     color: #b05703;
     line-height: 1.1;
+}
+
+.stat-sub {
+    font-size: 10px;
+    color: rgba(128, 128, 128, 0.6);
+    margin-top: 2px;
 }
 
 .pickem-comments {
@@ -624,6 +671,12 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
     color: #b05703;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+.comment-match {
+    font-size: 10px;
+    color: rgba(128, 128, 128, 0.6);
+    margin-left: auto;
 }
 
 .comment-text {
