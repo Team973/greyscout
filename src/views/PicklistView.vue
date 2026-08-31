@@ -9,6 +9,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { useWatchlistStore } from '@/stores/watchlist-store';
 import { TIERS, TIER_GROUPS } from '@/lib/picklist-query';
+import { refreshTbaStats } from '@/lib/tba-cache';
 import PicklistRow from '@/components/PicklistRow.vue';
 import PicklistUnrankedCard from '@/components/PicklistUnrankedCard.vue';
 
@@ -208,6 +209,23 @@ async function refreshDemocratic() {
     isRefreshingDemocratic.value = false;
 }
 
+// ─── Refresh TBA Stats (issue #26) ────────────────────────────────────────────
+// Read-only pull (no DB write), so available to everyone, not just leads.
+
+const isRefreshingTbaStats = ref(false);
+const tbaStatsError = ref('');
+
+async function refreshTbaStatsForEvent() {
+    isRefreshingTbaStats.value = true;
+    tbaStatsError.value = '';
+    try {
+        await refreshTbaStats(eventId.value);
+    } catch (e) {
+        tbaStatsError.value = e.message ?? String(e);
+    }
+    isRefreshingTbaStats.value = false;
+}
+
 // ─── Reset Team List from Democratic ──────────────────────────────────────────
 
 async function resetTeamFromDemocratic() {
@@ -320,7 +338,12 @@ function toggleTierCollapse(group: string) {
             <div class="picklist-header">
                 <h1>Pick List</h1>
                 <div class="picklist-event-name">{{ eventStore.eventName }}</div>
+                <button type="button" class="picklist-reset-btn picklist-tba-refresh-btn" :disabled="isRefreshingTbaStats"
+                    title="Re-pull OPR/DPR from The Blue Alliance for this event" @click="refreshTbaStatsForEvent">
+                    {{ isRefreshingTbaStats ? 'Refreshing TBA Stats…' : '↻ Refresh TBA Stats' }}
+                </button>
             </div>
+            <p v-if="tbaStatsError" class="picklist-tba-error">{{ tbaStatsError }}</p>
 
             <!-- Tab bar -->
             <div class="picklist-tabs" role="tablist">
@@ -457,6 +480,7 @@ function toggleTierCollapse(group: string) {
                                 class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
                                 <template #item="{ element: teamNumber, index }">
                                     <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                        :event-id="eventId"
                                         :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
                                         :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                         :is-picked="picklistStore.isTeamPicked(teamNumber)"
@@ -473,6 +497,7 @@ function toggleTierCollapse(group: string) {
                             <div v-else v-show="!isTierCollapsed(group)" class="tier-section-body tier-section-body--static">
                                 <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
                                     :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
+                                    :event-id="eventId"
                                     :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
                                     :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                     :is-picked="picklistStore.isTeamPicked(teamNumber)"
@@ -566,6 +591,16 @@ function toggleTierCollapse(group: string) {
     font-size: 14px;
     color: rgba(128, 128, 128, 0.8);
     font-style: italic;
+}
+
+.picklist-tba-refresh-btn {
+    margin-left: auto;
+}
+
+.picklist-tba-error {
+    color: #d32f2f;
+    font-size: 13px;
+    margin: 4px 0 0;
 }
 
 /* ── Tabs ── */

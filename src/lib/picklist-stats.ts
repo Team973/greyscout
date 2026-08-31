@@ -3,6 +3,8 @@
 // PicklistUnrankedCard.vue's expanded views so the two don't duplicate the
 // same field-derivation logic.
 
+import { getTeamTbaStats } from '@/lib/tba-cache';
+
 export function computeBasicStats(matchData: unknown[]) {
     if (!matchData.length) return [];
 
@@ -46,4 +48,17 @@ export function computeFlagStats(matchData: unknown[]) {
         const pct = (count / matchData.length) * 100;
         return { label, pct: pct.toFixed(0), count, total: matchData.length };
     });
+}
+
+// TBA OPR/DPR, read synchronously from the local cache (src/lib/tba-cache.ts)
+// — never fetched here. Empty until a "Refresh TBA Stats" action has run at
+// least once for this event.
+export function computeTbaStats(eventId: string, teamNumber: number) {
+    const stats = getTeamTbaStats(eventId, teamNumber);
+    if (!stats) return [];
+
+    const entries = [];
+    if (stats.opr != null) entries.push({ label: 'OPR', avg: stats.opr.toFixed(1), sub: 'via TBA' });
+    if (stats.dpr != null) entries.push({ label: 'DPR', avg: stats.dpr.toFixed(1), sub: 'via TBA' });
+    return entries;
 }

@@ -9,7 +9,9 @@ import SearchableDropdown from '@/components/SearchableDropdown.vue';
 import { supabase } from "@/lib/supabase-client";
 
 import { useAuthStore, roleRank } from "@/stores/auth-store";
+import { useEventStore } from "@/stores/event-store";
 import { fetchAllUsers, updateUserRole } from "@/lib/user-query";
+import { refreshEventSchedule } from "@/lib/tba-query";
 </script>
 
 <template>
@@ -18,6 +20,16 @@ import { fetchAllUsers, updateUserRole } from "@/lib/user-query";
             <h1>Profile</h1>
             <div>Name: {{ authStore.currentUserName || '(no name on file)' }}</div>
             <div>Role: {{ authStore.role }}</div>
+        </div>
+
+        <div class="user-tile" v-if="authStore.isLead">
+            <h1>Event Management</h1>
+            <div>Current event: {{ eventStore.eventName || eventStore.eventId }}</div>
+            <md-filled-button v-on:click="refreshEventData" :disabled="eventRefreshing" class="load-button">
+                {{ eventRefreshing ? 'Refreshing…' : 'Refresh Event Data' }}
+            </md-filled-button>
+            <p v-if="eventRefreshMessage" class="event-refresh-message">{{ eventRefreshMessage }}</p>
+            <p v-if="eventRefreshError" class="form-error">{{ eventRefreshError }}</p>
         </div>
 
         <div class="user-tile">
@@ -63,13 +75,32 @@ export default {
     data() {
         return {
             authStore: null,
+            eventStore: null,
             people: [],
             peopleLoaded: false,
             peopleError: "",
             pendingRole: {},
+            eventRefreshing: false,
+            eventRefreshMessage: "",
+            eventRefreshError: "",
         }
     },
     methods: {
+        async refreshEventData() {
+            this.eventRefreshing = true;
+            this.eventRefreshMessage = "";
+            this.eventRefreshError = "";
+
+            const { matchCount, error } = await refreshEventSchedule(this.eventStore.eventId);
+
+            if (error) {
+                this.eventRefreshError = error.message;
+            } else {
+                this.eventRefreshMessage = `Match schedule refreshed — ${matchCount} matches.`;
+            }
+
+            this.eventRefreshing = false;
+        },
         async loadPeople() {
             this.peopleLoaded = false;
             this.people = await fetchAllUsers();
@@ -125,7 +156,9 @@ export default {
     },
     async created() {
         this.authStore = useAuthStore();
+        this.eventStore = useEventStore();
         await this.authStore.checkUser();
+        await this.eventStore.updateEvent();
         await this.loadPeople();
     }
 }
@@ -154,6 +187,11 @@ export default {
 
 .form-error {
     color: #c0392b;
+}
+
+.event-refresh-message {
+    color: #2f8a2f;
+    font-size: 13px;
 }
 
 .role-select {

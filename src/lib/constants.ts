@@ -35,6 +35,10 @@ export const sideRight = "right";
 // Offline queue
 export const offlineQueueKey = "greyscout_offline_queue";
 
+// TBA integration
+export const tbaProxyFunction = "tba-proxy";
+export const tbaStatsCacheKey = "greyscout_tba_stats_cache";
+
 // Database columns
 export const teamNumberColumn = "prematch_team_number";
 export const matchNumberColumn = "prematch_match_number";

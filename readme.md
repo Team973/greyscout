@@ -12,6 +12,10 @@ npm install
 cd util
 uv sync
 ```
+4. Set the `TBA_API_KEY` secret on the linked Supabase project — required for the `tba-proxy` Edge Function (in-app TBA sync and OPR/DPR display) to work. Use the same key as `util/private_credentials.json`'s `tba.api_key`:
+```bash
+supabase secrets set TBA_API_KEY=<your-tba-api-key>
+```
 
 ## Development 
 
