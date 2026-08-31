@@ -13,6 +13,15 @@ import {
 } from '@/lib/constants';
 
 /**
+ * A team can be ranked independently under either or both archetypes
+ * (issue #27) — this is a manual per-list distinction, not an automatic
+ * classification.
+ */
+export type Archetype = 'scorer' | 'defender';
+export const ARCHETYPES: Archetype[] = ['scorer', 'defender'];
+export const DEFAULT_ARCHETYPE: Archetype = 'scorer';
+
+/**
  * Fetch all teams attending an event, combined with their robot photo URL.
  * Returns an array of { team_number, name, photo_url | null }.
  */
@@ -71,6 +80,8 @@ export interface TeamMatchSummary {
     diedCount: number;
     beachedCount: number;
     defenseCount: number;
+    /** defenseCount / matches * 100 — used to pre-filter Pick'em's Defender pool (issue #27). */
+    defensePercent: number;
     /** Worst card seen across this team's matches at the event, or null if none. */
     worstCard: 'red' | 'yellow' | null;
 }
@@ -99,7 +110,7 @@ export async function fetchTeamMatchSummaries(eventId: string): Promise<Record<n
         if (teamNumber == null) return;
 
         const summary = summaries[teamNumber] ?? {
-            matches: 0, brokeCount: 0, diedCount: 0, beachedCount: 0, defenseCount: 0, worstCard: null
+            matches: 0, brokeCount: 0, diedCount: 0, beachedCount: 0, defenseCount: 0, defensePercent: 0, worstCard: null
         };
         summary.matches += 1;
         if (row.postmatch_broke) summary.brokeCount += 1;
@@ -110,6 +121,10 @@ export async function fetchTeamMatchSummaries(eventId: string): Promise<Record<n
         else if (row.postmatch_cards === 'yellow' && summary.worstCard !== 'red') summary.worstCard = 'yellow';
 
         summaries[teamNumber] = summary;
+    });
+
+    Object.values(summaries).forEach((summary) => {
+        summary.defensePercent = summary.matches > 0 ? (summary.defenseCount / summary.matches) * 100 : 0;
     });
 
     return summaries;
@@ -259,16 +274,17 @@ export function parseTeamTiers(raw: Record<string, unknown> | null | undefined):
 }
 
 /**
- * Fetch the current user's personal picklist for an event.
+ * Fetch the current user's personal picklist for an event/archetype.
  * Returns the ordered array of team_numbers plus tier assignments, or null if none exists.
  */
-export async function fetchPersonalPicklist(userId: string, eventId: string) {
+export async function fetchPersonalPicklist(userId: string, eventId: string, archetype: Archetype) {
     const { data, error } = await supabase
         .from(pickListTable)
         .select('id, team_numbers, team_tiers, updated_at')
         .eq('user_id', userId)
         .eq('event_id', eventId)
         .eq('type', pickListTypePersonal)
+        .eq('archetype', archetype)
         .limit(1)
         .maybeSingle();
 
@@ -280,15 +296,16 @@ export async function fetchPersonalPicklist(userId: string, eventId: string) {
 }
 
 /**
- * Fetch ALL personal picklists for an event (for the democratic view).
+ * Fetch ALL personal picklists for an event/archetype (for the democratic view).
  * Returns array of { user_id, team_numbers, team_tiers }.
  */
-export async function fetchAllPersonalPicklists(eventId: string) {
+export async function fetchAllPersonalPicklists(eventId: string, archetype: Archetype) {
     const { data, error } = await supabase
         .from(pickListTable)
         .select('user_id, team_numbers, team_tiers')
         .eq('event_id', eventId)
-        .eq('type', pickListTypePersonal);
+        .eq('type', pickListTypePersonal)
+        .eq('archetype', archetype);
 
     if (error) {
         console.error('fetchAllPersonalPicklists error:', error);
@@ -298,16 +315,15 @@ export async function fetchAllPersonalPicklists(eventId: string) {
 }
 
 /**
- * Fetch the team (shared lead) picklist for an event, including the
- * event-wide set of teams that have already been picked (real-world
- * alliance selection), which is only ever stored on this shared row.
+ * Fetch the team (shared lead) picklist for an event/archetype.
  */
-export async function fetchTeamPicklist(eventId: string) {
+export async function fetchTeamPicklist(eventId: string, archetype: Archetype) {
     const { data, error } = await supabase
         .from(pickListTable)
-        .select('id, team_numbers, team_tiers, picked_team_numbers, updated_at')
+        .select('id, team_numbers, team_tiers, updated_at')
         .eq('event_id', eventId)
         .eq('type', pickListTypeTeam)
+        .eq('archetype', archetype)
         .limit(1)
         .maybeSingle();
 
@@ -321,6 +337,9 @@ export async function fetchTeamPicklist(eventId: string) {
 /**
  * Fetch just the event-wide picked-team set. Visible to every user
  * regardless of role, unlike the rest of the team list which is lead-only.
+ * Real-world draft status isn't per-archetype (a team once picked is picked
+ * regardless of role), so this is always anchored to the Scorer archetype's
+ * shared team row rather than being duplicated across both.
  */
 export async function fetchPickedTeams(eventId: string): Promise<number[]> {
     const { data, error } = await supabase
@@ -328,6 +347,7 @@ export async function fetchPickedTeams(eventId: string): Promise<number[]> {
         .select('picked_team_numbers')
         .eq('event_id', eventId)
         .eq('type', pickListTypeTeam)
+        .eq('archetype', DEFAULT_ARCHETYPE)
         .limit(1)
         .maybeSingle();
 
@@ -345,6 +365,7 @@ export async function fetchPickedTeams(eventId: string): Promise<number[]> {
 export async function upsertPersonalPicklist(
     userId: string,
     eventId: string,
+    archetype: Archetype,
     teamNumbers: number[],
     teamTiers: Record<number, Tier>
 ) {
@@ -354,6 +375,7 @@ export async function upsertPersonalPicklist(
         .eq('user_id', userId)
         .eq('event_id', eventId)
         .eq('type', pickListTypePersonal)
+        .eq('archetype', archetype)
         .maybeSingle();
 
     if (fetchError) return fetchError;
@@ -375,6 +397,7 @@ export async function upsertPersonalPicklist(
                 user_id: userId,
                 event_id: eventId,
                 type: pickListTypePersonal,
+                archetype,
                 team_numbers: teamNumbers,
                 team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
@@ -390,6 +413,7 @@ export async function upsertPersonalPicklist(
  */
 export async function upsertTeamPicklist(
     eventId: string,
+    archetype: Archetype,
     teamNumbers: number[],
     teamTiers: Record<number, Tier>
 ) {
@@ -398,6 +422,7 @@ export async function upsertTeamPicklist(
         .select('id')
         .eq('event_id', eventId)
         .eq('type', pickListTypeTeam)
+        .eq('archetype', archetype)
         .maybeSingle();
 
     if (fetchError) return fetchError;
@@ -418,6 +443,7 @@ export async function upsertTeamPicklist(
             .insert({
                 event_id: eventId,
                 type: pickListTypeTeam,
+                archetype,
                 team_numbers: teamNumbers,
                 team_tiers: teamTiers,
                 updated_at: new Date().toISOString()
@@ -427,8 +453,9 @@ export async function upsertTeamPicklist(
 }
 
 /**
- * Update the event-wide picked-team set on the shared team row. This is
- * intentionally separate from upsertTeamPicklist so toggling a checkbox
+ * Update the event-wide picked-team set on the Scorer archetype's shared
+ * team row (see fetchPickedTeams — draft status isn't per-archetype). This
+ * is intentionally separate from upsertTeamPicklist so toggling a checkbox
  * never clobbers a concurrently-edited tier/order draft, and vice versa.
  * Returns the error object or null on success.
  */
@@ -438,6 +465,7 @@ export async function updatePickedTeams(eventId: string, pickedTeamNumbers: numb
         .select('id')
         .eq('event_id', eventId)
         .eq('type', pickListTypeTeam)
+        .eq('archetype', DEFAULT_ARCHETYPE)
         .maybeSingle();
 
     if (fetchError) return fetchError;
@@ -457,6 +485,7 @@ export async function updatePickedTeams(eventId: string, pickedTeamNumbers: numb
             .insert({
                 event_id: eventId,
                 type: pickListTypeTeam,
+                archetype: DEFAULT_ARCHETYPE,
                 picked_team_numbers: pickedTeamNumbers,
                 updated_at: new Date().toISOString()
             });

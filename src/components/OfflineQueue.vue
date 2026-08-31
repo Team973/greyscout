@@ -28,6 +28,7 @@ const retryHandlers = {
         return await upsertPersonalPicklist(
             payload.userId as string,
             payload.eventId as string,
+            payload.archetype as 'scorer' | 'defender',
             payload.teamNumbers as number[],
             payload.teamTiers as Record<number, string>
         );
@@ -35,6 +36,7 @@ const retryHandlers = {
     picklist_team: async (payload: Record<string, unknown>) => {
         return await upsertTeamPicklist(
             payload.eventId as string,
+            payload.archetype as 'scorer' | 'defender',
             payload.teamNumbers as number[],
             payload.teamTiers as Record<number, string>
         );

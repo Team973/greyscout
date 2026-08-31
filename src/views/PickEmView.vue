@@ -17,6 +17,12 @@ const queueStore = useOfflineQueueStore();
 const userId = computed(() => authStore.currentUserId);
 const eventId = computed(() => eventStore.eventId);
 
+// Scorer/Defender toggle (issue #27), shared with the Pick List page.
+const activeArchetype = computed({
+    get: () => picklistStore.activeArchetype,
+    set: (v) => picklistStore.setArchetype(v)
+});
+
 const teamsLoaded = ref(false);
 
 // Teams still waiting to be placed, in the order they'll be presented.
@@ -50,23 +56,51 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ─── Loading ───────────────────────────────────────────────────────────────────
 
+// (Re)builds the placement queue for whichever archetype is currently
+// active — called on initial load and whenever the Scorer/Defender toggle
+// changes, so each archetype gets its own independent placement session.
+// Defender's pool is pre-filtered to likely defenders (defense% over the
+// threshold); Scorer sees every unranked team.
+async function loadArchetypeSession() {
+    await picklistStore.loadPersonalList(userId.value, eventId.value, activeArchetype.value);
+
+    let pool = [...picklistStore.personalTierSections[activeArchetype.value].Unranked];
+    if (activeArchetype.value === 'defender') {
+        pool = pool.filter((teamNumber) => picklistStore.isLikelyDefender(teamNumber));
+    }
+
+    // Shuffle so placement order doesn't always start with the lowest team number.
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    queue.value = pool;
+    totalToPlace.value = pool.length;
+    placedCount.value = 0;
+    refinementCount.value = 0;
+    phase.value = 'placing';
+    lastRefinementPair = null;
+
+    startNextTeam();
+}
+
 onMounted(async () => {
     await authStore.checkUser();
     await eventStore.updateEvent();
     await picklistStore.loadTeams(eventId.value);
-    await picklistStore.loadPersonalList(userId.value, eventId.value);
+    await picklistStore.loadTeamMatchSummaries(eventId.value);
     teamsLoaded.value = true;
 
-    // Shuffle so placement order doesn't always start with the lowest team number.
-    const shuffled = [...picklistStore.personalTierSections.Unranked];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    queue.value = shuffled;
-    totalToPlace.value = shuffled.length;
+    await loadArchetypeSession();
+});
 
-    startNextTeam();
+// Switching the archetype toggle starts an independent session for the
+// other archetype — flush any pending save first so it isn't lost.
+watch(activeArchetype, async () => {
+    if (!teamsLoaded.value) return;
+    await flushSave();
+    await loadArchetypeSession();
 });
 
 onUnmounted(() => {
@@ -86,15 +120,15 @@ function startNextTeam() {
     // First team ever ranked — nothing to compare against yet. Bootstraps
     // into the middle tier; the very next comparison immediately tests it
     // against something real.
-    if (picklistStore.personalRankedFlatOrder.length === 0) {
-        picklistStore.placeTeamAtFlatIndex(candidate.value, 0);
+    if (picklistStore.personalRankedFlatOrder(activeArchetype.value).length === 0) {
+        picklistStore.placeTeamAtFlatIndex(activeArchetype.value, candidate.value, 0);
         placedCount.value++;
         scheduleSave();
         startNextTeam();
         return;
     }
 
-    sortedSnapshot.value = [...picklistStore.personalRankedFlatOrder];
+    sortedSnapshot.value = [...picklistStore.personalRankedFlatOrder(activeArchetype.value)];
     lo.value = 0;
     hi.value = sortedSnapshot.value.length;
     presentNextComparison();
@@ -131,7 +165,7 @@ function chooseTeam(winner: number) {
 }
 
 function finalizePlacement() {
-    picklistStore.placeTeamAtFlatIndex(candidate.value, lo.value);
+    picklistStore.placeTeamAtFlatIndex(activeArchetype.value, candidate.value, lo.value);
     placedCount.value++;
     scheduleSave();
     startNextTeam();
@@ -140,7 +174,7 @@ function finalizePlacement() {
 // ─── Continuous refinement ────────────────────────────────────────────────────
 
 function enterRefinementMode() {
-    if (picklistStore.personalRankedFlatOrder.length < 2) {
+    if (picklistStore.personalRankedFlatOrder(activeArchetype.value).length < 2) {
         phase.value = 'insufficient';
         candidate.value = null;
         compareAgainst.value = null;
@@ -159,7 +193,7 @@ function enterRefinementMode() {
 const REFINEMENT_WINDOW = 5;
 
 function presentRefinementPair() {
-    const flat = picklistStore.personalRankedFlatOrder;
+    const flat = picklistStore.personalRankedFlatOrder(activeArchetype.value);
     const n = flat.length;
     const anchor = Math.floor(Math.random() * n);
     const maxWindow = Math.min(REFINEMENT_WINDOW, n - 1);
@@ -190,7 +224,7 @@ function presentRefinementPair() {
 function chooseRefinementTeam(winner: number) {
     if (winner === compareAgainst.value) {
         // The lower-ranked team was actually preferred — swap it up.
-        picklistStore.placeTeamAtFlatIndex(winner, refinementUpperIndex);
+        picklistStore.placeTeamAtFlatIndex(activeArchetype.value, winner, refinementUpperIndex);
         scheduleSave();
     }
     refinementCount.value++;
@@ -206,8 +240,14 @@ function pickWinner(winner: number) {
 }
 
 // ─── Saving ─────────────────────────────────────────────────────────────────────
+// Which archetype a scheduled save applies to, captured at schedule time —
+// NOT re-read from activeArchetype at flush time, since the archetype
+// toggle explicitly flushes before switching (see the watcher above) and by
+// then activeArchetype has already moved on to the new value.
+let pendingSaveArchetype: 'scorer' | 'defender' | null = null;
 
 function scheduleSave() {
+    pendingSaveArchetype = activeArchetype.value;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 800);
 }
@@ -217,15 +257,18 @@ async function flushSave() {
         clearTimeout(saveTimer);
         saveTimer = null;
     }
-    if (!userId.value) return;
+    if (!userId.value || pendingSaveArchetype == null) return;
 
-    const success = await picklistStore.savePersonalList(userId.value, eventId.value);
+    const archetype = pendingSaveArchetype;
+    pendingSaveArchetype = null;
+    const success = await picklistStore.savePersonalList(userId.value, eventId.value, archetype);
     if (!success) {
         queueStore.enqueue('picklist_personal', {
             userId: userId.value,
             eventId: eventId.value,
-            teamNumbers: picklistStore.personalFlatOrder,
-            teamTiers: picklistStore.personalTiersMap
+            archetype,
+            teamNumbers: picklistStore.personalFlatOrder(archetype),
+            teamTiers: picklistStore.personalTiersMap(archetype)
         }, picklistStore.lastSaveError ?? undefined);
     }
 }
@@ -282,6 +325,20 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
     <div class="main-content">
         <h1>Pick'em</h1>
         <p class="pickem-subtitle">Pick the team you'd rather have — we'll slot it into your Pick List for you.</p>
+
+        <!-- Archetype toggle (issue #27) — shared with the Pick List's super tabs -->
+        <div class="pickem-archetype-tabs" role="tablist">
+            <button id="pickem-archetype-scorer" class="pickem-archetype-tab"
+                :class="{ 'pickem-archetype-tab--active': activeArchetype === 'scorer' }" role="tab"
+                :aria-selected="activeArchetype === 'scorer'" @click="activeArchetype = 'scorer'">
+                Scorer
+            </button>
+            <button id="pickem-archetype-defender" class="pickem-archetype-tab"
+                :class="{ 'pickem-archetype-tab--active': activeArchetype === 'defender' }" role="tab"
+                :aria-selected="activeArchetype === 'defender'" @click="activeArchetype = 'defender'">
+                Defender
+            </button>
+        </div>
 
         <div v-if="!teamsLoaded" class="data-tile pickem-status">Loading teams…</div>
 
@@ -402,6 +459,34 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
     color: rgba(128, 128, 128, 0.9);
     margin-top: -8px;
     margin-bottom: 20px;
+}
+
+.pickem-archetype-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.pickem-archetype-tab {
+    background: rgba(128, 128, 128, 0.1);
+    border: 1.5px solid transparent;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.pickem-archetype-tab:hover {
+    border-color: rgba(176, 87, 3, 0.4);
+}
+
+.pickem-archetype-tab--active {
+    background: #b05703;
+    border-color: #b05703;
+    color: #fff;
 }
 
 .pickem-status {
