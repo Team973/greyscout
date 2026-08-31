@@ -55,7 +55,10 @@ const router = createRouter({
       }
     },
     {
-      path: "/team",
+      // Optional team-number segment (issue #46) so a specific team's page
+      // is directly linkable/bookmarkable — bare /team still works and
+      // falls back to whichever team the view picks by default.
+      path: "/team/:teamNumber?",
       name: "Team Analysis | GreyScout",
       component: TeamAnalysisView,
       meta: {

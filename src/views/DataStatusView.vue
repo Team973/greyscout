@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // @ts-nocheck
 
+import { RouterLink } from 'vue-router';
 import CollapsibleSection from "@/components/CollapsibleSection.vue";
 
 import { useEventStore } from "@/stores/event-store";
@@ -29,13 +30,14 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
                 <p v-if="teams.length === 0">No teams loaded for this event yet.</p>
 
                 <div v-else class="pit-status-grid">
-                    <div v-for="team in teams" :key="team.team_number" class="pit-status-cell"
+                    <RouterLink v-for="team in teams" :key="team.team_number" :to="`/team/${team.team_number}`"
+                        class="pit-status-cell"
                         :class="pitScoutedTeams[team.team_number] ? 'cell-scouted' : 'cell-missing'">
                         <span class="status-dot"
                             :class="pitScoutedTeams[team.team_number] ? 'status-scouted' : 'status-missing'"></span>
                         {{ team.team_number }}
                         <span class="team-name">- {{ team.name }}</span>
-                    </div>
+                    </RouterLink>
                 </div>
             </CollapsibleSection>
 
@@ -69,13 +71,13 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
                             <tr v-for="match in qualMatches" :key="match.key">
                                 <td>Q{{ match.match_number }}</td>
                                 <td v-for="slotKey in slotKeys" :key="slotKey" :class="cellClass(match, slotKey)">
-                                    <span v-if="match[slotKey]">
+                                    <RouterLink v-if="match[slotKey]" :to="`/team/${match[slotKey]}`" class="team-link">
                                         <span class="status-dot" :class="statusDotClass(match.match_number, match[slotKey])"></span>
                                         {{ match[slotKey] }}
                                         <span class="team-name" v-if="teamNameByNumber[match[slotKey]]">
                                             - {{ teamNameByNumber[match[slotKey]] }}
                                         </span>
-                                    </span>
+                                    </RouterLink>
                                 </td>
                             </tr>
                         </tbody>
@@ -266,6 +268,21 @@ export default {
 
 .team-name {
     opacity: 0.75;
+}
+
+/* Both the pit-status-grid cells and the match-table team cells are now
+   RouterLinks (issue #46) — undo the browser's default link styling so
+   they still read as plain status cells, not blue underlined text. */
+.pit-status-cell,
+.team-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.pit-status-cell:hover,
+.team-link:hover {
+    text-decoration: underline;
 }
 
 .red-header {

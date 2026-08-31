@@ -5,7 +5,7 @@ import { offlineQueueKey } from '@/lib/constants';
 
 export interface QueueItem {
     id: string;
-    type: 'picklist_personal' | 'picklist_team' | 'scout_data' | 'strategy_board';
+    type: 'picklist_personal' | 'picklist_team' | 'scout_data' | 'strategy_board' | 'strategy_auto_selections';
     payload: Record<string, unknown>;
     enqueuedAt: string;
     retries: number;
@@ -69,6 +69,16 @@ export const useOfflineQueueStore = defineStore('offlineQueue', {
                 // Rapid auto-saves while drawing should collapse to one
                 // pending retry item per match, same as the picklist types.
                 const existing = this.queue.find(q => q.type === type && q.payload.data?.event === payload.data?.event && q.payload.data?.match_number === payload.data?.match_number);
+                if (existing) {
+                    existing.payload = payload;
+                    existing.enqueuedAt = new Date().toISOString();
+                    existing.lastError = error;
+                    saveToStorage(this.queue);
+                    return;
+                }
+            } else if (type === 'strategy_auto_selections') {
+                // Same collapsing behavior, keyed the same way as strategy_board.
+                const existing = this.queue.find(q => q.type === type && q.payload.eventId === payload.eventId && q.payload.matchNumber === payload.matchNumber);
                 if (existing) {
                     existing.payload = payload;
                     existing.enqueuedAt = new Date().toISOString();

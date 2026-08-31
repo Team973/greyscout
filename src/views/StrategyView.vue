@@ -11,6 +11,7 @@ import { fetchTeamAutoPaths } from "@/lib/auto-path-query";
 import { fetchRobotPhotoUrl } from "@/lib/robot-photo-query";
 import { submitScoutData } from "@/lib/data-submission";
 import { queryMatchTeams } from "@/lib/data-query";
+import { fetchStrategyBoard, saveAutoSelections } from "@/lib/strategy-query";
 import { SIDE_CHOICES, transformPath } from "@/lib/2026/auto-path-field";
 
 import '@material/web/select/outlined-select';
@@ -160,7 +161,8 @@ import "@material/web/button/filled-button";
                                 </div>
                                 <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
                                     @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
-                                <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
+                                <Dropdown :choices="SIDE_CHOICES" :model-value="selectedSideIndex[slot]"
+                                    @update:modelValue="onSideChange(slot, $event)"></Dropdown>
                                 <NumberInput :model-value="selectedDelaySeconds[slot]"
                                     @update:modelValue="selectedDelaySeconds[slot] = $event" label="Delay (s)"></NumberInput>
                             </div>
@@ -174,7 +176,8 @@ import "@material/web/button/filled-button";
                                 </div>
                                 <Dropdown :choices="autoPathChoices[slot] ?? []" :model-value="selectedAutoPathIndex[slot]"
                                     @update:modelValue="onAutoPathChoiceChange(slot, $event)"></Dropdown>
-                                <Dropdown :choices="SIDE_CHOICES" v-model="selectedSideIndex[slot]"></Dropdown>
+                                <Dropdown :choices="SIDE_CHOICES" :model-value="selectedSideIndex[slot]"
+                                    @update:modelValue="onSideChange(slot, $event)"></Dropdown>
                                 <NumberInput :model-value="selectedDelaySeconds[slot]"
                                     @update:modelValue="selectedDelaySeconds[slot] = $event" label="Delay (s)"></NumberInput>
                             </div>
@@ -207,7 +210,7 @@ const COLOR_CHOICES = [
     { key: 'green', text: 'Green', hex: '#1eae7a' },
     { key: 'blue', text: 'Blue', hex: '#2f7de1' },
     { key: 'purple', text: 'Purple', hex: '#8a3fd1' },
-    { key: 'magenta', text: 'Magenta', hex: '#d13f6a' },
+    { key: 'magenta', text: 'Hot Pink', hex: '#ff69b4' },
     { key: 'white', text: 'White', hex: '#f2f2f2' }
 ];
 
@@ -243,6 +246,13 @@ export default {
             // Visualization-only playback delay per slot, in seconds — not
             // persisted, just staggers when each marker starts moving.
             selectedDelaySeconds: [0, 0, 0, 0, 0, 0],
+            // slot -> { autoPathId, side } for the current match, as last
+            // saved (by anyone, on any device) via saveAutoSelectionsNow()
+            // below — "what we're planning to run" needs to survive a
+            // reload and show the same thing to every device, not just
+            // live locally. Re-fetched whenever the match number changes.
+            savedAutoSelections: {},
+            autoSelectionsSaveTimer: null,
             // Per-slot robot photo URL (or null), used by the combined
             // canvas's per-layer marker and by the Auto Edit active marker.
             robotPhotoUrls: [null, null, null, null, null, null],
@@ -348,6 +358,38 @@ export default {
                 }))
             ];
 
+            // A match-specific selection saved earlier (by anyone, on any
+            // device — see saveAutoSelectionsNow()) takes priority over the
+            // team's own "is_default" auto: that's what this event's leads
+            // actually decided to run, not just a reasonable guess. Set
+            // directly (not via onAutoPathChoiceChange) so the saved side
+            // is used as-is instead of being reset to the path's own
+            // recorded side. Falls through to the usual default-auto
+            // behavior if the saved pick no longer resolves (e.g. that path
+            // was deleted since).
+            const saved = this.savedAutoSelections[slot];
+            if (saved) {
+                // autoPathId is null for an explicit "No Auto Selected" save
+                // (see saveAutoSelectionsNow()) — that decision is just as
+                // real as picking an actual path and needs to stick, not
+                // fall through to the team's default-auto behavior below.
+                if (saved.autoPathId == null) {
+                    this.selectedAutoPathIndex[slot] = 0;
+                    this.selectedSideIndex[slot] = 0;
+                    return;
+                }
+
+                const savedChoiceIdx = this.autoPathChoices[slot].findIndex((c) => c.key === saved.autoPathId);
+                if (savedChoiceIdx > 0) {
+                    this.selectedAutoPathIndex[slot] = savedChoiceIdx;
+                    const sideIdx = SIDE_CHOICES.findIndex((c) => c.key === saved.side);
+                    this.selectedSideIndex[slot] = sideIdx >= 0 ? sideIdx : 0;
+                    return;
+                }
+                // Saved path no longer exists (e.g. deleted since) — fall
+                // through to the default-auto behavior below.
+            }
+
             // Default to the team's marked-default auto instead of "None" — or,
             // with only one saved path, that path is the default by definition.
             const defaultChoiceIdx = this.autoPathChoices[slot].findIndex((c) => c.key === String(defaultId));
@@ -374,6 +416,16 @@ export default {
             const side = choice?.path?.side;
             const sideIdx = SIDE_CHOICES.findIndex((c) => c.key === side);
             this.selectedSideIndex[slot] = sideIdx >= 0 ? sideIdx : 0;
+
+            this.scheduleAutoSelectionsSave();
+        },
+        // A manual side flip (e.g. running a path mirrored) is just as much
+        // "what we're planning to run" as the auto-path choice itself, so it
+        // gets saved too — unlike onAutoPathChoiceChange, it never touches
+        // selectedAutoPathIndex.
+        onSideChange(slot: int, sideIdx: int) {
+            this.selectedSideIndex[slot] = sideIdx;
+            this.scheduleAutoSelectionsSave();
         },
         setTeam(idx: int, teamKey) {
             this.teamNumbers[idx] = teamKey;
@@ -381,12 +433,74 @@ export default {
         },
         async onMatchNumberChange(value) {
             this.matchNumber = value;
+            await this.loadAutoSelections();
 
             // In manual mode the match number is just informational context —
-            // it doesn't overwrite the scout's hand-picked teams.
-            if (this.manualTeamSelection) return;
+            // it doesn't overwrite the scout's hand-picked teams. Still
+            // re-derive each slot's auto-path pick against whichever team is
+            // already there, though, so a saved selection for this match
+            // shows up even without touching the team pickers.
+            if (this.manualTeamSelection) {
+                [0, 1, 2, 3, 4, 5].forEach((slot) => this.loadAutoPathChoices(slot));
+                return;
+            }
 
             await this.applyScheduleTeams();
+        },
+        // Loads which auto path (and side) each slot last had saved for the
+        // current match — see saveAutoSelectionsNow(). loadAutoPathChoices()
+        // consults this once it's populated.
+        async loadAutoSelections() {
+            if (!this.matchNumber) {
+                this.savedAutoSelections = {};
+                return;
+            }
+
+            const result = await fetchStrategyBoard(this.eventStore.eventId, Number(this.matchNumber));
+            const map = {};
+            (result.autoSelections ?? []).forEach((entry) => { map[entry.slot] = entry; });
+            this.savedAutoSelections = map;
+        },
+        scheduleAutoSelectionsSave() {
+            clearTimeout(this.autoSelectionsSaveTimer);
+            this.autoSelectionsSaveTimer = setTimeout(() => this.saveAutoSelectionsNow(), 800);
+        },
+        async saveAutoSelectionsNow() {
+            if (!this.matchNumber) return;
+
+            const entries = [];
+            [0, 1, 2, 3, 4, 5].forEach((slot) => {
+                // Only slots with a team actually assigned have a meaningful
+                // "planning to run" state — an empty slot's implicit "none"
+                // isn't worth saving, and would otherwise wrongly stick once
+                // a real team gets assigned to it later.
+                if (!this.teamNumbers[slot]) return;
+                const choice = this.autoPathChoices[slot]?.[this.selectedAutoPathIndex[slot]];
+                if (!choice) return;
+
+                // "No Auto Selected" is itself an explicit, real choice — it
+                // needs to be saved (as autoPathId: null) just like a real
+                // pick, or reloading would silently re-apply the team's own
+                // default auto over it. See loadAutoPathChoices().
+                entries.push({
+                    slot,
+                    autoPathId: choice.key === 'none' ? null : choice.key,
+                    side: choice.key === 'none' ? null : (SIDE_CHOICES[this.selectedSideIndex[slot]]?.key ?? null)
+                });
+            });
+
+            const eventId = this.eventStore.eventId;
+            const matchNumber = Number(this.matchNumber);
+            const error = await saveAutoSelections(eventId, matchNumber, entries);
+
+            if (error) {
+                console.log(error);
+                this.queueStore.enqueue(
+                    'strategy_auto_selections',
+                    { eventId, matchNumber, autoSelections: entries },
+                    error.message ?? String(error)
+                );
+            }
         },
         async applyScheduleTeams() {
             this.matchLookupFailed = false;
@@ -534,6 +648,9 @@ export default {
         autoEditAlliance() {
             return this.autoEditSlot < 3 ? allianceRed : allianceBlue;
         }
+    },
+    beforeUnmount() {
+        clearTimeout(this.autoSelectionsSaveTimer);
     },
     created() {
         this.deviceViewMode = useViewModeStore();

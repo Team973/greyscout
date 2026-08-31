@@ -386,7 +386,8 @@ CREATE TABLE IF NOT EXISTS "public"."StrategyBoard" (
     "event" "text" NOT NULL,
     "match_number" smallint NOT NULL,
     "scouted_by" "uuid" DEFAULT "auth"."uid"() NOT NULL,
-    "board" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL
+    "board" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "auto_selections" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL
 );
 
 
