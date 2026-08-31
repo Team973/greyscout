@@ -65,9 +65,9 @@ export default {
 }
 
 .color-swatch-current {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
     border: 2px solid var(--primary-text-color, #fff);
     padding: 0;
     cursor: pointer;
@@ -82,7 +82,7 @@ export default {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    width: 132px;
+    width: 178px;
     margin-top: 6px;
     padding: 8px;
     background: var(--tile-background-color);
@@ -92,9 +92,9 @@ export default {
 }
 
 .color-swatch-option {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
     border: 2px solid transparent;
     padding: 0;
     cursor: pointer;

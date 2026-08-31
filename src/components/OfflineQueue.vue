@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { upsertPersonalPicklist, upsertTeamPicklist } from '@/lib/picklist-query';
 import { submitScoutData, updateScoutData } from '@/lib/data-submission';
+import { saveAutoSelections } from '@/lib/strategy-query';
 import { matchScoutTable, pitScoutTable, autoPathTable, strategyBoardTable } from '@/lib/constants';
 
 const queueStore = useOfflineQueueStore();
@@ -65,6 +66,18 @@ const retryHandlers = {
             payload.data as Record<string, unknown>,
             payload.table as string
         );
+    },
+    // Unlike strategy_board, this goes straight through saveAutoSelections's
+    // own upsert rather than an id-tracked update/insert — the row may have
+    // been created (by a board save, or another auto-selection save) between
+    // when this was queued and when it's retried, and an upsert keyed on
+    // (event, match_number) sidesteps needing to know which case it is.
+    strategy_auto_selections: async (payload: Record<string, unknown>) => {
+        return await saveAutoSelections(
+            payload.eventId as string,
+            payload.matchNumber as number,
+            payload.autoSelections as unknown[]
+        );
     }
 };
 
@@ -89,6 +102,7 @@ function typeLabel(item: { type: string; payload: Record<string, unknown> }) {
         return 'Scouting Data';
     }
     if (item.type === 'strategy_board') return 'Strategy Board';
+    if (item.type === 'strategy_auto_selections') return 'Strategy Auto Picks';
     return item.type;
 }
 

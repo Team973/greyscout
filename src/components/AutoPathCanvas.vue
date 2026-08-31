@@ -310,7 +310,11 @@ export default {
             return this.layers.length > 0;
         },
         stationLabelViews() {
-            const PADDING = 8;
+            // ~25 view-space units (this file already treats those 1:1 with
+            // screen px elsewhere, e.g. MARKER_PHOTO_SIZE/ERASE_RADIUS) past
+            // the field's own edge, so the label sits clear of the alliance
+            // wall instead of right up against it.
+            const PADDING = 25;
             return this.stationLabels.map((label) => {
                 const pos = stationPosition(label.slot);
                 return {
