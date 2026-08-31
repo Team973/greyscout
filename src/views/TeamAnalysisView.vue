@@ -289,10 +289,22 @@ export default {
             });
 
             if (!this.teamFilters.some(t => t.key === this.currentTeamNumber)) {
+                // Falls back to the first team if currentTeamNumber wasn't
+                // seeded from the URL (or the URL named a team not in this
+                // event) — see created()'s parseRouteTeamNumber() call.
                 this.currentTeamNumber = this.teamFilters[0]?.key ?? null;
             }
 
             this.getRobotPhoto();
+        },
+        // Reads the optional :teamNumber route param (issue #46) — null if
+        // absent or not a real number, in which case the usual "first team"
+        // default in loadTeamNumbers() applies instead.
+        parseRouteTeamNumber() {
+            const raw = this.$route.params.teamNumber;
+            if (raw == null) return null;
+            const num = Number(raw);
+            return Number.isFinite(num) ? num : null;
         },
         async refreshTiles() {
             this.teamLoaded = false;
@@ -370,6 +382,13 @@ export default {
             this.getRobotPhoto();
             this.loadTeamComments();
             this.loadTeamAutoPaths();
+
+            // Keep the URL in sync (issue #46) so this team's page is
+            // directly linkable/bookmarkable — replace, not push, so
+            // switching teams via the dropdown doesn't spam browser history.
+            if (this.$route.params.teamNumber !== String(teamNumber)) {
+                this.$router.replace({ path: `/team/${teamNumber}` });
+            }
         },
         chooseFiles() {
             let fileInputElement = this.$refs.file;
@@ -446,12 +465,29 @@ export default {
             return this.currentTeamNumber ?? -1;
         }
     },
+    watch: {
+        // Reacts to the :teamNumber route param changing out from under us —
+        // e.g. a link from Data Status to a different team while this page
+        // is already open, or the browser back/forward buttons — since
+        // created() only runs once and won't otherwise pick this up.
+        '$route.params.teamNumber'() {
+            const num = this.parseRouteTeamNumber();
+            if (num != null && num !== this.currentTeamNumber && this.teamFilters.some(t => t.key === num)) {
+                this.setTeam(num);
+            }
+        }
+    },
     created() {
         this.viewMode = useViewModeStore();
         this.eventStore = useEventStore();
         this.authStore = useAuthStore();
         this.watchlistStore = useWatchlistStore();
         this.authStore.checkUser();
+
+        // Seeds currentTeamNumber from the URL, if any, before
+        // loadTeamNumbers() validates it against the real team list (and
+        // falls back to the first team if it's missing or invalid).
+        this.currentTeamNumber = this.parseRouteTeamNumber();
 
         this.loadLayout();
 
