@@ -6,7 +6,7 @@ import { usePicklistStore } from '@/stores/picklist-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
-import { computeBasicStats, computeFlagStats } from '@/lib/picklist-stats';
+import { computeBasicStats, computeFlagStats, computeTbaStats } from '@/lib/picklist-stats';
 import PitScoutingSection from '@/components/PitScoutingSection.vue';
 
 const picklistStore = usePicklistStore();
@@ -338,6 +338,19 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
                     <div class="pickem-detail-photo" v-if="infoModalTeam?.photo_url">
                         <img :src="infoModalTeam.photo_url" :alt="`Team ${infoModalTeamNumber} robot (full)`"
                             class="pickem-full-photo" />
+                    </div>
+
+                    <!-- TBA OPR/DPR — independent of scouted match data, so shown whenever cached (issue #26) -->
+                    <div class="pickem-detail-section" v-if="computeTbaStats(eventId, infoModalTeamNumber).length > 0">
+                        <h3 class="pickem-detail-heading">TBA Stats</h3>
+                        <div class="pickem-stats-grid">
+                            <div v-for="stat in computeTbaStats(eventId, infoModalTeamNumber)" :key="stat.label"
+                                class="pickem-stat">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.avg }}</div>
+                                <div class="stat-sub">{{ stat.sub }}</div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="pickem-detail-section" v-if="infoModalData?.stats.length > 0">

@@ -2,11 +2,12 @@
 // @ts-nocheck
 import type { TeamEntry } from '@/stores/picklist-store';
 import type { TeamTierStats } from '@/lib/picklist-query';
-import { computeBasicStats, computeFlagStats } from '@/lib/picklist-stats';
+import { computeBasicStats, computeFlagStats, computeTbaStats } from '@/lib/picklist-stats';
 
 defineProps<{
     rowId: string;
     team: TeamEntry;
+    eventId: string;
     position: number;
     showDragHandle: boolean;
     showVoteStats: boolean;
@@ -91,6 +92,19 @@ function formatAvgRank(avgRank: number) {
                     <div class="picklist-detail-photo" v-if="team.photo_url">
                         <img :src="team.photo_url" :alt="`Team ${team.team_number} robot (full)`"
                             class="picklist-full-photo" />
+                    </div>
+
+                    <!-- TBA OPR/DPR — independent of scouted match data, so shown whenever cached (issue #26) -->
+                    <div class="picklist-detail-section" v-if="computeTbaStats(eventId, team.team_number).length > 0">
+                        <h3 class="picklist-detail-heading">TBA Stats</h3>
+                        <div class="picklist-stats-grid">
+                            <div v-for="stat in computeTbaStats(eventId, team.team_number)" :key="stat.label"
+                                class="picklist-stat-card">
+                                <div class="stat-label">{{ stat.label }}</div>
+                                <div class="stat-avg">{{ stat.avg }}</div>
+                                <div class="stat-sub">{{ stat.sub }}</div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Stats -->

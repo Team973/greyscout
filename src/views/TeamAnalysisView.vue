@@ -25,6 +25,7 @@ import { processLayout } from "@/lib/process-layout";
 import { queryTeamNumbers } from "@/lib/data-query";
 import { fetchTeamComments } from "@/lib/picklist-query";
 import { fetchTeamAutoPaths, setAutoPathDefault } from "@/lib/auto-path-query";
+import { getTeamTbaStats, refreshTbaStats } from "@/lib/tba-cache";
 import { minWidthForDesktop } from "@/lib/constants";
 
 </script>
@@ -67,6 +68,28 @@ import { minWidthForDesktop } from "@/lib/constants";
                             <md-filled-button v-on:click="chooseFiles" disabled v-else>Uploading...</md-filled-button>
                         </div>
                     </div>
+                </div>
+
+                <div class="tba-stats-section">
+                    <div class="tba-stats-header">
+                        <h1>TBA Stats</h1>
+                        <button type="button" class="tba-refresh-button" :disabled="tbaStatsRefreshing"
+                            @click="refreshTbaStatsForTeam">
+                            {{ tbaStatsRefreshing ? 'Refreshing…' : '↻ Refresh TBA Stats' }}
+                        </button>
+                    </div>
+                    <p v-if="tbaStatsError" class="tba-stats-error">{{ tbaStatsError }}</p>
+                    <div v-if="tbaStats" class="tba-stats-grid">
+                        <div v-if="tbaStats.opr != null" class="tba-stat-card">
+                            <div class="stat-label">OPR</div>
+                            <div class="stat-avg">{{ tbaStats.opr.toFixed(1) }}</div>
+                        </div>
+                        <div v-if="tbaStats.dpr != null" class="tba-stat-card">
+                            <div class="stat-label">DPR</div>
+                            <div class="stat-avg">{{ tbaStats.dpr.toFixed(1) }}</div>
+                        </div>
+                    </div>
+                    <p v-else class="no-comments">No TBA stats cached for this event yet — tap Refresh TBA Stats.</p>
                 </div>
 
                 <div v-if="teamLoaded">
@@ -171,7 +194,10 @@ export default {
             autoPathEditId: null,
             autoPathSaveMessage: '',
             autoPathSaveMessageTimeout: null,
-            autoPathColors: ['#ff8c00', '#2f7de1', '#8a3fd1', '#1eae7a', '#d13f6a']
+            autoPathColors: ['#ff8c00', '#2f7de1', '#8a3fd1', '#1eae7a', '#d13f6a'],
+            tbaStats: null,
+            tbaStatsRefreshing: false,
+            tbaStatsError: ''
         }
     },
     methods: {
@@ -196,6 +222,25 @@ export default {
 
             // Load the watchlist (event-wide, not per team).
             this.watchlistStore.loadWatchlist(this.eventStore.eventId);
+
+            // Read cached TBA OPR/DPR (issue #26) — never fetched implicitly,
+            // only via the explicit "Refresh TBA Stats" action below.
+            this.loadTbaStats();
+        },
+        loadTbaStats() {
+            const teamNumber = this.getTeamNumber();
+            this.tbaStats = teamNumber < 0 ? null : getTeamTbaStats(this.eventStore.eventId, teamNumber);
+        },
+        async refreshTbaStatsForTeam() {
+            this.tbaStatsRefreshing = true;
+            this.tbaStatsError = '';
+            try {
+                await refreshTbaStats(this.eventStore.eventId);
+            } catch (e) {
+                this.tbaStatsError = e.message ?? String(e);
+            }
+            this.tbaStatsRefreshing = false;
+            this.loadTbaStats();
         },
         async toggleTeamWatch() {
             if (!this.isUserLead) return;
@@ -382,6 +427,7 @@ export default {
             this.getRobotPhoto();
             this.loadTeamComments();
             this.loadTeamAutoPaths();
+            this.loadTbaStats();
 
             // Keep the URL in sync (issue #46) so this team's page is
             // directly linkable/bookmarkable — replace, not push, so
@@ -549,6 +595,74 @@ export default {
     display: flex;
     justify-content: flex-end;
     margin-bottom: 10px;
+}
+
+.tba-stats-section {
+    margin-top: 24px;
+}
+
+.tba-stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tba-refresh-button {
+    background: none;
+    color: #b05703;
+    border: 1.5px solid #b05703;
+    border-radius: 8px;
+    padding: 7.5px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.tba-refresh-button:hover:not(:disabled) {
+    background: rgba(176, 87, 3, 0.1);
+}
+
+.tba-refresh-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.tba-stats-error {
+    color: #d32f2f;
+    font-size: 13px;
+}
+
+.tba-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    max-width: 320px;
+}
+
+.tba-stat-card {
+    background: rgba(176, 87, 3, 0.08);
+    border: 1px solid rgba(176, 87, 3, 0.2);
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.tba-stat-card .stat-label {
+    font-size: 11px;
+    color: rgba(128, 128, 128, 0.75);
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tba-stat-card .stat-avg {
+    font-size: 22px;
+    font-weight: 700;
+    color: #b05703;
+    line-height: 1.1;
 }
 
 .autopath-section {
