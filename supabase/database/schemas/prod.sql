@@ -344,7 +344,9 @@ CREATE TABLE IF NOT EXISTS "public"."PickList" (
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "team_tiers" jsonb DEFAULT '{}'::jsonb NOT NULL,
     "picked_team_numbers" integer[] DEFAULT '{}'::integer[] NOT NULL,
-    CONSTRAINT "PickList_type_check" CHECK (("type" = ANY (ARRAY['personal'::"text", 'team'::"text"])))
+    "archetype" "text" DEFAULT 'scorer'::"text" NOT NULL,
+    CONSTRAINT "PickList_type_check" CHECK (("type" = ANY (ARRAY['personal'::"text", 'team'::"text"]))),
+    CONSTRAINT "PickList_archetype_check" CHECK (("archetype" = ANY (ARRAY['scorer'::"text", 'defender'::"text"])))
 );
 
 
@@ -517,11 +519,11 @@ CREATE UNIQUE INDEX "strategyboard_match_unique" ON "public"."StrategyBoard" USI
 
 
 
-CREATE UNIQUE INDEX "picklist_personal_unique" ON "public"."PickList" USING "btree" ("user_id", "event_id", "type") WHERE ("type" = 'personal'::"text");
+CREATE UNIQUE INDEX "picklist_personal_unique" ON "public"."PickList" USING "btree" ("user_id", "event_id", "type", "archetype") WHERE ("type" = 'personal'::"text");
 
 
 
-CREATE UNIQUE INDEX "picklist_team_unique" ON "public"."PickList" USING "btree" ("event_id", "type") WHERE ("type" = 'team'::"text");
+CREATE UNIQUE INDEX "picklist_team_unique" ON "public"."PickList" USING "btree" ("event_id", "type", "archetype") WHERE ("type" = 'team'::"text");
 
 
 

@@ -17,9 +17,13 @@ import {
     fetchTeamMatchSummaries,
     fetchTeamComments,
     TIERS,
-    TIER_GROUPS
+    TIER_GROUPS,
+    ARCHETYPES,
+    DEFAULT_ARCHETYPE
 } from '@/lib/picklist-query';
-import type { Tier, TierGroup, TeamTierStats, TeamMatchSummary } from '@/lib/picklist-query';
+import type { Tier, TierGroup, TeamTierStats, TeamMatchSummary, Archetype } from '@/lib/picklist-query';
+import { defenseThresholdPercent } from '@/lib/constants';
+export type { Archetype };
 
 export type PicklistTab = 'personal' | 'democratic' | 'team';
 
@@ -42,6 +46,13 @@ function emptyTierSections(): Record<TierGroup, number[]> {
     const groups = {} as Record<TierGroup, number[]>;
     TIER_GROUPS.forEach((g) => { groups[g] = []; });
     return groups;
+}
+
+/** One entry per archetype (issue #27), each initialized via the given factory. */
+function perArchetype<T>(factory: () => T): Record<Archetype, T> {
+    const map = {} as Record<Archetype, T>;
+    ARCHETYPES.forEach((a) => { map[a] = factory(); });
+    return map;
 }
 
 /**
@@ -78,27 +89,32 @@ export const usePicklistStore = defineStore('picklist', {
             // Current tab
             activeTab: 'personal' as PicklistTab,
 
+            // Current archetype "super tab" (issue #27) — Scorer vs Defender are
+            // independent rankings, each with their own My/Democratic/Team lists.
+            activeArchetype: DEFAULT_ARCHETYPE as Archetype,
+
             // Teams loaded for the event
             allTeams: [] as TeamEntry[],
             teamsLoaded: false,
 
-            // Personal list — tier-grouped team numbers, source of truth for order + tier
-            personalTierSections: emptyTierSections(),
-            personalListLoaded: false,
+            // Personal list — tier-grouped team numbers per archetype, source of truth for order + tier
+            personalTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
+            personalListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
 
-            // Team (lead) list — tier-grouped team numbers
-            teamTierSections: emptyTierSections(),
-            teamListLoaded: false,
+            // Team (lead) list — tier-grouped team numbers per archetype
+            teamTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
+            teamListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
 
-            // Democratic list — computed (read-only) tier grouping from all personal lists
-            democraticTierSections: emptyTierSections(),
-            democraticListLoaded: false,
+            // Democratic list — computed (read-only) tier grouping from all personal lists, per archetype
+            democraticTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
+            democraticListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
 
-            // Per-team aggregate tier stats across all personal lists
-            teamTierStats: {} as Record<number, TeamTierStats>,
+            // Per-team aggregate tier stats across all personal lists, per archetype
+            teamTierStats: perArchetype(() => ({})) as Record<Archetype, Record<number, TeamTierStats>>,
 
             // Event-wide "has this team already been picked" set, visible to everyone,
-            // editable by leads only. Lives on the shared team-type PickList row.
+            // editable by leads only. Real-world draft status isn't per-archetype (see
+            // picklist-query.ts's fetchPickedTeams), so this stays a single value.
             pickedTeams: [] as number[],
             pickedTeamsLoaded: false,
 
@@ -123,40 +139,45 @@ export const usePicklistStore = defineStore('picklist', {
             return map;
         },
 
-        /** The tier-grouped sections for whichever tab is currently active. */
+        /** The tier-grouped sections for whichever tab/archetype is currently active. */
         activeSections(): Record<TierGroup, number[]> {
-            if (this.activeTab === 'personal') return this.personalTierSections;
-            if (this.activeTab === 'team') return this.teamTierSections;
-            return this.democraticTierSections;
+            if (this.activeTab === 'personal') return this.personalTierSections[this.activeArchetype];
+            if (this.activeTab === 'team') return this.teamTierSections[this.activeArchetype];
+            return this.democraticTierSections[this.activeArchetype];
         },
 
-        personalFlatOrder(): number[] {
-            return TIER_GROUPS.flatMap((g) => this.personalTierSections[g] ?? []);
+        /** Returns a function since callers (e.g. Pick'em) need a specific archetype, not just the active one. */
+        personalFlatOrder(): (archetype: Archetype) => number[] {
+            return (archetype: Archetype) => TIER_GROUPS.flatMap((g) => this.personalTierSections[archetype][g] ?? []);
         },
 
         /** Like personalFlatOrder, but only the actually-ranked tiers (S-DNP) — excludes Unranked. */
-        personalRankedFlatOrder(): number[] {
-            return TIERS.flatMap((g) => this.personalTierSections[g] ?? []);
+        personalRankedFlatOrder(): (archetype: Archetype) => number[] {
+            return (archetype: Archetype) => TIERS.flatMap((g) => this.personalTierSections[archetype][g] ?? []);
         },
 
-        personalTiersMap(): Record<number, Tier> {
-            const map: Record<number, Tier> = {};
-            TIERS.forEach((tier) => {
-                (this.personalTierSections[tier] ?? []).forEach((num) => { map[num] = tier; });
-            });
-            return map;
+        personalTiersMap(): (archetype: Archetype) => Record<number, Tier> {
+            return (archetype: Archetype) => {
+                const map: Record<number, Tier> = {};
+                TIERS.forEach((tier) => {
+                    (this.personalTierSections[archetype][tier] ?? []).forEach((num) => { map[num] = tier; });
+                });
+                return map;
+            };
         },
 
-        teamFlatOrder(): number[] {
-            return TIER_GROUPS.flatMap((g) => this.teamTierSections[g] ?? []);
+        teamFlatOrder(): (archetype: Archetype) => number[] {
+            return (archetype: Archetype) => TIER_GROUPS.flatMap((g) => this.teamTierSections[archetype][g] ?? []);
         },
 
-        teamTiersMap(): Record<number, Tier> {
-            const map: Record<number, Tier> = {};
-            TIERS.forEach((tier) => {
-                (this.teamTierSections[tier] ?? []).forEach((num) => { map[num] = tier; });
-            });
-            return map;
+        teamTiersMap(): (archetype: Archetype) => Record<number, Tier> {
+            return (archetype: Archetype) => {
+                const map: Record<number, Tier> = {};
+                TIERS.forEach((tier) => {
+                    (this.teamTierSections[archetype][tier] ?? []).forEach((num) => { map[num] = tier; });
+                });
+                return map;
+            };
         },
 
         isTeamPicked(): (teamNumber: number) => boolean {
@@ -165,6 +186,12 @@ export const usePicklistStore = defineStore('picklist', {
 
         cardStatusFor(): (teamNumber: number) => 'red' | 'yellow' | null {
             return (teamNumber: number) => this.teamMatchSummaries[teamNumber]?.worstCard ?? null;
+        },
+
+        /** Defense% over the threshold — used to pre-filter Pick'em's Defender candidate pool (issue #27). */
+        isLikelyDefender(): (teamNumber: number) => boolean {
+            return (teamNumber: number) =>
+                (this.teamMatchSummaries[teamNumber]?.defensePercent ?? 0) > defenseThresholdPercent;
         }
     },
     actions: {
@@ -172,14 +199,20 @@ export const usePicklistStore = defineStore('picklist', {
             this.activeTab = tab;
         },
 
+        setArchetype(archetype: Archetype) {
+            this.activeArchetype = archetype;
+        },
+
         async loadAll(eventId: string, userId: string | null, isLead: boolean) {
             await this.loadTeams(eventId);
-            await this.loadPersonalList(userId, eventId);
             await this.loadPickedTeams(eventId);
-            await this.loadDemocraticList(eventId);
             await this.loadTeamMatchSummaries(eventId);
-            if (isLead) {
-                await this.loadTeamList(eventId);
+            for (const archetype of ARCHETYPES) {
+                await this.loadPersonalList(userId, eventId, archetype);
+                await this.loadDemocraticList(eventId, archetype);
+                if (isLead) {
+                    await this.loadTeamList(eventId, archetype);
+                }
             }
         },
 
@@ -193,43 +226,44 @@ export const usePicklistStore = defineStore('picklist', {
             this.teamsLoaded = true;
         },
 
-        async loadPersonalList(userId: string | null, eventId: string) {
-            this.personalListLoaded = false;
+        async loadPersonalList(userId: string | null, eventId: string, archetype: Archetype) {
+            this.personalListLoaded[archetype] = false;
             if (!userId) {
-                this.personalTierSections = buildTierSections([], {}, this.allTeams);
-                this.personalListLoaded = true;
+                this.personalTierSections[archetype] = buildTierSections([], {}, this.allTeams);
+                this.personalListLoaded[archetype] = true;
                 return;
             }
 
-            const result = await fetchPersonalPicklist(userId, eventId);
-            this.personalTierSections = buildTierSections(
+            const result = await fetchPersonalPicklist(userId, eventId, archetype);
+            this.personalTierSections[archetype] = buildTierSections(
                 result?.team_numbers ?? [],
                 parseTeamTiers(result?.team_tiers),
                 this.allTeams
             );
-            this.personalListLoaded = true;
+            this.personalListLoaded[archetype] = true;
         },
 
-        async loadTeamList(eventId: string) {
-            this.teamListLoaded = false;
-            const result = await fetchTeamPicklist(eventId);
-            this.teamTierSections = buildTierSections(
+        async loadTeamList(eventId: string, archetype: Archetype) {
+            this.teamListLoaded[archetype] = false;
+            const result = await fetchTeamPicklist(eventId, archetype);
+            this.teamTierSections[archetype] = buildTierSections(
                 result?.team_numbers ?? [],
                 parseTeamTiers(result?.team_tiers),
                 this.allTeams
             );
-            this.teamListLoaded = true;
+            this.teamListLoaded[archetype] = true;
         },
 
-        async loadDemocraticList(eventId: string) {
-            this.democraticListLoaded = false;
-            const allLists = await fetchAllPersonalPicklists(eventId);
-            this.teamTierStats = computeTeamTierStats(allLists);
-            this.democraticTierSections = computeDemocraticTierGroups(
+        async loadDemocraticList(eventId: string, archetype: Archetype) {
+            this.democraticListLoaded[archetype] = false;
+            const allLists = await fetchAllPersonalPicklists(eventId, archetype);
+            const stats = computeTeamTierStats(allLists);
+            this.teamTierStats[archetype] = stats;
+            this.democraticTierSections[archetype] = computeDemocraticTierGroups(
                 this.allTeams.map((t) => t.team_number),
-                this.teamTierStats
+                stats
             );
-            this.democraticListLoaded = true;
+            this.democraticListLoaded[archetype] = true;
         },
 
         async loadPickedTeams(eventId: string) {
@@ -242,20 +276,20 @@ export const usePicklistStore = defineStore('picklist', {
          * Reset the team list's tiers/order to the current democratic
          * grouping, overwriting whatever is currently staged for the team list.
          */
-        resetTeamListFromDemocratic() {
+        resetTeamListFromDemocratic(archetype: Archetype) {
             const cloned = emptyTierSections();
-            TIER_GROUPS.forEach((g) => { cloned[g] = [...(this.democraticTierSections[g] ?? [])]; });
-            this.teamTierSections = cloned;
+            TIER_GROUPS.forEach((g) => { cloned[g] = [...(this.democraticTierSections[archetype][g] ?? [])]; });
+            this.teamTierSections[archetype] = cloned;
         },
 
         /** Clear the team list's tiers/order entirely. */
-        resetTeamList() {
-            this.teamTierSections = emptyTierSections();
+        resetTeamList(archetype: Archetype) {
+            this.teamTierSections[archetype] = emptyTierSections();
         },
 
         /** Unrank every team on the personal list, back to all-Unranked. */
-        resetPersonalList() {
-            this.personalTierSections = buildTierSections([], {}, this.allTeams);
+        resetPersonalList(archetype: Archetype) {
+            this.personalTierSections[archetype] = buildTierSections([], {}, this.allTeams);
         },
 
         /**
@@ -272,33 +306,33 @@ export const usePicklistStore = defineStore('picklist', {
          * split 3/7/8/10/4 across S/A/B/C/D, everyone else lands in DNP —
          * so every call re-slices the whole ranked order into those fixed
          * buckets rather than splicing into just one tier's array.
-         * flatIndex is always within [0, personalRankedFlatOrder.length]
+         * flatIndex is always within [0, personalRankedFlatOrder(archetype).length]
          * by construction.
          */
-        placeTeamAtFlatIndex(teamNumber: number, flatIndex: number) {
-            const flat = TIERS.flatMap((t) => this.personalTierSections[t]).filter((n) => n !== teamNumber);
+        placeTeamAtFlatIndex(archetype: Archetype, teamNumber: number, flatIndex: number) {
+            const sections = this.personalTierSections[archetype];
+            const flat = TIERS.flatMap((t) => sections[t]).filter((n) => n !== teamNumber);
             flat.splice(flatIndex, 0, teamNumber);
 
             let cursor = 0;
             TIERS.forEach((tier) => {
                 if (tier === 'DNP') {
-                    this.personalTierSections.DNP = flat.slice(cursor);
+                    sections.DNP = flat.slice(cursor);
                 } else {
                     const size = PICKEM_TIER_SIZES[tier];
-                    this.personalTierSections[tier] = flat.slice(cursor, cursor + size);
+                    sections[tier] = flat.slice(cursor, cursor + size);
                     cursor += size;
                 }
             });
 
-            this.personalTierSections.Unranked =
-                this.personalTierSections.Unranked.filter((n) => n !== teamNumber);
+            sections.Unranked = sections.Unranked.filter((n) => n !== teamNumber);
         },
 
-        async savePersonalList(userId: string, eventId: string) {
+        async savePersonalList(userId: string, eventId: string, archetype: Archetype) {
             this.isSaving = true;
             this.lastSaveError = null;
             const error = await upsertPersonalPicklist(
-                userId, eventId, this.personalFlatOrder, this.personalTiersMap
+                userId, eventId, archetype, this.personalFlatOrder(archetype), this.personalTiersMap(archetype)
             );
             this.isSaving = false;
             if (error) {
@@ -310,10 +344,10 @@ export const usePicklistStore = defineStore('picklist', {
             return true;
         },
 
-        async saveTeamList(eventId: string) {
+        async saveTeamList(eventId: string, archetype: Archetype) {
             this.isSaving = true;
             this.lastSaveError = null;
-            const error = await upsertTeamPicklist(eventId, this.teamFlatOrder, this.teamTiersMap);
+            const error = await upsertTeamPicklist(eventId, archetype, this.teamFlatOrder(archetype), this.teamTiersMap(archetype));
             this.isSaving = false;
             if (error) {
                 this.lastSaveError = error.message ?? 'Unknown error';

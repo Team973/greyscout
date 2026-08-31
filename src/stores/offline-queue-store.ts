@@ -48,7 +48,7 @@ export const useOfflineQueueStore = defineStore('offlineQueue', {
         enqueue(type: QueueItem['type'], payload: Record<string, unknown>, error?: string) {
             // Deduplicate picklist saves to avoid flooding the queue if offline and autosaving
             if (type === 'picklist_personal') {
-                const existing = this.queue.find(q => q.type === type && q.payload.userId === payload.userId && q.payload.eventId === payload.eventId);
+                const existing = this.queue.find(q => q.type === type && q.payload.userId === payload.userId && q.payload.eventId === payload.eventId && q.payload.archetype === payload.archetype);
                 if (existing) {
                     existing.payload = payload;
                     existing.enqueuedAt = new Date().toISOString();
@@ -57,7 +57,7 @@ export const useOfflineQueueStore = defineStore('offlineQueue', {
                     return;
                 }
             } else if (type === 'picklist_team') {
-                const existing = this.queue.find(q => q.type === type && q.payload.eventId === payload.eventId);
+                const existing = this.queue.find(q => q.type === type && q.payload.eventId === payload.eventId && q.payload.archetype === payload.archetype);
                 if (existing) {
                     existing.payload = payload;
                     existing.enqueuedAt = new Date().toISOString();

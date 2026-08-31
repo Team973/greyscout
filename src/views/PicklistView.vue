@@ -115,6 +115,13 @@ const activeTab = computed({
     set: (v) => picklistStore.setTab(v)
 });
 
+// Scorer/Defender "super tab" (issue #27) — an independent ranking axis
+// alongside My/Democratic/Team List.
+const activeArchetype = computed({
+    get: () => picklistStore.activeArchetype,
+    set: (v) => picklistStore.setArchetype(v)
+});
+
 const isEditable = computed(() =>
     (activeTab.value === 'personal') ||
     (activeTab.value === 'team' && isLead.value)
@@ -130,7 +137,7 @@ const showVoteStats = computed(() => activeTab.value !== 'personal');
 // aggregate.
 const showPickedCheckbox = computed(() => activeTab.value === 'team');
 
-const hasDemocraticVotes = computed(() => Object.keys(picklistStore.teamTierStats).length > 0);
+const hasDemocraticVotes = computed(() => Object.keys(picklistStore.teamTierStats[activeArchetype.value]).length > 0);
 
 // ─── Loading ───────────────────────────────────────────────────────────────────
 
@@ -178,23 +185,25 @@ async function saveList() {
     let success = false;
 
     if (activeTab.value === 'personal' && userId.value) {
-        success = await picklistStore.savePersonalList(userId.value, eventId.value);
+        success = await picklistStore.savePersonalList(userId.value, eventId.value, activeArchetype.value);
         if (!success) {
             // Enqueue for later
             queueStore.enqueue('picklist_personal', {
                 userId: userId.value,
                 eventId: eventId.value,
-                teamNumbers: picklistStore.personalFlatOrder,
-                teamTiers: picklistStore.personalTiersMap
+                archetype: activeArchetype.value,
+                teamNumbers: picklistStore.personalFlatOrder(activeArchetype.value),
+                teamTiers: picklistStore.personalTiersMap(activeArchetype.value)
             }, picklistStore.lastSaveError ?? undefined);
         }
     } else if (activeTab.value === 'team' && isLead.value) {
-        success = await picklistStore.saveTeamList(eventId.value);
+        success = await picklistStore.saveTeamList(eventId.value, activeArchetype.value);
         if (!success) {
             queueStore.enqueue('picklist_team', {
                 eventId: eventId.value,
-                teamNumbers: picklistStore.teamFlatOrder,
-                teamTiers: picklistStore.teamTiersMap
+                archetype: activeArchetype.value,
+                teamNumbers: picklistStore.teamFlatOrder(activeArchetype.value),
+                teamTiers: picklistStore.teamTiersMap(activeArchetype.value)
             }, picklistStore.lastSaveError ?? undefined);
         }
     }
@@ -205,7 +214,7 @@ async function saveList() {
 const isRefreshingDemocratic = ref(false);
 async function refreshDemocratic() {
     isRefreshingDemocratic.value = true;
-    await picklistStore.loadDemocraticList(eventId.value);
+    await picklistStore.loadDemocraticList(eventId.value, activeArchetype.value);
     isRefreshingDemocratic.value = false;
 }
 
@@ -229,7 +238,7 @@ async function refreshTbaStatsForEvent() {
 // ─── Reset Team List from Democratic ──────────────────────────────────────────
 
 async function resetTeamFromDemocratic() {
-    picklistStore.resetTeamListFromDemocratic();
+    picklistStore.resetTeamListFromDemocratic(activeArchetype.value);
     await saveList();
 }
 
@@ -237,7 +246,7 @@ async function resetTeamFromDemocratic() {
 
 const confirmingTeamReset = ref(false);
 async function resetTeamListEmpty() {
-    picklistStore.resetTeamList();
+    picklistStore.resetTeamList(activeArchetype.value);
     confirmingTeamReset.value = false;
     await saveList();
 }
@@ -246,7 +255,7 @@ async function resetTeamListEmpty() {
 
 const confirmingPersonalReset = ref(false);
 async function resetPersonalListEmpty() {
-    picklistStore.resetPersonalList();
+    picklistStore.resetPersonalList(activeArchetype.value);
     confirmingPersonalReset.value = false;
     await saveList();
 }
@@ -257,7 +266,7 @@ function exportTeamListCsv() {
     const rows: Record<string, unknown>[] = [];
     let rank = 0;
     TIER_GROUPS.forEach((group) => {
-        (picklistStore.teamTierSections[group] ?? []).forEach((teamNumber) => {
+        (picklistStore.teamTierSections[activeArchetype.value][group] ?? []).forEach((teamNumber) => {
             const team = picklistStore.teamMap[teamNumber];
             if (!team) return;
             rank += 1;
@@ -277,7 +286,7 @@ function exportTeamListCsv() {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = `team-picklist-${eventId.value}.csv`;
+    link.download = `team-picklist-${eventId.value}-${activeArchetype.value}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -287,7 +296,7 @@ function exportTeamListCsv() {
 // ─── Tier stats (Democratic / Team tabs) ──────────────────────────────────────
 
 function tierStatsFor(teamNumber: number) {
-    return picklistStore.teamTierStats[teamNumber] ?? null;
+    return picklistStore.teamTierStats[activeArchetype.value][teamNumber] ?? null;
 }
 
 function tierGroupLabel(group: string) {
@@ -344,6 +353,20 @@ function toggleTierCollapse(group: string) {
                 </button>
             </div>
             <p v-if="tbaStatsError" class="picklist-tba-error">{{ tbaStatsError }}</p>
+
+            <!-- Archetype super tabs (issue #27) — Scorer/Defender are independent rankings -->
+            <div class="picklist-archetype-tabs" role="tablist">
+                <button id="archetype-scorer" class="picklist-archetype-tab"
+                    :class="{ 'picklist-archetype-tab--active': activeArchetype === 'scorer' }" role="tab"
+                    :aria-selected="activeArchetype === 'scorer'" @click="activeArchetype = 'scorer'">
+                    Scorer
+                </button>
+                <button id="archetype-defender" class="picklist-archetype-tab"
+                    :class="{ 'picklist-archetype-tab--active': activeArchetype === 'defender' }" role="tab"
+                    :aria-selected="activeArchetype === 'defender'" @click="activeArchetype = 'defender'">
+                    Defender
+                </button>
+            </div>
 
             <!-- Tab bar -->
             <div class="picklist-tabs" role="tablist">
@@ -604,6 +627,34 @@ function toggleTierCollapse(group: string) {
 }
 
 /* ── Tabs ── */
+.picklist-archetype-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.picklist-archetype-tab {
+    background: rgba(128, 128, 128, 0.1);
+    border: 1.5px solid transparent;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.picklist-archetype-tab:hover {
+    border-color: rgba(176, 87, 3, 0.4);
+}
+
+.picklist-archetype-tab--active {
+    background: #b05703;
+    border-color: #b05703;
+    color: #fff;
+}
+
 .picklist-tabs {
     display: flex;
     gap: 4px;

@@ -26,6 +26,11 @@ export const scoutAssignmentTable = "ScoutAssignment";
 export const pickListTypePersonal = "personal";
 export const pickListTypeTeam = "team";
 
+// Picklist archetypes (issue #27) — a team can be ranked independently
+// under either or both. Defense% threshold only pre-filters Pick'em's
+// Defender candidate pool, it doesn't lock a team into one archetype.
+export const defenseThresholdPercent = 50;
+
 // Auto path alliance / starting side
 export const allianceRed = "red";
 export const allianceBlue = "blue";
