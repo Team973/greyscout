@@ -96,7 +96,7 @@ export async function queryAllEvents() {
 }
 
 export async function queryEventPitData(eventId) {
-    const { data, error } = await supabase.from(pitScoutTable).select('pit_team_number, created_at').eq('event', eventId);
+    const { data, error } = await supabase.from(pitScoutTable).select('id, pit_team_number, created_at').eq('event', eventId);
 
     if (error) {
         console.log(error);

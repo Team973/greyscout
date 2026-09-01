@@ -6,6 +6,7 @@ import { isSiteReadPrivate, isSiteWritePrivate } from "@/lib/constants";
 import { createRouter, createWebHistory } from "vue-router";
 import DataUploadView from "@/views/DataUploadView.vue";
 import MatchScoutView from "@/views/MatchScoutView.vue";
+import MatchDataEditView from "@/views/MatchDataEditView.vue";
 import PitScoutingView from "@/views/PitScoutingView.vue";
 import TeamAnalysisView from "@/views/TeamAnalysisView.vue";
 import EventAnalysisView from "@/views/EventAnalysisView.vue";
@@ -52,6 +53,17 @@ const router = createRouter({
       meta: {
         requiresAuth: isSiteReadPrivate,
         minRole: 'member'
+      }
+    },
+    {
+      // Edit an existing match-scouting submission (issue #31) — reached
+      // from Data Status, lead/admin only.
+      path: "/match/edit/:id",
+      name: "Edit Match Data | GreyScout",
+      component: MatchDataEditView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'lead'
       }
     },
     {

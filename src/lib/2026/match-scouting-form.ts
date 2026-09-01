@@ -145,10 +145,33 @@ export function getMatchPostmatchFields() {
     ];
 }
 
+// Pre-fills a team-row schema's component values from an existing MatchData
+// row (issue #31 — editing an existing submission), keyed the same way
+// parseScoutData() writes them: `${section.key}_${component.key}`. Mirrors
+// pit-scouting-form.ts's applyExistingPitData, adapted for match data's
+// per-section column prefixes instead of pit's flat `pit_` prefix.
+function applyExistingMatchTeamData(schema, row) {
+    schema.forEach((section) => {
+        section.components.forEach((component) => {
+            const dbKey = `${section.key}_${component.key}`.toLowerCase();
+            if (!(dbKey in row) || row[dbKey] == null) return;
+
+            const raw = row[dbKey];
+            if (component.type === "dropdown") {
+                const idx = component.options.choices.findIndex((c) => c.key === raw);
+                if (idx >= 0) component.value = idx;
+            } else {
+                component.value = raw;
+            }
+        });
+    });
+}
+
 // The full {key, name, components} section shape for one team's row —
 // matches what FormSection/validateForm/parseScoutData already expect.
-export function buildTeamRowSchema() {
-    return [
+// Pass existingData (a raw MatchData row) to pre-fill for editing.
+export function buildTeamRowSchema({ existingData = null } = {}) {
+    const schema = [
         {
             key: "prematch",
             name: "Pre-match",
@@ -165,4 +188,10 @@ export function buildTeamRowSchema() {
             components: getMatchPostmatchFields()
         }
     ];
+
+    if (existingData) {
+        applyExistingMatchTeamData(schema, existingData);
+    }
+
+    return schema;
 }

@@ -13,7 +13,7 @@ import { queryTeamNumbers } from "@/lib/data-query";
             <SearchableDropdown :choices="teamFilters" v-model="currentTeamNumber" placeholder="Search team…">
             </SearchableDropdown>
 
-            <PitScoutingSection :team-number="teamNumber"></PitScoutingSection>
+            <PitScoutingSection :team-number="teamNumber" :auto-edit="autoEditPit"></PitScoutingSection>
         </div>
         <div v-else-if="teamsLoaded">
             <h2>No Data Available</h2>
@@ -28,7 +28,8 @@ export default {
             eventStore: null,
             teamsLoaded: false,
             teamFilters: [],
-            currentTeamNumber: null
+            currentTeamNumber: null,
+            autoEditPit: false
         }
     },
     methods: {
@@ -69,6 +70,21 @@ export default {
     },
     created() {
         this.eventStore = useEventStore();
+
+        // Data Status's lead-only pit-edit shortcut (issue #31) lands here
+        // with ?team=&editPit=1 — capture both, then strip them from the URL
+        // so a refresh/back-nav doesn't keep re-forcing edit mode.
+        const queryTeam = Number(this.$route.query.team);
+        if (Number.isFinite(queryTeam)) {
+            this.currentTeamNumber = queryTeam;
+        }
+        if (this.$route.query.editPit === '1') {
+            this.autoEditPit = true;
+        }
+        if (this.$route.query.team != null || this.$route.query.editPit != null) {
+            this.$router.replace({ path: '/pit' });
+        }
+
         this.loadTeamNumbers();
     }
 }

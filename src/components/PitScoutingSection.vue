@@ -125,6 +125,13 @@ export default {
         teamNumber: {
             type: Number,
             required: true
+        },
+        // Auto-opens the edit form for this team's newest pit submission
+        // once loaded — used by Data Status's lead-only edit shortcut
+        // (issue #31).
+        autoEdit: {
+            type: Boolean,
+            default: false
         }
     },
     data() {
@@ -150,6 +157,10 @@ export default {
             this.teamPitDataLoaded = false;
             this.teamPitData = await fetchTeamPitData(this.teamNumber, this.eventStore.eventId);
             this.teamPitDataLoaded = true;
+
+            if (this.autoEdit && this.teamPitData.length > 0 && this.isUserWriteAccess) {
+                this.startEditPit(this.teamPitData[0].id);
+            }
         },
         startAddPit() {
             this.pitFormMode = 'add';
@@ -160,10 +171,21 @@ export default {
             this.pitFormEditId = id;
         },
         onPitFormCancel() {
+            // Reached via Data Status's edit shortcut (issue #31) — cancelling
+            // returns there rather than falling back to this team's view mode.
+            if (this.autoEdit) {
+                this.$router.push('/data-status');
+                return;
+            }
             this.pitFormMode = 'view';
             this.pitFormEditId = null;
         },
         async onPitFormSaved({ queuedOffline }: { queuedOffline: boolean }) {
+            if (this.autoEdit) {
+                this.$router.push('/data-status');
+                return;
+            }
+
             this.pitFormMode = 'view';
             this.pitFormEditId = null;
 
