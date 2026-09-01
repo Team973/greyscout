@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router';
 import CollapsibleSection from "@/components/CollapsibleSection.vue";
 
 import { useEventStore } from "@/stores/event-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { queryEventMatchSchedule, queryEventData, queryEventPitData, queryTeamNumbers } from "@/lib/data-query";
 import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
 </script>
@@ -30,14 +31,16 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
                 <p v-if="teams.length === 0">No teams loaded for this event yet.</p>
 
                 <div v-else class="pit-status-grid">
-                    <RouterLink v-for="team in teams" :key="team.team_number" :to="`/team/${team.team_number}`"
-                        class="pit-status-cell"
+                    <div v-for="team in teams" :key="team.team_number" class="pit-status-cell"
                         :class="pitScoutedTeams[team.team_number] ? 'cell-scouted' : 'cell-missing'">
-                        <span class="status-dot"
-                            :class="pitScoutedTeams[team.team_number] ? 'status-scouted' : 'status-missing'"></span>
-                        {{ team.team_number }}
-                        <span class="team-name">- {{ team.name }}</span>
-                    </RouterLink>
+                        <RouterLink :to="`/team/${team.team_number}`" class="pit-status-link">
+                            <span class="status-dot"
+                                :class="pitScoutedTeams[team.team_number] ? 'status-scouted' : 'status-missing'"></span>
+                            {{ team.team_number }}
+                        </RouterLink>
+                        <button v-if="isLead && pitScoutedTeams[team.team_number]" type="button" class="edit-pencil"
+                            title="Edit pit scouting submission" @click="goToPitEdit(team.team_number)">✎</button>
+                    </div>
                 </div>
             </CollapsibleSection>
 
@@ -71,13 +74,14 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
                             <tr v-for="match in qualMatches" :key="match.key">
                                 <td>Q{{ match.match_number }}</td>
                                 <td v-for="slotKey in slotKeys" :key="slotKey" :class="cellClass(match, slotKey)">
-                                    <RouterLink v-if="match[slotKey]" :to="`/team/${match[slotKey]}`" class="team-link">
-                                        <span class="status-dot" :class="statusDotClass(match.match_number, match[slotKey])"></span>
-                                        {{ match[slotKey] }}
-                                        <span class="team-name" v-if="teamNameByNumber[match[slotKey]]">
-                                            - {{ teamNameByNumber[match[slotKey]] }}
-                                        </span>
-                                    </RouterLink>
+                                    <template v-if="match[slotKey]">
+                                        <RouterLink :to="`/team/${match[slotKey]}`" class="team-link">
+                                            <span class="status-dot" :class="statusDotClass(match.match_number, match[slotKey])"></span>
+                                            {{ match[slotKey] }}
+                                        </RouterLink>
+                                        <button v-if="isLead && scoutedEntryFor(match, slotKey)" type="button" class="edit-pencil"
+                                            title="Edit match submission" @click="goToMatchEdit(match, slotKey)">✎</button>
+                                    </template>
                                 </td>
                             </tr>
                         </tbody>
@@ -96,18 +100,21 @@ export default {
     data() {
         return {
             eventStore: null,
+            authStore: null,
             loaded: false,
             schedule: [],
             teams: [],
-            teamNameByNumber: {},
-            // `${match_number}|${team_number}` -> { count, noShow }
+            // `${match_number}|${team_number}` -> { count, noShow, id }
             scoutedByKey: {},
-            // team_number -> true
+            // team_number -> { id }
             pitScoutedTeams: {},
             slotKeys: SLOT_KEYS
         }
     },
     computed: {
+        isLead() {
+            return this.authStore?.isLead ?? false;
+        },
         qualMatches() {
             return this.schedule.filter(m => m.comp_level === 'qm');
         },
@@ -152,24 +159,29 @@ export default {
 
             this.teams = [...teams].sort((a, b) => a.team_number - b.team_number);
 
-            this.teamNameByNumber = {};
-            teams.forEach((team) => {
-                this.teamNameByNumber[team.team_number] = team.name;
-            });
-
             this.scoutedByKey = {};
             matchData.forEach((row) => {
                 const key = `${row[matchNumberColumn]}|${row[teamNumberColumn]}`;
                 if (!this.scoutedByKey[key]) {
-                    this.scoutedByKey[key] = { count: 0, noShow: false };
+                    this.scoutedByKey[key] = { count: 0, noShow: false, id: row.id, createdAt: row.created_at };
                 }
-                this.scoutedByKey[key].count += 1;
-                this.scoutedByKey[key].noShow = this.scoutedByKey[key].noShow || !!row.prematch_noshow;
+                const entry = this.scoutedByKey[key];
+                entry.count += 1;
+                entry.noShow = entry.noShow || !!row.prematch_noshow;
+                // If a slot somehow has more than one submission, edit links
+                // should point at the most recent one.
+                if (row.created_at > entry.createdAt) {
+                    entry.id = row.id;
+                    entry.createdAt = row.created_at;
+                }
             });
 
             this.pitScoutedTeams = {};
             pitData.forEach((row) => {
-                this.pitScoutedTeams[row.pit_team_number] = true;
+                const existing = this.pitScoutedTeams[row.pit_team_number];
+                if (!existing || row.created_at > existing.createdAt) {
+                    this.pitScoutedTeams[row.pit_team_number] = { id: row.id, createdAt: row.created_at };
+                }
             });
 
             this.loaded = true;
@@ -187,10 +199,32 @@ export default {
             const alliance = slotKey.startsWith('red') ? 'red-cell' : 'blue-cell';
             if (!teamNumber) return [alliance];
             return [alliance, `cell-${this.statusFor(match.match_number, teamNumber)}`];
+        },
+        // Leads/admins clicking an already-scouted slot go straight to
+        // editing that submission (issue #31); everyone else, and unscouted
+        // slots, keep the original team-analysis link.
+        // The scouted submission entry (with its row id) for a match slot,
+        // or undefined if that slot hasn't been scouted — used to decide
+        // whether the lead-only edit pencil shows, and where it goes.
+        scoutedEntryFor(match, slotKey) {
+            return this.scoutedByKey[`${match.match_number}|${match[slotKey]}`];
+        },
+        // Edit pencil handlers (issue #31) — separate from the team link
+        // itself, which always goes to Team Analysis.
+        goToMatchEdit(match, slotKey) {
+            const entry = this.scoutedEntryFor(match, slotKey);
+            if (entry) this.$router.push(`/match/edit/${entry.id}`);
+        },
+        // Pit scouting reuses the existing Pit Scouting page (auto-opened to
+        // this team, in edit mode) rather than a dedicated page.
+        goToPitEdit(teamNumber) {
+            this.$router.push(`/pit?team=${teamNumber}&editPit=1`);
         }
     },
     created() {
         this.eventStore = useEventStore();
+        this.authStore = useAuthStore();
+        this.authStore.checkUser();
         this.loadData();
     }
 }
@@ -266,23 +300,49 @@ export default {
     max-width: 100%;
 }
 
-.team-name {
-    opacity: 0.75;
-}
-
 /* Both the pit-status-grid cells and the match-table team cells are now
    RouterLinks (issue #46) — undo the browser's default link styling so
    they still read as plain status cells, not blue underlined text. */
-.pit-status-cell,
+.pit-status-link,
 .team-link {
     color: inherit;
     text-decoration: none;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.pit-status-cell:hover,
+.pit-status-link:hover,
 .team-link:hover {
     text-decoration: underline;
+}
+
+/* Leads/admins edit shortcut (issue #31) — a separate button next to the
+   team link, rather than repurposing the link itself, so clicking the link
+   always goes to Team Analysis. */
+.edit-pencil {
+    background: none;
+    border: none;
+    margin-left: 4px;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    color: rgba(128, 128, 128, 0.7);
+    border-radius: 6px;
+    flex-shrink: 0;
+    /* A proper touch target (roughly 44x44, the standard minimum tap size)
+       so the pencil is easy to hit with a finger, not just a mouse. */
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-pencil:hover {
+    color: #b05703;
+    background: rgba(176, 87, 3, 0.12);
 }
 
 .red-header {
@@ -295,7 +355,9 @@ export default {
 
 .pit-status-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    /* Cells only show the team number now (no name), so a narrower min width
+       fits more per row than when this had to fit "9999 - Team Name". */
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     gap: 8px;
     width: 100%;
 }
@@ -307,6 +369,11 @@ export default {
     padding: 8px 10px;
     border-radius: 8px;
     font-size: 0.9em;
+}
+
+.pit-status-link {
+    flex: 1;
+    min-width: 0;
 }
 
 .pit-status-cell.cell-scouted {

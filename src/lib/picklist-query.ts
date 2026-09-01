@@ -200,6 +200,25 @@ export async function fetchPitDataById(id: number) {
 }
 
 /**
+ * Fetch a single raw MatchData row by id (native prematch_/auto_/postmatch_
+ * column names), used to pre-fill the match scouting edit form (issue #31).
+ */
+export async function fetchMatchDataById(id: number) {
+    const { data, error } = await supabase
+        .from(matchScoutTable)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('fetchMatchDataById error:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
  * Fetch match- and pit-scouting comments for a team, attributed to their author.
  * Returns array of { source, author, comment, match_number, created_at }, newest first.
  */
