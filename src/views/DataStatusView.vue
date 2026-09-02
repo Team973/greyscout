@@ -6,7 +6,7 @@ import CollapsibleSection from "@/components/CollapsibleSection.vue";
 
 import { useEventStore } from "@/stores/event-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { queryEventMatchSchedule, queryEventData, queryEventPitData, queryTeamNumbers } from "@/lib/data-query";
+import { queryEventMatchSchedule, queryEventData, queryEventPitData, queryEventPrescoutData, queryTeamNumbers } from "@/lib/data-query";
 import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
 </script>
 
@@ -20,6 +20,30 @@ import { matchNumberColumn, teamNumberColumn } from "@/lib/constants";
         </div>
 
         <div v-if="loaded">
+            <CollapsibleSection title="Prescouting">
+                <p>{{ prescoutStats.scoutedTeams }} / {{ prescoutStats.totalTeams }} teams pre-scouted
+                    ({{ prescoutStats.percent }}%).</p>
+                <div class="legend">
+                    <span class="legend-item"><span class="status-dot status-scouted"></span> Pre-scouted</span>
+                    <span class="legend-item"><span class="status-dot status-missing"></span> Not yet pre-scouted</span>
+                </div>
+
+                <p v-if="teams.length === 0">No teams loaded for this event yet.</p>
+
+                <div v-else class="pit-status-grid">
+                    <div v-for="team in teams" :key="team.team_number" class="pit-status-cell"
+                        :class="prescoutedTeams[team.team_number] ? 'cell-scouted' : 'cell-missing'">
+                        <RouterLink :to="`/team/${team.team_number}`" class="pit-status-link">
+                            <span class="status-dot"
+                                :class="prescoutedTeams[team.team_number] ? 'status-scouted' : 'status-missing'"></span>
+                            {{ team.team_number }}
+                        </RouterLink>
+                        <button v-if="isLead && prescoutedTeams[team.team_number]" type="button" class="edit-pencil"
+                            title="Edit pre-scouting submission" @click="goToPrescoutEdit(team.team_number)">✎</button>
+                    </div>
+                </div>
+            </CollapsibleSection>
+
             <CollapsibleSection title="Pit Scouting">
                 <p>{{ pitStats.scoutedTeams }} / {{ pitStats.totalTeams }} teams pit scouted
                     ({{ pitStats.percent }}%).</p>
@@ -108,6 +132,8 @@ export default {
             scoutedByKey: {},
             // team_number -> { id }
             pitScoutedTeams: {},
+            // team_number -> { id }
+            prescoutedTeams: {},
             slotKeys: SLOT_KEYS
         }
     },
@@ -139,6 +165,12 @@ export default {
             const scoutedTeams = this.teams.filter(team => this.pitScoutedTeams[team.team_number]).length;
             const percent = totalTeams > 0 ? Math.round((scoutedTeams / totalTeams) * 100) : 0;
             return { totalTeams, scoutedTeams, percent };
+        },
+        prescoutStats() {
+            const totalTeams = this.teams.length;
+            const scoutedTeams = this.teams.filter(team => this.prescoutedTeams[team.team_number]).length;
+            const percent = totalTeams > 0 ? Math.round((scoutedTeams / totalTeams) * 100) : 0;
+            return { totalTeams, scoutedTeams, percent };
         }
     },
     methods: {
@@ -148,10 +180,11 @@ export default {
             await this.eventStore.updateEvent();
             const eventId = this.eventStore.eventId;
 
-            const [schedule, matchData, pitData, teams] = await Promise.all([
+            const [schedule, matchData, pitData, prescoutData, teams] = await Promise.all([
                 queryEventMatchSchedule(eventId),
                 queryEventData(eventId),
                 queryEventPitData(eventId),
+                queryEventPrescoutData(eventId),
                 queryTeamNumbers(eventId)
             ]);
 
@@ -181,6 +214,14 @@ export default {
                 const existing = this.pitScoutedTeams[row.pit_team_number];
                 if (!existing || row.created_at > existing.createdAt) {
                     this.pitScoutedTeams[row.pit_team_number] = { id: row.id, createdAt: row.created_at };
+                }
+            });
+
+            this.prescoutedTeams = {};
+            prescoutData.forEach((row) => {
+                const existing = this.prescoutedTeams[row.prescout_team_number];
+                if (!existing || row.created_at > existing.createdAt) {
+                    this.prescoutedTeams[row.prescout_team_number] = { id: row.id, createdAt: row.created_at };
                 }
             });
 
@@ -219,6 +260,10 @@ export default {
         // this team, in edit mode) rather than a dedicated page.
         goToPitEdit(teamNumber) {
             this.$router.push(`/pit?team=${teamNumber}&editPit=1`);
+        },
+        // Same idea for pre-scouting (issue #51) — reuses the Prescout page.
+        goToPrescoutEdit(teamNumber) {
+            this.$router.push(`/prescout?team=${teamNumber}&editPrescout=1`);
         }
     },
     created() {

@@ -13,13 +13,20 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 </script>
 
 <template>
-    <!-- Mobile navigation bar (hamburger menu) -->
-    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-if="viewMode?.isMobile && isLoggedIn">
+    <!-- Nav bar is always a hamburger menu, mobile or not — the links live
+         entirely inside the menu-content slot regardless of viewport width. -->
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-if="isLoggedIn">
         <HamburgerMenu>
             <template v-slot:menu-title>
                 {{ eventName }}
             </template>
             <template v-slot:theme-button>
+                <RouterLink to="/account" class="nav-dark-mode nav-mobile-right" title="Account">
+                    <md-icon slot="icon">account_circle</md-icon>
+                    <div class="nav-online-dot"
+                        :class="isOnline ? 'nav-online-dot--online' : 'nav-online-dot--offline'"
+                        :title="isOnline ? 'Online' : 'Offline'"></div>
+                </RouterLink>
                 <div class="nav-dark-mode nav-mobile-right" @click="toggleUserDarkMode">
                     <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
                     <md-icon slot="icon" v-else>light_mode</md-icon>
@@ -29,20 +36,43 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <!-- <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink> -->
                 <RouterLink v-if="isMember" to="/schedule" class="nav-link nav-link-mobile">Schedule</RouterLink>
                 <RouterLink to="/data-status" class="nav-link nav-link-mobile">Data Status</RouterLink>
-                <RouterLink v-if="isMember" to="/pit" class="nav-link nav-link-mobile">Pit Scouting</RouterLink>
-                <RouterLink v-if="isMember" to="/match" class="nav-link nav-link-mobile">Match Scouting</RouterLink>
+
+                <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('scouting')">
+                    <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'scouting' }">▾</span>
+                    Scouting
+                </button>
+                <template v-if="isMember && expandedGroup === 'scouting'">
+                    <RouterLink to="/prescout" class="nav-link nav-link-mobile nav-link-grouped">Prescouting</RouterLink>
+                    <RouterLink to="/pit" class="nav-link nav-link-mobile nav-link-grouped">Pit Scouting</RouterLink>
+                    <RouterLink to="/match" class="nav-link nav-link-mobile nav-link-grouped">Match Scouting</RouterLink>
+                </template>
+
                 <!-- <RouterLink to="/event" class="nav-link nav-link-mobile">Event Analysis</RouterLink> -->
-                <RouterLink to="/team" class="nav-link nav-link-mobile">Team Analysis</RouterLink>
-                <RouterLink v-if="isMember" to="/picklist" class="nav-link nav-link-mobile">Pick List</RouterLink>
-                <RouterLink v-if="isMember" to="/pickem" class="nav-link nav-link-mobile">Pick'em</RouterLink>
-                <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile">Strategy</RouterLink>
+                <button type="button" class="nav-group-label" @click.stop="toggleGroup('analysis')">
+                    <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'analysis' }">▾</span>
+                    Analysis
+                </button>
+                <template v-if="expandedGroup === 'analysis'">
+                    <RouterLink to="/team" class="nav-link nav-link-mobile nav-link-grouped">Team Analysis</RouterLink>
+                    <RouterLink to="/stats" class="nav-link nav-link-mobile nav-link-grouped">Stats</RouterLink>
+                </template>
+
+                <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('strategy')">
+                    <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'strategy' }">▾</span>
+                    Strategy
+                </button>
+                <template v-if="isMember && expandedGroup === 'strategy'">
+                    <RouterLink to="/pickem" class="nav-link nav-link-mobile nav-link-grouped">Pick'em</RouterLink>
+                    <RouterLink to="/picklist" class="nav-link nav-link-mobile nav-link-grouped">Pick List</RouterLink>
+                    <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile nav-link-grouped">Match Strategy</RouterLink>
+                </template>
+
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
-                <RouterLink to="/account" class="nav-link nav-link-mobile">Account</RouterLink>
             </template>
         </HamburgerMenu>
 
     </div>
-    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else-if="viewMode?.isMobile && !isLoggedIn">
+    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else>
         <HamburgerMenu>
             <template v-slot:menu-title>
                 <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
@@ -58,44 +88,6 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <RouterLink to="/register" class="nav-link nav-link-mobile">Register</RouterLink>
             </template>
         </HamburgerMenu>
-    </div>
-    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else-if="!viewMode?.isMobile && isLoggedIn">
-        <!-- <RouterLink to="/upload" class="nav-link" v-if="isWriteAccess">Data Upload</RouterLink> -->
-        <RouterLink v-if="isMember" to="/schedule" class="nav-link">Schedule</RouterLink>
-        <RouterLink to="/data-status" class="nav-link">Data Status</RouterLink>
-        <RouterLink v-if="isMember" to="/pit" class="nav-link">Pit Scouting</RouterLink>
-        <RouterLink v-if="isMember" to="/match" class="nav-link">Match Scouting</RouterLink>
-        <!-- <RouterLink to="/event" class="nav-link">Event Analysis</RouterLink> -->
-        <RouterLink to="/team" class="nav-link">Team Analysis</RouterLink>
-        <RouterLink v-if="isMember" to="/picklist" class="nav-link">Pick List</RouterLink>
-        <RouterLink v-if="isMember" to="/pickem" class="nav-link">Pick'em</RouterLink>
-        <RouterLink v-if="isLead" to="/strategy" class="nav-link">Strategy</RouterLink>
-        <!-- <RouterLink to="/chartbuilder" class="nav-link">ChartBuilder</RouterLink> -->
-
-        <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
-            <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
-            <md-icon slot="icon" v-else>light_mode</md-icon>
-        </div>
-        <div class="nav-text nav-right">{{ eventName }}</div>
-        <div class="nav-online-dot nav-right" :class="isOnline ? 'nav-online-dot--online' : 'nav-online-dot--offline'"
-            :title="isOnline ? 'Online' : 'Offline'"></div>
-        <div class="nav-dark-mode nav-right" @click="userLogin">
-            <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
-            <md-icon slot="icon" v-else>account_circle</md-icon>
-        </div>
-    </div>
-    <div class="nav" :class="{ 'nav--hidden': navHidden }" v-else>
-        <RouterLink to="/" class="nav-link">GreyScout</RouterLink>
-
-        <div class="nav-dark-mode nav-right" @click="userLogin">
-            <md-icon slot="icon" v-if="!isLoggedIn">login</md-icon>
-            <md-icon slot="icon" v-else>account_circle</md-icon>
-        </div>
-
-        <div class="nav-dark-mode nav-right" @click="toggleUserDarkMode">
-            <md-icon slot="icon" v-if="isDarkMode">dark_mode</md-icon>
-            <md-icon slot="icon" v-else>light_mode</md-icon>
-        </div>
     </div>
 </template>
 
@@ -119,7 +111,11 @@ export default {
             // see handleScroll below.
             navHidden: false,
             lastScrollTop: 0,
-            scrollContainer: null
+            scrollContainer: null,
+            // Collapsed by default to keep the menu short — expanding is an
+            // explicit choice, not the default state. Accordion-style: only
+            // one group ('scouting' | 'analysis' | 'strategy') open at once.
+            expandedGroup: null
         }
     },
     created() {
@@ -188,13 +184,8 @@ export default {
         toggleUserDarkMode() {
             this.viewMode.toggleUserDarkMode();
         },
-        userLogin() {
-            if (this.isLoggedIn) {
-                this.$router.push("/account");
-                return;
-            }
-
-            this.$router.push("/login");
+        toggleGroup(name) {
+            this.expandedGroup = this.expandedGroup === name ? null : name;
         }
     }
 }
@@ -277,14 +268,46 @@ a.nav-link-mobile {
     padding: 15px;
 }
 
-.nav-right {
+.nav-group-label {
     display: flex;
+    justify-content: center;
     align-items: center;
-    float: right;
-    position: relative;
-    height: 100%;
-    background-color: var(--accent-color);
-    padding: 20px;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 15px;
+    /* Same solid color and text styling as a top-level link — the header
+       reads as a normal menu row, distinguished only by its chevron. */
+    background-color: var(--header-color);
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: 16px;
+    color: #FFF;
+    text-align: center;
+}
+
+.nav-group-label:hover {
+    background-color: var(--header-hover-color);
+}
+
+.nav-group-chevron {
+    display: inline-block;
+    font-size: 14px;
+    transition: transform 0.15s ease;
+}
+
+.nav-group-chevron--open {
+    transform: rotate(180deg);
+}
+
+a.nav-link-grouped {
+    padding-left: 30px;
+    font-size: 16px;
+    background-color: var(--header-color);
+}
+
+a.nav-link-grouped:hover {
+    background-color: var(--header-hover-color);
 }
 
 .nav-mobile-right {
@@ -292,20 +315,20 @@ a.nav-link-mobile {
     align-items: center;
     float: right;
     position: relative;
-    height: 100%;
+    /* height:100% here resolved against an auto-height ancestor (no
+       explicit height on .hamburger-container), so it collapsed to
+       content size instead of the bar's actual 65px — a 1px-short button.
+       Pin it explicitly, border-box so the padding doesn't push past it. */
+    box-sizing: border-box;
+    height: 65px;
     padding: 20px;
-}
-
-.nav-text {
-    font-size: 16px;
-    text-decoration: none;
-    color: #FFF;
 }
 
 .nav-dark-mode {
     background-color: var(--primary-color);
     color: var(--header-theme-toggle-text-color);
     cursor: pointer;
+    text-decoration: none;
 }
 
 .nav-dark-mode:hover {
@@ -313,14 +336,17 @@ a.nav-link-mobile {
 }
 
 .nav-online-dot {
+    /* Sits on top of the account icon as a badge, rather than as its own
+       column between it and the theme toggle — parent is position:relative
+       via .nav-mobile-right. */
+    position: absolute;
+    top: 14px;
+    right: 14px;
     width: 10px;
     height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
     padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     background-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
 }

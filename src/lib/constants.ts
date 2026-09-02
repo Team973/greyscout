@@ -10,6 +10,7 @@ export const publicKey = "sb_publishable_EXHZUoCVfKAZlBWDladlEQ_DSqHcT4X";
 // Database tables
 export const matchScoutTable = "MatchData";
 export const pitScoutTable = "PitData";
+export const preScoutTable = "PreScoutData";
 export const eventInfoTable = "Event";
 export const teamInfoTable = "Team";
 export const matchScheduleTable = "Match";
