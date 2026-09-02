@@ -315,7 +315,12 @@ a.nav-link-grouped:hover {
     align-items: center;
     float: right;
     position: relative;
-    height: 100%;
+    /* height:100% here resolved against an auto-height ancestor (no
+       explicit height on .hamburger-container), so it collapsed to
+       content size instead of the bar's actual 65px — a 1px-short button.
+       Pin it explicitly, border-box so the padding doesn't push past it. */
+    box-sizing: border-box;
+    height: 65px;
     padding: 20px;
 }
 
