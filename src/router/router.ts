@@ -8,6 +8,8 @@ import DataUploadView from "@/views/DataUploadView.vue";
 import MatchScoutView from "@/views/MatchScoutView.vue";
 import MatchDataEditView from "@/views/MatchDataEditView.vue";
 import PitScoutingView from "@/views/PitScoutingView.vue";
+import PreScoutView from "@/views/PreScoutView.vue";
+import StatsView from "@/views/StatsView.vue";
 import TeamAnalysisView from "@/views/TeamAnalysisView.vue";
 import EventAnalysisView from "@/views/EventAnalysisView.vue";
 import StrategyView from "@/views/StrategyView.vue";
@@ -85,6 +87,24 @@ const router = createRouter({
       meta: {
         requiresAuth: isSiteReadPrivate,
         minRole: 'member'
+      }
+    },
+    {
+      path: "/prescout",
+      name: "Prescouting | GreyScout",
+      component: PreScoutView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'member'
+      }
+    },
+    {
+      path: "/stats",
+      name: "Stats | GreyScout",
+      component: StatsView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'observer'
       }
     },
     {

@@ -16,6 +16,7 @@ import draggable from 'vuedraggable'
 import SearchableDropdown from "@/components/SearchableDropdown.vue";
 import Tile from "@/components/Tile.vue";
 import PitScoutingSection from "@/components/PitScoutingSection.vue";
+import PreScoutSection from "@/components/PreScoutSection.vue";
 import AutoPathEditor from "@/components/AutoPathEditor.vue";
 import AutoPathCard from "@/components/AutoPathCard.vue";
 
@@ -125,6 +126,8 @@ import { minWidthForDesktop } from "@/lib/constants";
                 </div>
 
                 <PitScoutingSection :team-number="teamNumber"></PitScoutingSection>
+
+                <PreScoutSection :team-number="teamNumber"></PreScoutSection>
 
                 <div class="autopath-section">
                     <h1>Auto Paths</h1>
