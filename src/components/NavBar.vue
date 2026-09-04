@@ -36,6 +36,7 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                 <!-- <RouterLink to="/upload" class="nav-link nav-link-mobile" v-if="isWriteAccess">Data Upload</RouterLink> -->
                 <RouterLink v-if="isMember" to="/schedule" class="nav-link nav-link-mobile">Schedule</RouterLink>
                 <RouterLink to="/data-status" class="nav-link nav-link-mobile">Data Status</RouterLink>
+                <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile">Match Strategy</RouterLink>
 
                 <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('scouting')">
                     <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'scouting' }">▾</span>
@@ -57,14 +58,13 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                     <RouterLink to="/stats" class="nav-link nav-link-mobile nav-link-grouped">Stats</RouterLink>
                 </template>
 
-                <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('strategy')">
-                    <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'strategy' }">▾</span>
-                    Strategy
+                <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('allianceSelection')">
+                    <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'allianceSelection' }">▾</span>
+                    Alliance Selection
                 </button>
-                <template v-if="isMember && expandedGroup === 'strategy'">
+                <template v-if="isMember && expandedGroup === 'allianceSelection'">
                     <RouterLink to="/pickem" class="nav-link nav-link-mobile nav-link-grouped">Pick'em</RouterLink>
                     <RouterLink to="/picklist" class="nav-link nav-link-mobile nav-link-grouped">Pick List</RouterLink>
-                    <RouterLink v-if="isLead" to="/strategy" class="nav-link nav-link-mobile nav-link-grouped">Match Strategy</RouterLink>
                 </template>
 
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->
@@ -114,7 +114,7 @@ export default {
             scrollContainer: null,
             // Collapsed by default to keep the menu short — expanding is an
             // explicit choice, not the default state. Accordion-style: only
-            // one group ('scouting' | 'analysis' | 'strategy') open at once.
+            // one group ('scouting' | 'analysis' | 'allianceSelection') open at once.
             expandedGroup: null
         }
     },
