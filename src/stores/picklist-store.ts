@@ -3,6 +3,7 @@
 import { defineStore } from 'pinia';
 import {
     fetchTeamsForPicklist,
+    fetchScoutRoster,
     fetchPersonalPicklist,
     fetchTeamPicklist,
     fetchAllPersonalPicklists,
@@ -101,6 +102,17 @@ export const usePicklistStore = defineStore('picklist', {
             personalTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
             personalListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
 
+            // Admin-only "view a scout's pick list" filter (issue #56) — a
+            // read-only look at one other scout's personal list, kept
+            // entirely separate from the current user's own personalTierSections
+            // so switching the filter on/off never risks clobbering their draft.
+            scoutRoster: [] as { user_id: string; name: string }[],
+            scoutRosterLoaded: false,
+            viewingScoutUserId: null as string | null,
+            viewingScoutName: null as string | null,
+            viewedScoutTierSections: emptyTierSections() as Record<TierGroup, number[]>,
+            viewedScoutListLoading: false,
+
             // Team (lead) list — tier-grouped team numbers per archetype
             teamTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
             teamListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
@@ -141,7 +153,10 @@ export const usePicklistStore = defineStore('picklist', {
 
         /** The tier-grouped sections for whichever tab/archetype is currently active. */
         activeSections(): Record<TierGroup, number[]> {
-            if (this.activeTab === 'personal') return this.personalTierSections[this.activeArchetype];
+            if (this.activeTab === 'personal') {
+                if (this.viewingScoutUserId) return this.viewedScoutTierSections;
+                return this.personalTierSections[this.activeArchetype];
+            }
             if (this.activeTab === 'team') return this.teamTierSections[this.activeArchetype];
             return this.democraticTierSections[this.activeArchetype];
         },
@@ -264,6 +279,43 @@ export const usePicklistStore = defineStore('picklist', {
                 stats
             );
             this.democraticListLoaded[archetype] = true;
+        },
+
+        /**
+         * Loads the scout roster for the admin-only pick-list filter dropdown
+         * (issue #56), excluding the viewing admin themself — they already
+         * have their own list under "My List", there's nothing to filter to.
+         */
+        async loadScoutRoster(excludeUserId: string | null) {
+            this.scoutRosterLoaded = false;
+            const roster = await fetchScoutRoster();
+            this.scoutRoster = roster.filter((s) => s.user_id !== excludeUserId);
+            this.scoutRosterLoaded = true;
+        },
+
+        /**
+         * Load a given scout's personal picklist read-only (issue #56). Kept
+         * out of personalTierSections entirely so it can never be saved over
+         * the viewing admin's own list.
+         */
+        async viewScoutList(scoutUserId: string, scoutName: string, eventId: string, archetype: Archetype) {
+            this.viewingScoutUserId = scoutUserId;
+            this.viewingScoutName = scoutName;
+            this.viewedScoutListLoading = true;
+            const result = await fetchPersonalPicklist(scoutUserId, eventId, archetype);
+            this.viewedScoutTierSections = buildTierSections(
+                result?.team_numbers ?? [],
+                parseTeamTiers(result?.team_tiers),
+                this.allTeams
+            );
+            this.viewedScoutListLoading = false;
+        },
+
+        /** Clears the scout filter, returning the My List tab to the current user's own editable list. */
+        clearScoutFilter() {
+            this.viewingScoutUserId = null;
+            this.viewingScoutName = null;
+            this.viewedScoutTierSections = emptyTierSections();
         },
 
         async loadPickedTeams(eventId: string) {

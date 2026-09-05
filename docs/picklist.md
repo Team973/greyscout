@@ -137,6 +137,21 @@ The democratic tab shows a read-only ranking computed from all personal lists su
 
 On the **Team List** tab, leads/admins can click **↺ Reset from Democratic** to overwrite the current team list with the current democratic ranking as a starting point, then continue reordering from there. This immediately saves — it's a real overwrite, not a staged draft — so use it when you want to discard the team list's current order, not to preview the democratic results. The button is disabled when no personal lists have been submitted yet (nothing to copy).
 
+### Viewing a Scout's List ([issue #56](https://github.com/Team973/greyscout/issues/56))
+
+On the **My List** tab, admins see a "View scout's list" dropdown above the
+tab description, listing every member/lead/admin by name. Selecting a scout
+swaps the list to a read-only view of that scout's personal picklist for the
+current archetype (Scorer/Defender) — no drag handles, no Save List bar, no
+picked checkbox. Click **✕ Clear Filter** (or pick "My List" from the
+dropdown) to go back to your own editable list. Switching the Scorer/Defender
+archetype tab while a filter is active re-fetches the selected scout's list
+for that archetype, since a personal list is stored per archetype.
+
+The filtered list is held entirely separately from the admin's own personal
+list state, so applying or clearing the filter never touches or risks saving
+over the admin's own draft.
+
 ### Per-Team Rank Stats
 
 Rows on the **Democratic** and **Team List** tabs show four numbers next to each team, summarizing where that team landed across every scout's personal list: **Hi** (highest/best rank any scout gave it), **Lo** (lowest/worst rank), **Avg** (mean rank), and **Med** (median rank). A team no scout has picked yet shows "No picks yet" instead. These numbers reflect the *raw rank position* a team received (1st, 2nd, …) in each personal list — not the democratic score used to order the Democratic tab itself, so a team can have a strong average rank while still sitting lower in the democratic order if fewer scouts included it. This is meant to help leads judge consensus (or disagreement) while building the team list — it isn't shown on **My List**, since a single list has no variance to summarize.

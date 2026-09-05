@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // @ts-nocheck
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import draggable from 'vuedraggable';
 import Papa from 'papaparse';
 import { usePicklistStore } from '@/stores/picklist-store';
@@ -12,6 +12,7 @@ import { TIERS, TIER_GROUPS } from '@/lib/picklist-query';
 import { refreshTbaStats } from '@/lib/tba-cache';
 import PicklistRow from '@/components/PicklistRow.vue';
 import PicklistUnrankedCard from '@/components/PicklistUnrankedCard.vue';
+import SearchableDropdown from '@/components/SearchableDropdown.vue';
 
 const picklistStore = usePicklistStore();
 const authStore = useAuthStore();
@@ -106,6 +107,7 @@ onUnmounted(onDragEnd);
 // ─── Computed helpers ──────────────────────────────────────────────────────────
 
 const isLead = computed(() => authStore.isLead);
+const isAdmin = computed(() => authStore.isAdmin);
 const isObserver = computed(() => authStore.isObserver);
 const userId = computed(() => authStore.currentUserId);
 const eventId = computed(() => eventStore.eventId);
@@ -123,7 +125,7 @@ const activeArchetype = computed({
 });
 
 const isEditable = computed(() =>
-    (activeTab.value === 'personal') ||
+    (activeTab.value === 'personal' && !picklistStore.viewingScoutUserId) ||
     (activeTab.value === 'team' && isLead.value)
 );
 
@@ -147,6 +149,45 @@ onMounted(async () => {
     await eventStore.updateEvent();
     await picklistStore.loadAll(eventId.value, userId.value, isLead.value);
     await watchlistStore.loadWatchlist(eventId.value);
+    if (isAdmin.value) {
+        await picklistStore.loadScoutRoster(userId.value);
+    }
+});
+
+// ─── Admin scout filter (issue #56) ────────────────────────────────────────────
+// Lets an admin pull up a read-only view of one scout's personal pick list.
+// Kept out of personalTierSections entirely (see viewScoutList) so it can
+// never be saved over the viewing admin's own list.
+
+const scoutFilterChoices = computed(() => [
+    { key: '', text: 'My List' },
+    ...picklistStore.scoutRoster.map((s) => ({ key: s.user_id, text: s.name }))
+]);
+
+const selectedScoutId = computed({
+    get: () => picklistStore.viewingScoutUserId ?? '',
+    set: async (scoutUserId: string) => {
+        if (!scoutUserId) {
+            picklistStore.clearScoutFilter();
+            return;
+        }
+        const scout = picklistStore.scoutRoster.find((s) => s.user_id === scoutUserId);
+        await picklistStore.viewScoutList(scoutUserId, scout?.name ?? 'Unknown', eventId.value, activeArchetype.value);
+    }
+});
+
+function clearScoutFilter() {
+    picklistStore.clearScoutFilter();
+}
+
+// The Scorer/Defender archetype tabs apply to the filtered scout's list too
+// — a personal picklist is stored per archetype, so switching archetype
+// while a filter is active has to re-fetch that scout's other list.
+watch(activeArchetype, async (archetype) => {
+    if (!picklistStore.viewingScoutUserId) return;
+    await picklistStore.viewScoutList(
+        picklistStore.viewingScoutUserId, picklistStore.viewingScoutName, eventId.value, archetype
+    );
 });
 
 // ─── Expand / collapse row ────────────────────────────────────────────────────
@@ -386,9 +427,23 @@ function toggleTierCollapse(group: string) {
                 </button>
             </div>
 
+            <!-- Admin scout filter (issue #56) — pull up a read-only view of one
+                 scout's personal list, only on the My List tab. -->
+            <div v-if="isAdmin && activeTab === 'personal'" class="picklist-scout-filter">
+                <span class="picklist-scout-filter-label">View scout's list:</span>
+                <SearchableDropdown :choices="scoutFilterChoices" :model-value="selectedScoutId"
+                    placeholder="Search scouts…" @update:modelValue="selectedScoutId = $event"></SearchableDropdown>
+                <button v-if="picklistStore.viewingScoutUserId" id="btn-clear-scout-filter" type="button"
+                    class="picklist-reset-btn" title="Return to your own editable list" @click="clearScoutFilter">
+                    ✕ Clear Filter
+                </button>
+            </div>
+
             <!-- Tab description -->
             <div class="picklist-tab-description">
-                <span v-if="activeTab === 'personal'">Your personal tier ranking. Drag rows between tiers or reorder
+                <span v-if="activeTab === 'personal' && picklistStore.viewingScoutUserId">
+                    {{ picklistStore.viewingScoutName }}'s personal tier ranking (read-only).</span>
+                <span v-else-if="activeTab === 'personal'">Your personal tier ranking. Drag rows between tiers or reorder
                     within a tier, then save.</span>
                 <span v-else-if="activeTab === 'democratic'">Aggregated tier ranking from all scouts' personal lists
                     (read-only).</span>
@@ -396,7 +451,8 @@ function toggleTierCollapse(group: string) {
             </div>
 
             <!-- Loading state -->
-            <div v-if="!picklistStore.teamsLoaded" class="picklist-loading">
+            <div v-if="!picklistStore.teamsLoaded || (picklistStore.viewingScoutUserId && picklistStore.viewedScoutListLoading)"
+                class="picklist-loading">
                 <div class="picklist-spinner"></div>
                 <span>Loading teams…</span>
             </div>
@@ -692,6 +748,20 @@ function toggleTierCollapse(group: string) {
     color: rgba(128, 128, 128, 0.75);
     min-height: 20px;
     margin-bottom: 16px;
+}
+
+/* ── Admin scout filter (issue #56) ── */
+.picklist-scout-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+    font-size: 13px;
+}
+
+.picklist-scout-filter-label {
+    color: rgba(128, 128, 128, 0.85);
+    font-weight: 600;
 }
 
 /* ── Loading ── */

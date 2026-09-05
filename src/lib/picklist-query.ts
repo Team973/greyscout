@@ -293,6 +293,28 @@ export function parseTeamTiers(raw: Record<string, unknown> | null | undefined):
 }
 
 /**
+ * Fetch the scout roster (members/leads/admins, not observers) for the
+ * admin-only "view a scout's pick list" filter (issue #56) — sorted by
+ * name so the dropdown reads alphabetically. Excludes unnamed accounts
+ * (e.g. a still-provisioning profile) since they can't be identified in
+ * the dropdown.
+ */
+export async function fetchScoutRoster(): Promise<{ user_id: string; name: string }[]> {
+    const { data, error } = await supabase
+        .from(userTable)
+        .select('user_id, name')
+        .in('role', ['member', 'lead', 'admin'])
+        .not('name', 'is', null)
+        .order('name', { ascending: true });
+
+    if (error) {
+        console.error('fetchScoutRoster error:', error);
+        return [];
+    }
+    return data ?? [];
+}
+
+/**
  * Fetch the current user's personal picklist for an event/archetype.
  * Returns the ordered array of team_numbers plus tier assignments, or null if none exists.
  */
