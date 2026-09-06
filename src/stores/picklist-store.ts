@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import {
     fetchTeamsForPicklist,
     fetchScoutRoster,
+    fetchPastEvents,
     fetchPersonalPicklist,
     fetchTeamPicklist,
     fetchAllPersonalPicklists,
@@ -113,6 +114,22 @@ export const usePicklistStore = defineStore('picklist', {
             viewedScoutTierSections: emptyTierSections() as Record<TierGroup, number[]>,
             viewedScoutListLoading: false,
 
+            // Lead/admin-only "view a prior event's pick list" filter (issue
+            // #58) — a read-only look at a past event's Democratic or Team
+            // List, held entirely separately from the current event's state
+            // (including its own team roster, since a past event's attending
+            // teams differ from the current one's) so switching to/from it
+            // never touches the live current-event data.
+            pastEvents: [] as { event_id: string; name: string; start_date: string }[],
+            pastEventsLoaded: false,
+            viewingPastEventId: null as string | null,
+            viewingPastEventName: null as string | null,
+            viewedPastEventTeams: [] as TeamEntry[],
+            viewedPastEventTierSections: emptyTierSections() as Record<TierGroup, number[]>,
+            viewedPastEventTierStats: {} as Record<number, TeamTierStats>,
+            viewedPastEventTeamMatchSummaries: {} as Record<number, TeamMatchSummary>,
+            viewedPastEventListLoading: false,
+
             // Team (lead) list — tier-grouped team numbers per archetype
             teamTierSections: perArchetype(emptyTierSections) as Record<Archetype, Record<TierGroup, number[]>>,
             teamListLoaded: perArchetype(() => false) as Record<Archetype, boolean>,
@@ -130,8 +147,8 @@ export const usePicklistStore = defineStore('picklist', {
             pickedTeams: [] as number[],
             pickedTeamsLoaded: false,
 
-            // Per-team expanded data cache
-            teamDataCache: {} as Record<number, { stats: unknown[]; comments: unknown[] }>,
+            // Per-event-team expanded data cache, keyed by "eventId:teamNumber"
+            teamDataCache: {} as Record<string, { stats: unknown[]; comments: unknown[] }>,
 
             // Per-team card status + broke/died/beached/defense counts across all
             // matches — loaded up front so card status can show on the collapsed
@@ -157,8 +174,44 @@ export const usePicklistStore = defineStore('picklist', {
                 if (this.viewingScoutUserId) return this.viewedScoutTierSections;
                 return this.personalTierSections[this.activeArchetype];
             }
+            if (this.viewingPastEventId) return this.viewedPastEventTierSections;
             if (this.activeTab === 'team') return this.teamTierSections[this.activeArchetype];
             return this.democraticTierSections[this.activeArchetype];
+        },
+
+        /**
+         * Team lookup for whichever tab/event is currently active — a past
+         * event (issue #58) has an entirely different attending-teams roster
+         * than the current event, so its rows must resolve team name/photo
+         * from viewedPastEventTeams rather than the current event's teamMap.
+         */
+        activeTeamMap(): Record<number, TeamEntry> {
+            if (this.viewingPastEventId && this.activeTab !== 'personal') {
+                const map: Record<number, TeamEntry> = {};
+                this.viewedPastEventTeams.forEach((t) => { map[t.team_number] = t; });
+                return map;
+            }
+            return this.teamMap;
+        },
+
+        /** Like tierStatsFor but sourced from a viewed past event's votes when one is active (issue #58). */
+        activeTierStatsFor(): (teamNumber: number) => TeamTierStats | null {
+            return (teamNumber: number) => {
+                if (this.viewingPastEventId && this.activeTab !== 'personal') {
+                    return this.viewedPastEventTierStats[teamNumber] ?? null;
+                }
+                return this.teamTierStats[this.activeArchetype][teamNumber] ?? null;
+            };
+        },
+
+        /** Like cardStatusFor but sourced from a viewed past event's matches when one is active (issue #58). */
+        activeCardStatusFor(): (teamNumber: number) => 'red' | 'yellow' | null {
+            return (teamNumber: number) => {
+                if (this.viewingPastEventId && this.activeTab !== 'personal') {
+                    return this.viewedPastEventTeamMatchSummaries[teamNumber]?.worstCard ?? null;
+                }
+                return this.teamMatchSummaries[teamNumber]?.worstCard ?? null;
+            };
         },
 
         /** Returns a function since callers (e.g. Pick'em) need a specific archetype, not just the active one. */
@@ -318,6 +371,74 @@ export const usePicklistStore = defineStore('picklist', {
             this.viewedScoutTierSections = emptyTierSections();
         },
 
+        /**
+         * Loads the roster of prior events (every event but the current one)
+         * for the lead/admin-only "view a prior event's pick list" filter
+         * (issue #58).
+         */
+        async loadPastEvents(currentEventId: string) {
+            this.pastEventsLoaded = false;
+            this.pastEvents = await fetchPastEvents(currentEventId);
+            this.pastEventsLoaded = true;
+        },
+
+        /**
+         * Start viewing a prior event's Democratic or Team List read-only
+         * (issue #58) and load its data for the given tab/archetype.
+         */
+        async viewPastEvent(pastEventId: string, pastEventName: string, tab: 'democratic' | 'team', archetype: Archetype) {
+            this.viewingPastEventId = pastEventId;
+            this.viewingPastEventName = pastEventName;
+            await this.loadViewedPastEventData(tab, archetype);
+        },
+
+        /**
+         * (Re)loads the currently-viewed past event's data for the given
+         * tab/archetype — called on initial selection and again whenever the
+         * active tab or archetype changes while the filter is active, since
+         * both the team roster and vote stats are archetype-specific and the
+         * Team List vs. Democratic grouping differ.
+         */
+        async loadViewedPastEventData(tab: 'democratic' | 'team', archetype: Archetype) {
+            if (!this.viewingPastEventId) return;
+            this.viewedPastEventListLoading = true;
+            const pastEventId = this.viewingPastEventId;
+
+            const [teams, allLists, matchSummaries] = await Promise.all([
+                fetchTeamsForPicklist(pastEventId),
+                fetchAllPersonalPicklists(pastEventId, archetype),
+                fetchTeamMatchSummaries(pastEventId)
+            ]);
+            this.viewedPastEventTeams = teams;
+            this.viewedPastEventTierStats = computeTeamTierStats(allLists);
+            this.viewedPastEventTeamMatchSummaries = matchSummaries;
+
+            if (tab === 'team') {
+                const result = await fetchTeamPicklist(pastEventId, archetype);
+                this.viewedPastEventTierSections = buildTierSections(
+                    result?.team_numbers ?? [],
+                    parseTeamTiers(result?.team_tiers),
+                    teams
+                );
+            } else {
+                this.viewedPastEventTierSections = computeDemocraticTierGroups(
+                    teams.map((t) => t.team_number),
+                    this.viewedPastEventTierStats
+                );
+            }
+            this.viewedPastEventListLoading = false;
+        },
+
+        /** Clears the prior-event filter, returning Democratic/Team List to the current event. */
+        clearPastEventFilter() {
+            this.viewingPastEventId = null;
+            this.viewingPastEventName = null;
+            this.viewedPastEventTeams = [];
+            this.viewedPastEventTierSections = emptyTierSections();
+            this.viewedPastEventTierStats = {};
+            this.viewedPastEventTeamMatchSummaries = {};
+        },
+
         async loadPickedTeams(eventId: string) {
             this.pickedTeamsLoaded = false;
             this.pickedTeams = await fetchPickedTeams(eventId);
@@ -432,15 +553,21 @@ export const usePicklistStore = defineStore('picklist', {
         },
 
         async getTeamData(teamNumber: number, eventId: string) {
-            if (this.teamDataCache[teamNumber]) {
-                return this.teamDataCache[teamNumber];
+            // Keyed by event + team, not just team — the same team number
+            // can attend multiple events, and issue #58 makes it possible to
+            // view a past event's data in the same session as the current
+            // event's, so a team-only key could return the wrong event's
+            // cached stats/comments.
+            const cacheKey = `${eventId}:${teamNumber}`;
+            if (this.teamDataCache[cacheKey]) {
+                return this.teamDataCache[cacheKey];
             }
             const [stats, comments] = await Promise.all([
                 fetchTeamMatchStats(teamNumber, eventId),
                 fetchTeamComments(teamNumber, eventId)
             ]);
-            this.teamDataCache[teamNumber] = { stats, comments };
-            return this.teamDataCache[teamNumber];
+            this.teamDataCache[cacheKey] = { stats, comments };
+            return this.teamDataCache[cacheKey];
         }
     }
 });

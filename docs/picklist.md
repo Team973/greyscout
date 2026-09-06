@@ -152,6 +152,30 @@ The filtered list is held entirely separately from the admin's own personal
 list state, so applying or clearing the filter never touches or risks saving
 over the admin's own draft.
 
+### Viewing a Prior Event's Pick List ([issue #58](https://github.com/Team973/greyscout/issues/58))
+
+On the **Democratic** and **Team List** tabs, leads and admins see a "View
+prior event" dropdown above the tab description, listing every other event
+(newest first) via a searchable dropdown. Selecting an event swaps that tab
+to a read-only view of the selected event's Democratic ranking or Team List
+for the current archetype (Scorer/Defender) — no drag handles, no Save List
+bar, no picked checkbox or watchlist star, since none of those reflect a
+past event's actual outcome. Click **✕ Clear Filter** (or pick "Current
+Event" from the dropdown) to return to the live current event. Switching
+the Scorer/Defender archetype, or between the Democratic and Team List
+tabs, while a prior event is selected re-fetches that event's data, since
+both the team roster and vote stats are archetype-specific and the Team
+List vs. Democratic grouping differ.
+
+A prior event has an entirely different attending-teams roster than the
+current event, so the filtered view resolves team names/photos and match
+card status from that event's own data — never the current event's — to
+avoid misattributing a team number that happens to also attend the current
+event. This filter only applies to the Democratic/Team List tabs; a
+personal list is per-user and per-event, so viewing a *scout's* history is
+out of scope here (see the scout filter above, issue #56, for viewing
+another scout's *current*-event list).
+
 ### Per-Team Rank Stats
 
 Rows on the **Democratic** and **Team List** tabs show four numbers next to each team, summarizing where that team landed across every scout's personal list: **Hi** (highest/best rank any scout gave it), **Lo** (lowest/worst rank), **Avg** (mean rank), and **Med** (median rank). A team no scout has picked yet shows "No picks yet" instead. These numbers reflect the *raw rank position* a team received (1st, 2nd, …) in each personal list — not the democratic score used to order the Democratic tab itself, so a team can have a strong average rank while still sitting lower in the democratic order if fewer scouts included it. This is meant to help leads judge consensus (or disagreement) while building the team list — it isn't shown on **My List**, since a single list has no variance to summarize.

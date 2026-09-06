@@ -125,9 +125,30 @@ const activeArchetype = computed({
 });
 
 const isEditable = computed(() =>
-    (activeTab.value === 'personal' && !picklistStore.viewingScoutUserId) ||
-    (activeTab.value === 'team' && isLead.value)
+    !picklistStore.viewingPastEventId && (
+        (activeTab.value === 'personal' && !picklistStore.viewingScoutUserId) ||
+        (activeTab.value === 'team' && isLead.value)
+    )
 );
+
+// Whichever event's data is actually being displayed — the current event,
+// unless a lead/admin has selected a prior event to view read-only (issue
+// #58), which only applies to the Democratic/Team List tabs.
+const displayEventId = computed(() =>
+    (picklistStore.viewingPastEventId && activeTab.value !== 'personal')
+        ? picklistStore.viewingPastEventId
+        : eventId.value
+);
+
+// An expanded row's stats/comments are fetched once, on click, for whichever
+// event was active at that moment (see toggleExpand) — they don't
+// auto-refresh. Collapse on any change of displayEventId (e.g. switching
+// into/out of the Team List's prior-event filter) so a still-expanded row
+// can never keep showing a different event's data under the new context.
+watch(displayEventId, () => {
+    expandedTeam.value = null;
+    expandedData.value = null;
+});
 
 // Vote (tier) stats are only meaningful once more than one person's ranking
 // is in play — shown on the Team tab (leads deciding) and the Democratic tab.
@@ -137,9 +158,14 @@ const showVoteStats = computed(() => activeTab.value !== 'personal');
 // shown (and only ever editable) on the official Team tab — not on a
 // scout's own personal draft ranking, and not on the read-only Democratic
 // aggregate.
-const showPickedCheckbox = computed(() => activeTab.value === 'team');
+const showPickedCheckbox = computed(() => activeTab.value === 'team' && !picklistStore.viewingPastEventId);
 
-const hasDemocraticVotes = computed(() => Object.keys(picklistStore.teamTierStats[activeArchetype.value]).length > 0);
+const hasDemocraticVotes = computed(() => {
+    if (picklistStore.viewingPastEventId && activeTab.value !== 'personal') {
+        return Object.keys(picklistStore.viewedPastEventTierStats).length > 0;
+    }
+    return Object.keys(picklistStore.teamTierStats[activeArchetype.value]).length > 0;
+});
 
 // ─── Loading ───────────────────────────────────────────────────────────────────
 
@@ -151,6 +177,9 @@ onMounted(async () => {
     await watchlistStore.loadWatchlist(eventId.value);
     if (isAdmin.value) {
         await picklistStore.loadScoutRoster(userId.value);
+    }
+    if (isLead.value) {
+        await picklistStore.loadPastEvents(eventId.value);
     }
 });
 
@@ -190,6 +219,49 @@ watch(activeArchetype, async (archetype) => {
     );
 });
 
+// ─── Lead/admin prior-event filter (issue #58) ─────────────────────────────────
+// Lets a lead/admin pull up a read-only view of a past event's Democratic or
+// Team List — only on those two tabs, since a personal list is per-user
+// (issue #56's scout filter already covers that) rather than a "team" record
+// worth reviewing historically.
+
+const pastEventChoices = computed(() => [
+    { key: '', text: 'Current Event' },
+    ...picklistStore.pastEvents.map((e) => ({ key: e.event_id, text: e.name }))
+]);
+
+const selectedPastEventId = computed({
+    get: () => picklistStore.viewingPastEventId ?? '',
+    set: async (pastEventId: string) => {
+        if (!pastEventId) {
+            picklistStore.clearPastEventFilter();
+            return;
+        }
+        const event = picklistStore.pastEvents.find((e) => e.event_id === pastEventId);
+        const tab = activeTab.value === 'team' ? 'team' : 'democratic';
+        await picklistStore.viewPastEvent(pastEventId, event?.name ?? pastEventId, tab, activeArchetype.value);
+    }
+});
+
+function clearPastEventFilter() {
+    picklistStore.clearPastEventFilter();
+}
+
+// Re-fetch the viewed past event's data whenever the tab (Democratic <->
+// Team List) or archetype changes while the filter is active — both change
+// which saved list/stats apply.
+watch(activeTab, async (tab) => {
+    if (!picklistStore.viewingPastEventId) return;
+    if (tab !== 'democratic' && tab !== 'team') return;
+    await picklistStore.loadViewedPastEventData(tab, activeArchetype.value);
+});
+
+watch(activeArchetype, async (archetype) => {
+    if (!picklistStore.viewingPastEventId) return;
+    if (activeTab.value !== 'democratic' && activeTab.value !== 'team') return;
+    await picklistStore.loadViewedPastEventData(activeTab.value, archetype);
+});
+
 // ─── Expand / collapse row ────────────────────────────────────────────────────
 
 async function toggleExpand(teamNumber: number) {
@@ -202,21 +274,21 @@ async function toggleExpand(teamNumber: number) {
     expandedData.value = null;
     expandedLoading.value = true;
 
-    expandedData.value = await picklistStore.getTeamData(teamNumber, eventId.value);
+    expandedData.value = await picklistStore.getTeamData(teamNumber, displayEventId.value);
     expandedLoading.value = false;
 }
 
 // ─── Picked toggle ─────────────────────────────────────────────────────────────
 
 async function togglePicked(teamNumber: number) {
-    if (!isLead.value) return;
+    if (!isLead.value || picklistStore.viewingPastEventId) return;
     await picklistStore.togglePicked(eventId.value, teamNumber);
 }
 
 // ─── Watchlist toggle ──────────────────────────────────────────────────────────
 
 async function toggleWatch(teamNumber: number) {
-    if (!isLead.value) return;
+    if (!isLead.value || picklistStore.viewingPastEventId) return;
     await watchlistStore.toggleWatch(eventId.value, teamNumber);
 }
 
@@ -255,7 +327,11 @@ async function saveList() {
 const isRefreshingDemocratic = ref(false);
 async function refreshDemocratic() {
     isRefreshingDemocratic.value = true;
-    await picklistStore.loadDemocraticList(eventId.value, activeArchetype.value);
+    if (picklistStore.viewingPastEventId) {
+        await picklistStore.loadViewedPastEventData('democratic', activeArchetype.value);
+    } else {
+        await picklistStore.loadDemocraticList(eventId.value, activeArchetype.value);
+    }
     isRefreshingDemocratic.value = false;
 }
 
@@ -337,7 +413,7 @@ function exportTeamListCsv() {
 // ─── Tier stats (Democratic / Team tabs) ──────────────────────────────────────
 
 function tierStatsFor(teamNumber: number) {
-    return picklistStore.teamTierStats[activeArchetype.value][teamNumber] ?? null;
+    return picklistStore.activeTierStatsFor(teamNumber);
 }
 
 function tierGroupLabel(group: string) {
@@ -439,29 +515,44 @@ function toggleTierCollapse(group: string) {
                 </button>
             </div>
 
+            <!-- Lead/admin prior-event filter (issue #58) — pull up a
+                 read-only view of a past event's Democratic or Team List. -->
+            <div v-if="isLead && (activeTab === 'democratic' || activeTab === 'team')" class="picklist-scout-filter">
+                <span class="picklist-scout-filter-label">View prior event:</span>
+                <SearchableDropdown :choices="pastEventChoices" :model-value="selectedPastEventId"
+                    placeholder="Search events…" @update:modelValue="selectedPastEventId = $event"></SearchableDropdown>
+                <button v-if="picklistStore.viewingPastEventId" id="btn-clear-past-event-filter" type="button"
+                    class="picklist-reset-btn" title="Return to the current event" @click="clearPastEventFilter">
+                    ✕ Clear Filter
+                </button>
+            </div>
+
             <!-- Tab description -->
             <div class="picklist-tab-description">
                 <span v-if="activeTab === 'personal' && picklistStore.viewingScoutUserId">
                     {{ picklistStore.viewingScoutName }}'s personal tier ranking (read-only).</span>
                 <span v-else-if="activeTab === 'personal'">Your personal tier ranking. Drag rows between tiers or reorder
                     within a tier, then save.</span>
+                <span v-else-if="picklistStore.viewingPastEventId">{{ picklistStore.viewingPastEventName }}'s
+                    {{ activeTab === 'team' ? 'team pick list' : 'democratic ranking' }} (read-only).</span>
                 <span v-else-if="activeTab === 'democratic'">Aggregated tier ranking from all scouts' personal lists
                     (read-only).</span>
                 <span v-else>Official team pick list — only leads can edit. Drag between tiers, then save.</span>
             </div>
 
             <!-- Loading state -->
-            <div v-if="!picklistStore.teamsLoaded || (picklistStore.viewingScoutUserId && picklistStore.viewedScoutListLoading)"
+            <div v-if="!picklistStore.teamsLoaded || (picklistStore.viewingScoutUserId && picklistStore.viewedScoutListLoading) || (picklistStore.viewingPastEventId && picklistStore.viewedPastEventListLoading)"
                 class="picklist-loading">
                 <div class="picklist-spinner"></div>
                 <span>Loading teams…</span>
             </div>
 
             <!-- Empty state -->
-            <div v-else-if="picklistStore.allTeams.length === 0" class="picklist-empty">
+            <div v-else-if="(picklistStore.viewingPastEventId ? picklistStore.viewedPastEventTeams : picklistStore.allTeams).length === 0"
+                class="picklist-empty">
                 <div class="picklist-empty-icon">🤖</div>
                 <h2>No teams found</h2>
-                <p>No team data is available for the current event.</p>
+                <p>No team data is available for {{ picklistStore.viewingPastEventId ? 'that event' : 'the current event' }}.</p>
             </div>
 
             <!-- List -->
@@ -558,14 +649,14 @@ function toggleTierCollapse(group: string) {
                                 ghost-class="picklist-row--ghost" :force-fallback="true" :scroll="false"
                                 class="tier-section-body" @start="onDragStart" @end="onDragEnd" @change="saveList">
                                 <template #item="{ element: teamNumber, index }">
-                                    <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                        :event-id="eventId"
+                                    <PicklistRow :row-id="`picklist-team-${teamNumber}`" :team="picklistStore.activeTeamMap[teamNumber]"
+                                        :event-id="displayEventId"
                                         :position="groupRankOffset(group) + index + 1" :show-drag-handle="true" :show-vote-stats="showVoteStats"
                                         :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                         :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                        :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
+                                        :can-toggle-picked="isLead && !picklistStore.viewingPastEventId" :card-status="picklistStore.activeCardStatusFor(teamNumber)"
                                         :watched="watchlistStore.isWatched(teamNumber)"
-                                        :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
+                                        :can-toggle-watch="isLead && !picklistStore.viewingPastEventId" :expanded="expandedTeam === teamNumber"
                                         :expanded-data="expandedData" :expanded-loading="expandedLoading"
                                         @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
                                         @toggle-watch="toggleWatch(teamNumber)" />
@@ -575,14 +666,14 @@ function toggleTierCollapse(group: string) {
                             <!-- Read-only (democratic tab) -->
                             <div v-else v-show="!isTierCollapsed(group)" class="tier-section-body tier-section-body--static">
                                 <PicklistRow v-for="(teamNumber, index) in picklistStore.activeSections[group]" :key="teamNumber"
-                                    :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                    :event-id="eventId"
+                                    :row-id="`picklist-team-demo-${teamNumber}`" :team="picklistStore.activeTeamMap[teamNumber]"
+                                    :event-id="displayEventId"
                                     :position="groupRankOffset(group) + index + 1" :show-drag-handle="false" :show-vote-stats="showVoteStats"
                                     :tier-stats="tierStatsFor(teamNumber)" :show-picked="showPickedCheckbox"
                                     :is-picked="picklistStore.isTeamPicked(teamNumber)"
-                                    :can-toggle-picked="isLead" :card-status="picklistStore.cardStatusFor(teamNumber)"
+                                    :can-toggle-picked="isLead && !picklistStore.viewingPastEventId" :card-status="picklistStore.activeCardStatusFor(teamNumber)"
                                     :watched="watchlistStore.isWatched(teamNumber)"
-                                    :can-toggle-watch="isLead" :expanded="expandedTeam === teamNumber"
+                                    :can-toggle-watch="isLead && !picklistStore.viewingPastEventId" :expanded="expandedTeam === teamNumber"
                                     :expanded-data="expandedData" :expanded-loading="expandedLoading"
                                     @toggle-expand="toggleExpand(teamNumber)" @toggle-picked="togglePicked(teamNumber)"
                                     @toggle-watch="toggleWatch(teamNumber)" />
@@ -616,8 +707,8 @@ function toggleTierCollapse(group: string) {
                             ghost-class="unranked-card--ghost" :force-fallback="true" :scroll="false"
                             class="unranked-grid" @start="onDragStart" @end="onDragEnd" @change="saveList">
                             <template #item="{ element: teamNumber }">
-                                <PicklistUnrankedCard :row-id="`picklist-unranked-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                    :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead"
+                                <PicklistUnrankedCard :row-id="`picklist-unranked-${teamNumber}`" :team="picklistStore.activeTeamMap[teamNumber]"
+                                    :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead && !picklistStore.viewingPastEventId"
                                     :expanded="expandedTeam === teamNumber" :expanded-data="expandedData"
                                     :expanded-loading="expandedLoading" @toggle-expand="toggleExpand(teamNumber)"
                                     @toggle-watch="toggleWatch(teamNumber)" />
@@ -627,8 +718,8 @@ function toggleTierCollapse(group: string) {
                         <!-- Read-only (democratic tab) -->
                         <div v-else v-show="!isTierCollapsed('Unranked')" class="unranked-grid">
                             <PicklistUnrankedCard v-for="teamNumber in picklistStore.activeSections['Unranked']" :key="teamNumber"
-                                :row-id="`picklist-unranked-demo-${teamNumber}`" :team="picklistStore.teamMap[teamNumber]"
-                                :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead"
+                                :row-id="`picklist-unranked-demo-${teamNumber}`" :team="picklistStore.activeTeamMap[teamNumber]"
+                                :watched="watchlistStore.isWatched(teamNumber)" :can-toggle-watch="isLead && !picklistStore.viewingPastEventId"
                                 :expanded="expandedTeam === teamNumber" :expanded-data="expandedData"
                                 :expanded-loading="expandedLoading" @toggle-expand="toggleExpand(teamNumber)"
                                 @toggle-watch="toggleWatch(teamNumber)" />

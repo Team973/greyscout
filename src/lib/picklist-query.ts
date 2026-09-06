@@ -9,7 +9,8 @@ import {
     pickListTable,
     pickListTypePersonal,
     pickListTypeTeam,
-    userTable
+    userTable,
+    eventInfoTable
 } from '@/lib/constants';
 
 /**
@@ -309,6 +310,24 @@ export async function fetchScoutRoster(): Promise<{ user_id: string; name: strin
 
     if (error) {
         console.error('fetchScoutRoster error:', error);
+        return [];
+    }
+    return data ?? [];
+}
+
+/**
+ * Fetch every event other than the given (current) one, newest first, for
+ * the lead/admin-only "view a prior event's pick list" filter (issue #58).
+ */
+export async function fetchPastEvents(currentEventId: string): Promise<{ event_id: string; name: string; start_date: string }[]> {
+    const { data, error } = await supabase
+        .from(eventInfoTable)
+        .select('event_id, name, start_date')
+        .neq('event_id', currentEventId)
+        .order('start_date', { ascending: false });
+
+    if (error) {
+        console.error('fetchPastEvents error:', error);
         return [];
     }
     return data ?? [];
