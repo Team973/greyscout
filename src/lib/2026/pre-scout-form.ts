@@ -85,18 +85,7 @@ export async function getPreScoutSchema({ includeTeamSelector = true, existingDa
         },
         tierField("scoring_tier", "Scoring Tier"),
         tierField("driving_tier", "Driving Tier"),
-        tierField("defense_tier", "Defense Tier"),
-        {
-            key: "comments",
-            label: "Comments",
-            type: "textarea",
-            options: {},
-            defaultValue: "",
-            value: "",
-            preserveAfterSubmit: false,
-            required: false,
-            error: false
-        }
+        tierField("defense_tier", "Defense Tier")
     );
 
     if (existingData) {
