@@ -1,34 +1,66 @@
 // @ts-nocheck
 
 import { supabase } from '@/lib/supabase-client';
-import { preScoutTable, userTable } from '@/lib/constants';
+import { preScoutTable, preScoutCommentTable, userTable } from '@/lib/constants';
 
 /**
- * Fetch pre-scouting entries for a team, attributed to their author, newest
- * first — mirrors picklist-query.ts's fetchTeamPitData.
+ * Fetch the single canonical pre-scouting assessment (epa/archetype/tiers)
+ * for a team, attributed to its author — one row per team/event, enforced
+ * by prescout_data_team_unique. Returns null if the team hasn't been
+ * pre-scouted yet.
  */
 export async function fetchTeamPreScoutData(teamNumber: number, eventId: string) {
     const { data, error } = await supabase
         .from(preScoutTable)
-        .select(`id, prescout_epa, prescout_archetype, prescout_scoring_tier, prescout_driving_tier, prescout_defense_tier, prescout_comments, created_at, ${userTable}(name)`)
+        .select(`id, prescout_epa, prescout_archetype, prescout_scoring_tier, prescout_driving_tier, prescout_defense_tier, created_at, ${userTable}(name)`)
+        .eq('event', eventId)
+        .eq('prescout_team_number', teamNumber)
+        .maybeSingle();
+
+    if (error) {
+        console.error('fetchTeamPreScoutData error:', error);
+        return null;
+    }
+
+    if (!data) {
+        return null;
+    }
+
+    return {
+        id: data.id,
+        author: data[userTable]?.name ?? 'Unknown',
+        epa: data.prescout_epa,
+        archetype: data.prescout_archetype,
+        scoringTier: data.prescout_scoring_tier,
+        drivingTier: data.prescout_driving_tier,
+        defenseTier: data.prescout_defense_tier,
+        created_at: data.created_at
+    };
+}
+
+/**
+ * Fetch pre-scouting comments for a team, one per scout, attributed to their
+ * author, newest first — mirrors picklist-query.ts's fetchTeamPitData, but
+ * for the N:1 (multiple scouts -> one team) PreScoutComment table.
+ */
+export async function fetchTeamPreScoutComments(teamNumber: number, eventId: string) {
+    const { data, error } = await supabase
+        .from(preScoutCommentTable)
+        .select(`id, scouted_by, comment, created_at, ${userTable}(name)`)
         .eq('event', eventId)
         .eq('prescout_team_number', teamNumber)
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('fetchTeamPreScoutData error:', error);
+        console.error('fetchTeamPreScoutComments error:', error);
         return [];
     }
 
     return (data ?? []).map((row) => ({
         id: row.id,
+        scoutedBy: row.scouted_by,
         author: row[userTable]?.name ?? 'Unknown',
-        epa: row.prescout_epa,
-        archetype: row.prescout_archetype,
-        scoringTier: row.prescout_scoring_tier,
-        drivingTier: row.prescout_driving_tier,
-        defenseTier: row.prescout_defense_tier,
-        comments: row.prescout_comments,
+        comment: row.comment,
         created_at: row.created_at
     }));
 }
