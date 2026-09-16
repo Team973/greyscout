@@ -132,10 +132,34 @@ export default {
             }
 
             this.resetSuccess = "If that email is in our system, a reset link has been sent.";
+        },
+        // Supabase redirects here with error params in the URL (hash for the
+        // implicit flow, query string for PKCE) when a confirmation/recovery
+        // link fails server-side — e.g. an email link scanner pre-visiting and
+        // burning the one-time token before the user clicks it, or the link
+        // simply expiring. Surface that instead of showing a blank login form.
+        checkAuthCallbackError() {
+            const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const queryParams = new URLSearchParams(window.location.search);
+            const errorCode = hashParams.get('error_code') || queryParams.get('error_code');
+            const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
+            const error = hashParams.get('error') || queryParams.get('error');
+
+            if (!error && !errorCode) {
+                return;
+            }
+
+            this.formError = errorCode === 'otp_expired'
+                ? "This confirmation link is invalid or has expired. Please ask an admin to resend it, or register again."
+                : (errorDescription ? errorDescription.replace(/\+/g, ' ') : "Something went wrong confirming your email. Please try again or contact an admin.");
+
+            // Drop the error params from the URL so refreshing doesn't re-show them.
+            window.history.replaceState(null, '', window.location.pathname);
         }
     },
     created() {
         this.authStore = useAuthStore();
+        this.checkAuthCallbackError();
     }
 }
 </script>
