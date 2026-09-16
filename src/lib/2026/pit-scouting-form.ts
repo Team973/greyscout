@@ -266,17 +266,6 @@ export async function getPitScoutSchema({ includeTeamSelector = true, existingDa
                     error: false
                 },
                 {
-                    key: "auto_strategy",
-                    label: "Autonomous Routine",
-                    type: "textarea",
-                    options: {},
-                    defaultValue: "",
-                    value: "",
-                    preserveAfterSubmit: false,
-                    required: false,
-                    error: false
-                },
-                {
                     key: "cycle_rate",
                     label: "Balls/Fuel per Second",
                     type: "number",
