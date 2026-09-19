@@ -5,7 +5,7 @@ import FormSection from "@/components/FormSection.vue";
 
 import { matchScoutTable } from "@/lib/constants";
 import { buildTeamRowSchema } from "@/lib/2026/match-scouting-form";
-import { validateForm, parseScoutData, updateScoutData } from "@/lib/data-submission";
+import { validateForm, parseScoutData, updateScoutData, deleteScoutData } from "@/lib/data-submission";
 import { fetchMatchDataById } from "@/lib/picklist-query";
 import { useOfflineQueueStore } from "@/stores/offline-queue-store";
 
@@ -40,11 +40,22 @@ import "@material/web/button/filled-button";
                 <h1>^^^ Form is invalid. Please check the form for errors ^^^</h1>
             </div>
 
-            <div class="button-container" v-if="!isSaving">
+            <div class="data-tile error-tile" v-if="deleteError">
+                <h1>Delete failed: {{ deleteError }}</h1>
+            </div>
+
+            <div class="button-container" v-if="!isSaving && !confirmingDelete">
                 <RouterLink to="/data-status">
                     <md-filled-button class="cancel-button">CANCEL</md-filled-button>
                 </RouterLink>
+                <md-filled-button v-on:click="confirmingDelete = true" class="delete-button">DELETE</md-filled-button>
                 <md-filled-button v-on:click="save" class="save-button">SAVE</md-filled-button>
+            </div>
+
+            <div class="button-container confirm-container" v-if="confirmingDelete">
+                <span class="confirm-text">Delete this submission? This can't be undone.</span>
+                <md-filled-button v-on:click="confirmingDelete = false" class="cancel-button">NO</md-filled-button>
+                <md-filled-button v-on:click="doDelete" class="delete-button">YES, DELETE</md-filled-button>
             </div>
         </template>
     </div>
@@ -59,7 +70,9 @@ export default {
             matchRow: null,
             schema: [],
             formInvalid: false,
-            isSaving: false
+            isSaving: false,
+            confirmingDelete: false,
+            deleteError: ''
         }
     },
     computed: {
@@ -98,6 +111,19 @@ export default {
             this.formInvalid = !valid;
 
             return valid;
+        },
+        async doDelete() {
+            this.deleteError = '';
+
+            const error = await deleteScoutData(this.matchRow.id, matchScoutTable);
+            if (error) {
+                console.log(error);
+                this.deleteError = error.message ?? String(error);
+                this.confirmingDelete = false;
+                return;
+            }
+
+            this.$router.push('/data-status');
         },
         async save() {
             this.isSaving = true;
@@ -167,6 +193,19 @@ md-filled-button {
 
 md-filled-button.cancel-button {
     --md-filled-button-container-color: rgba(128, 128, 128, 0.4);
+}
+
+md-filled-button.delete-button {
+    --md-filled-button-container-color: #b03030;
+}
+
+.confirm-container {
+    flex-wrap: wrap;
+}
+
+.confirm-text {
+    font-size: 13px;
+    color: var(--primary-text-color);
 }
 
 .error-tile {

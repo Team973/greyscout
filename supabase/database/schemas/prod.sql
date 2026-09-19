@@ -809,6 +809,10 @@ CREATE POLICY "Enable update for authenticated users only" ON "public"."MatchDat
 
 
 
+CREATE POLICY "Enable delete for authenticated users only" ON "public"."MatchData" FOR DELETE TO "authenticated" USING (true);
+
+
+
 CREATE POLICY "Enable update for authenticated users only" ON "public"."PitData" FOR UPDATE TO "authenticated" USING (true);
 
 
