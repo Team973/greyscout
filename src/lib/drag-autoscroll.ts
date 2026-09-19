@@ -31,6 +31,34 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
     let pointerY: number | null = null;
     let rafId: number | null = null;
     let container: HTMLElement | null = null;
+    let lastFrameTime: number | null = null;
+    let carry = 0;
+    let previousScrollBehavior = '';
+
+    // The min/max speeds are PicklistView's, which it feeds to a per-frame
+    // scrollBy under #app's `scroll-behavior: smooth`. What the user actually
+    // sees there is not those numbers: measured with a scrollBy per animation
+    // frame at 12/60/135 px per frame, Firefox scrolls at a steady 0.111
+    // (= 1/9) of the nominal px/frame * 60 — 80, 398 and 896 px/s, linear in
+    // the requested speed — whereas Chrome stays at a flat ~180 px/s whatever
+    // is requested. This scrolls instantly (see startAutoscroll) at that same
+    // 1/9 rate in every browser, so the feel is Firefox's on the pick list.
+    const EFFECTIVE_SPEED_RATIO = 1 / 9;
+
+    // Speeds are per 60fps frame, scaled by real elapsed time so the scroll
+    // rate is the same on 30/60/120Hz displays (iOS Low Power Mode caps
+    // animation frames at 30fps, which would otherwise halve the speed).
+    const FRAME_MS = 1000 / 60;
+    const MAX_FRAME_MS = 50; // don't lurch after a stalled frame
+
+    // Scroll by a fractional amount, keeping the sub-pixel remainder for the
+    // next frame — browsers round scroll offsets differently.
+    const scrollByAmount = (el: HTMLElement, amount: number) => {
+        const total = amount + carry;
+        const whole = Math.trunc(total);
+        carry = total - whole;
+        if (whole !== 0) el.scrollBy(0, whole);
+    };
 
     const trackPointer = (evt: any) => {
         const point = evt.touches ? evt.touches[0] : evt;
@@ -56,7 +84,11 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
         return (el?.closest(options.nestedScrollSelector) as HTMLElement | null) ?? null;
     };
 
-    const tick = () => {
+    const tick = (now: number) => {
+        const elapsed = lastFrameTime == null ? FRAME_MS : Math.min(now - lastFrameTime, MAX_FRAME_MS);
+        lastFrameTime = now;
+        const scale = (elapsed / FRAME_MS) * EFFECTIVE_SPEED_RATIO;
+
         if (pointerX != null && pointerY != null && container) {
             const inner = findInnerScrollable(pointerX, pointerY);
             let scrolledInner = false;
@@ -68,23 +100,34 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
                     ? inner.scrollTop > 0
                     : speed > 0 && inner.scrollTop + inner.clientHeight < inner.scrollHeight - 1;
                 if (canScroll) {
-                    inner.scrollBy(0, speed);
+                    scrollByAmount(inner, speed * scale);
                     scrolledInner = true;
                 }
             }
 
             if (!scrolledInner) {
                 const speed = edgeSpeed(pointerY, 0, window.innerHeight, sensitivity);
-                if (speed !== 0) container.scrollBy(0, speed);
+                if (speed !== 0) scrollByAmount(container, speed * scale);
             }
         }
         rafId = requestAnimationFrame(tick);
     };
 
     function startAutoscroll() {
+        stopAutoscroll(); // in case a previous drag never reported its end
         pointerX = null;
         pointerY = null;
+        lastFrameTime = null;
+        carry = 0;
         container = (document.getElementById('app') || document.scrollingElement || document.documentElement) as HTMLElement;
+        // #app has `scroll-behavior: smooth` (main.css). Chrome and Safari then
+        // start a fresh smooth-scroll animation on every scrollBy — one per
+        // frame here — each restarting from a standstill, so the page crawls
+        // at a fraction of the intended speed (Firefox applies them
+        // cumulatively, which is why it looked fine). Scroll instantly for the
+        // duration of the drag, then put the original behavior back.
+        previousScrollBehavior = container.style.scrollBehavior;
+        container.style.scrollBehavior = 'auto';
         document.addEventListener('pointermove', trackPointer);
         document.addEventListener('touchmove', trackPointer, { passive: true });
         document.addEventListener('mousemove', trackPointer);
@@ -99,8 +142,10 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
             cancelAnimationFrame(rafId);
             rafId = null;
         }
+        if (container) container.style.scrollBehavior = previousScrollBehavior;
         pointerX = null;
         pointerY = null;
+        lastFrameTime = null;
         container = null;
     }
 

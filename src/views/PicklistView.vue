@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // @ts-nocheck
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import draggable from 'vuedraggable';
 import Papa from 'papaparse';
 import { usePicklistStore } from '@/stores/picklist-store';
@@ -10,6 +10,7 @@ import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { useWatchlistStore } from '@/stores/watchlist-store';
 import { TIERS, TIER_GROUPS } from '@/lib/picklist-query';
 import { refreshTbaStats } from '@/lib/tba-cache';
+import { useDragAutoscroll } from '@/lib/drag-autoscroll';
 import PicklistRow from '@/components/PicklistRow.vue';
 import PicklistUnrankedCard from '@/components/PicklistUnrankedCard.vue';
 import SearchableDropdown from '@/components/SearchableDropdown.vue';
@@ -30,79 +31,14 @@ window.addEventListener('online', () => { isOnline.value = true; });
 window.addEventListener('offline', () => { isOnline.value = false; });
 
 // ─── Drag autoscroll ────────────────────────────────────────────────────────────
-// vuedraggable/Sortable's built-in autoscroll only supports a flat scroll speed
-// once the pointer enters the sensitivity zone, which overshoots and is hard to
-// control. This runs a self-contained autoscroll loop instead, driven off the
-// standard @start/@end drag events: while dragging, track the pointer's Y
-// position and scroll the page every animation frame at a speed proportional to
-// how far past the deadband (edge-activation zone) the pointer is.
-//
-// The whole SPA scrolls inside #app (position: fixed + overflow: auto in
-// main.css), not the window/document, so window.scrollBy is a silent no-op here
-// — the actual scroll container has to be looked up and scrolled directly.
-const AUTOSCROLL_SENSITIVITY = 80; // deadband: no scroll within this many px of the viewport edge
-const AUTOSCROLL_MIN_SPEED = 12; // px/frame right at the deadband boundary, so it's usable immediately (1.5x baseline)
-const AUTOSCROLL_MAX_SPEED = 135; // px/frame right at the true edge (1.5x baseline)
-
-let dragPointerY = null;
-let autoscrollRafId = null;
-let autoscrollContainer = null;
-
-function getScrollContainer() {
-    return document.getElementById('app') || document.scrollingElement || document.documentElement;
-}
-
-function trackDragPointer(evt) {
-    const point = evt.touches ? evt.touches[0] : evt;
-    dragPointerY = point.clientY;
-}
-
-// depth: 0 at the deadband boundary, 1 at the true edge.
-function speedForDepth(depth) {
-    return AUTOSCROLL_MIN_SPEED + (AUTOSCROLL_MAX_SPEED - AUTOSCROLL_MIN_SPEED) * depth;
-}
-
-function autoscrollTick() {
-    if (dragPointerY != null && autoscrollContainer) {
-        const distFromTop = dragPointerY;
-        const distFromBottom = window.innerHeight - dragPointerY;
-
-        let speed = 0;
-        if (distFromTop < AUTOSCROLL_SENSITIVITY) {
-            speed = -speedForDepth(1 - Math.max(0, distFromTop) / AUTOSCROLL_SENSITIVITY);
-        } else if (distFromBottom < AUTOSCROLL_SENSITIVITY) {
-            speed = speedForDepth(1 - Math.max(0, distFromBottom) / AUTOSCROLL_SENSITIVITY);
-        }
-
-        if (speed !== 0) {
-            autoscrollContainer.scrollBy(0, speed);
-        }
-    }
-    autoscrollRafId = requestAnimationFrame(autoscrollTick);
-}
-
-function onDragStart() {
-    dragPointerY = null;
-    autoscrollContainer = getScrollContainer();
-    document.addEventListener('pointermove', trackDragPointer);
-    document.addEventListener('touchmove', trackDragPointer, { passive: true });
-    document.addEventListener('mousemove', trackDragPointer);
-    autoscrollRafId = requestAnimationFrame(autoscrollTick);
-}
-
-function onDragEnd() {
-    document.removeEventListener('pointermove', trackDragPointer);
-    document.removeEventListener('touchmove', trackDragPointer);
-    document.removeEventListener('mousemove', trackDragPointer);
-    if (autoscrollRafId != null) {
-        cancelAnimationFrame(autoscrollRafId);
-        autoscrollRafId = null;
-    }
-    dragPointerY = null;
-    autoscrollContainer = null;
-}
-
-onUnmounted(onDragEnd);
+// Sortable's built-in autoscroll is unreliable in this app (the whole SPA
+// scrolls inside #app, not the window), so a shared self-contained loop drives
+// it off the @start/@end drag events instead — see src/lib/drag-autoscroll.ts
+// for the full write-up, including why it scrolls instantly at a fixed
+// fraction of the nominal speed rather than calling a smooth scrollBy per
+// frame (Chrome and Safari crawl at a flat ~180 px/s that way). Speed is
+// proportional to how far into the 80px edge zone the pointer is.
+const { startAutoscroll: onDragStart, stopAutoscroll: onDragEnd } = useDragAutoscroll();
 
 // ─── Computed helpers ──────────────────────────────────────────────────────────
 
