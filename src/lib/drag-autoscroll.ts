@@ -35,7 +35,17 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
     let carry = 0;
     let previousScrollBehavior = '';
 
-    // Speeds are px per 60fps frame, scaled by real elapsed time so the scroll
+    // The min/max speeds are PicklistView's, which it feeds to a per-frame
+    // scrollBy under #app's `scroll-behavior: smooth`. What the user actually
+    // sees there is not those numbers: measured with a scrollBy per animation
+    // frame at 12/60/135 px per frame, Firefox scrolls at a steady 0.111
+    // (= 1/9) of the nominal px/frame * 60 — 80, 398 and 896 px/s, linear in
+    // the requested speed — whereas Chrome stays at a flat ~180 px/s whatever
+    // is requested. This scrolls instantly (see startAutoscroll) at that same
+    // 1/9 rate in every browser, so the feel is Firefox's on the pick list.
+    const EFFECTIVE_SPEED_RATIO = 1 / 9;
+
+    // Speeds are per 60fps frame, scaled by real elapsed time so the scroll
     // rate is the same on 30/60/120Hz displays (iOS Low Power Mode caps
     // animation frames at 30fps, which would otherwise halve the speed).
     const FRAME_MS = 1000 / 60;
@@ -77,7 +87,7 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
     const tick = (now: number) => {
         const elapsed = lastFrameTime == null ? FRAME_MS : Math.min(now - lastFrameTime, MAX_FRAME_MS);
         lastFrameTime = now;
-        const frames = elapsed / FRAME_MS;
+        const scale = (elapsed / FRAME_MS) * EFFECTIVE_SPEED_RATIO;
 
         if (pointerX != null && pointerY != null && container) {
             const inner = findInnerScrollable(pointerX, pointerY);
@@ -90,14 +100,14 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
                     ? inner.scrollTop > 0
                     : speed > 0 && inner.scrollTop + inner.clientHeight < inner.scrollHeight - 1;
                 if (canScroll) {
-                    scrollByAmount(inner, speed * frames);
+                    scrollByAmount(inner, speed * scale);
                     scrolledInner = true;
                 }
             }
 
             if (!scrolledInner) {
                 const speed = edgeSpeed(pointerY, 0, window.innerHeight, sensitivity);
-                if (speed !== 0) scrollByAmount(container, speed * frames);
+                if (speed !== 0) scrollByAmount(container, speed * scale);
             }
         }
         rafId = requestAnimationFrame(tick);
