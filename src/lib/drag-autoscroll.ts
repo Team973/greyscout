@@ -31,6 +31,24 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
     let pointerY: number | null = null;
     let rafId: number | null = null;
     let container: HTMLElement | null = null;
+    let lastFrameTime: number | null = null;
+    let carry = 0;
+    let previousScrollBehavior = '';
+
+    // Speeds are px per 60fps frame, scaled by real elapsed time so the scroll
+    // rate is the same on 30/60/120Hz displays (iOS Low Power Mode caps
+    // animation frames at 30fps, which would otherwise halve the speed).
+    const FRAME_MS = 1000 / 60;
+    const MAX_FRAME_MS = 50; // don't lurch after a stalled frame
+
+    // Scroll by a fractional amount, keeping the sub-pixel remainder for the
+    // next frame — browsers round scroll offsets differently.
+    const scrollByAmount = (el: HTMLElement, amount: number) => {
+        const total = amount + carry;
+        const whole = Math.trunc(total);
+        carry = total - whole;
+        if (whole !== 0) el.scrollBy(0, whole);
+    };
 
     const trackPointer = (evt: any) => {
         const point = evt.touches ? evt.touches[0] : evt;
@@ -56,7 +74,11 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
         return (el?.closest(options.nestedScrollSelector) as HTMLElement | null) ?? null;
     };
 
-    const tick = () => {
+    const tick = (now: number) => {
+        const elapsed = lastFrameTime == null ? FRAME_MS : Math.min(now - lastFrameTime, MAX_FRAME_MS);
+        lastFrameTime = now;
+        const frames = elapsed / FRAME_MS;
+
         if (pointerX != null && pointerY != null && container) {
             const inner = findInnerScrollable(pointerX, pointerY);
             let scrolledInner = false;
@@ -68,23 +90,34 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
                     ? inner.scrollTop > 0
                     : speed > 0 && inner.scrollTop + inner.clientHeight < inner.scrollHeight - 1;
                 if (canScroll) {
-                    inner.scrollBy(0, speed);
+                    scrollByAmount(inner, speed * frames);
                     scrolledInner = true;
                 }
             }
 
             if (!scrolledInner) {
                 const speed = edgeSpeed(pointerY, 0, window.innerHeight, sensitivity);
-                if (speed !== 0) container.scrollBy(0, speed);
+                if (speed !== 0) scrollByAmount(container, speed * frames);
             }
         }
         rafId = requestAnimationFrame(tick);
     };
 
     function startAutoscroll() {
+        stopAutoscroll(); // in case a previous drag never reported its end
         pointerX = null;
         pointerY = null;
+        lastFrameTime = null;
+        carry = 0;
         container = (document.getElementById('app') || document.scrollingElement || document.documentElement) as HTMLElement;
+        // #app has `scroll-behavior: smooth` (main.css). Chrome and Safari then
+        // start a fresh smooth-scroll animation on every scrollBy — one per
+        // frame here — each restarting from a standstill, so the page crawls
+        // at a fraction of the intended speed (Firefox applies them
+        // cumulatively, which is why it looked fine). Scroll instantly for the
+        // duration of the drag, then put the original behavior back.
+        previousScrollBehavior = container.style.scrollBehavior;
+        container.style.scrollBehavior = 'auto';
         document.addEventListener('pointermove', trackPointer);
         document.addEventListener('touchmove', trackPointer, { passive: true });
         document.addEventListener('mousemove', trackPointer);
@@ -99,8 +132,10 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
             cancelAnimationFrame(rafId);
             rafId = null;
         }
+        if (container) container.style.scrollBehavior = previousScrollBehavior;
         pointerX = null;
         pointerY = null;
+        lastFrameTime = null;
         container = null;
     }
 
