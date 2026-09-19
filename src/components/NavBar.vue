@@ -58,13 +58,14 @@ import { useOfflineQueueStore } from "@/stores/offline-queue-store";
                     <RouterLink to="/stats" class="nav-link nav-link-mobile nav-link-grouped">Stats</RouterLink>
                 </template>
 
-                <button v-if="isMember" type="button" class="nav-group-label" @click.stop="toggleGroup('allianceSelection')">
+                <button type="button" class="nav-group-label" @click.stop="toggleGroup('allianceSelection')">
                     <span class="nav-group-chevron" :class="{ 'nav-group-chevron--open': expandedGroup === 'allianceSelection' }">▾</span>
                     Alliance Selection
                 </button>
-                <template v-if="isMember && expandedGroup === 'allianceSelection'">
-                    <RouterLink to="/pickem" class="nav-link nav-link-mobile nav-link-grouped">Pick'em</RouterLink>
-                    <RouterLink to="/picklist" class="nav-link nav-link-mobile nav-link-grouped">Pick List</RouterLink>
+                <template v-if="expandedGroup === 'allianceSelection'">
+                    <RouterLink v-if="isMember" to="/pickem" class="nav-link nav-link-mobile nav-link-grouped">Pick'em</RouterLink>
+                    <RouterLink v-if="isMember" to="/picklist" class="nav-link nav-link-mobile nav-link-grouped">Pick List</RouterLink>
+                    <RouterLink to="/playoffs" class="nav-link nav-link-mobile nav-link-grouped">Playoffs</RouterLink>
                 </template>
 
                 <!-- <RouterLink to="/chartbuilder" class="nav-link nav-link-mobile">ChartBuilder</RouterLink> -->

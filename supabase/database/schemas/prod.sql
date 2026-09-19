@@ -416,6 +416,18 @@ CREATE TABLE IF NOT EXISTS "public"."Watchlist" (
 ALTER TABLE "public"."Watchlist" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."Playoffs" (
+    "event_id" "text" NOT NULL,
+    "alliances" "jsonb" DEFAULT '[[],[],[],[],[],[],[],[]]'::"jsonb" NOT NULL,
+    "match_winners" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "updated_by" "uuid" DEFAULT "auth"."uid"(),
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."Playoffs" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."ScoutAssignment" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "event_id" "text" NOT NULL,
@@ -548,6 +560,11 @@ ALTER TABLE ONLY "public"."Watchlist"
 
 
 
+ALTER TABLE ONLY "public"."Playoffs"
+    ADD CONSTRAINT "Playoffs_pkey" PRIMARY KEY ("event_id");
+
+
+
 ALTER TABLE ONLY "public"."ScoutAssignment"
     ADD CONSTRAINT "ScoutAssignment_pkey" PRIMARY KEY ("id");
 
@@ -648,6 +665,16 @@ ALTER TABLE ONLY "public"."Match"
 
 ALTER TABLE ONLY "public"."Watchlist"
     ADD CONSTRAINT "Watchlist_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."Event"("event_id");
+
+
+
+ALTER TABLE ONLY "public"."Playoffs"
+    ADD CONSTRAINT "Playoffs_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."Event"("event_id");
+
+
+
+ALTER TABLE ONLY "public"."Playoffs"
+    ADD CONSTRAINT "Playoffs_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."User"("user_id");
 
 
 
@@ -812,6 +839,18 @@ CREATE POLICY "Enable delete for authenticated users only" ON "public"."Watchlis
 
 
 
+CREATE POLICY "Enable read access for logged in users" ON "public"."Playoffs" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Enable insert for leads and admins" ON "public"."Playoffs" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS (SELECT 1 FROM "public"."User" "u" WHERE (("u"."user_id" = "auth"."uid"()) AND ("u"."role" = ANY (ARRAY['lead'::"text", 'admin'::"text"]))))));
+
+
+
+CREATE POLICY "Enable update for leads and admins" ON "public"."Playoffs" FOR UPDATE TO "authenticated" USING ((EXISTS (SELECT 1 FROM "public"."User" "u" WHERE (("u"."user_id" = "auth"."uid"()) AND ("u"."role" = ANY (ARRAY['lead'::"text", 'admin'::"text"])))))) WITH CHECK ((EXISTS (SELECT 1 FROM "public"."User" "u" WHERE (("u"."user_id" = "auth"."uid"()) AND ("u"."role" = ANY (ARRAY['lead'::"text", 'admin'::"text"]))))));
+
+
+
 CREATE POLICY "Enable read access for logged in users" ON "public"."ScoutAssignment" FOR SELECT TO "authenticated" USING (true);
 
 
@@ -870,6 +909,9 @@ ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."Watchlist" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."Playoffs" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."ScoutAssignment" ENABLE ROW LEVEL SECURITY;
@@ -1187,6 +1229,12 @@ GRANT ALL ON SEQUENCE "public"."MatchData2025_id_seq" TO "service_role";
 GRANT ALL ON TABLE "public"."PickList" TO "anon";
 GRANT ALL ON TABLE "public"."PickList" TO "authenticated";
 GRANT ALL ON TABLE "public"."PickList" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."Playoffs" TO "anon";
+GRANT ALL ON TABLE "public"."Playoffs" TO "authenticated";
+GRANT ALL ON TABLE "public"."Playoffs" TO "service_role";
 
 
 
