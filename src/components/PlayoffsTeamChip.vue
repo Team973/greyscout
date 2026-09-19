@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <template>
-    <div class="team-chip" :class="[`team-chip--${variant}`, { 'team-chip--draggable': draggable }]"
+    <div class="team-chip" :class="[`team-chip--${variant}`, { 'team-chip--draggable': draggable }]" @contextmenu.prevent
         :title="team?.name ? `${teamNumber} — ${team.name}` : String(teamNumber)">
         <div class="team-chip-photo">
             <img v-if="team?.photo_url" :src="team.photo_url" :alt="`Team ${teamNumber} robot`" loading="lazy"
@@ -56,6 +56,9 @@ defineProps<{
     width: 100%;
     height: 100%;
     object-fit: contain;
+    /* So a long-press lands on the chip (starting a drag), not the image's
+       native "save image" menu. */
+    pointer-events: none;
 }
 
 .team-chip-number {

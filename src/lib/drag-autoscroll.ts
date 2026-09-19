@@ -4,14 +4,13 @@ import { onUnmounted } from 'vue';
 // main.css), not the window, and SortableJS's built-in autoscroll is
 // unreliable here — so this runs a self-contained requestAnimationFrame loop
 // off a draggable's @start/@end events. Same approach as PicklistView.vue's
-// drag autoscroll (see that file for the full write-up), with two additions:
-//
-// - Speeds are configurable. PicklistView's are tuned for a very long list;
-//   on a shorter page the same speeds fling you past everything.
-// - If the pointer is over a nested scrollable element (e.g. the Playoffs
-//   team pool), that element scrolls when the pointer nears *its* top or
-//   bottom edge, before falling back to scrolling the page. Sortable's ghost
-//   has pointer-events: none, so elementFromPoint sees what's underneath it.
+// drag autoscroll (see that file for the full write-up), and the defaults
+// below are that file's exact values: speed grows in proportion to how far
+// into the edge zone the pointer is. One addition: with nestedScrollSelector,
+// a matching scrollable element under the pointer (e.g. the Playoffs team
+// pool on desktop) scrolls when the pointer nears *its* top or bottom edge,
+// before falling back to scrolling the page. Sortable's ghost has
+// pointer-events: none, so elementFromPoint sees what's underneath it.
 export interface AutoscrollOptions {
     /** No scrolling until the pointer is within this many px of an edge. */
     sensitivity?: number;
@@ -19,6 +18,8 @@ export interface AutoscrollOptions {
     minSpeed?: number;
     /** px/frame right at the very edge. */
     maxSpeed?: number;
+    /** CSS selector of a nested scroll container that should also autoscroll. */
+    nestedScrollSelector?: string;
 }
 
 export function useDragAutoscroll(options: AutoscrollOptions = {}) {
@@ -48,17 +49,11 @@ export function useDragAutoscroll(options: AutoscrollOptions = {}) {
         return 0;
     };
 
-    // The nearest vertically-scrollable element under the pointer, below the page container.
+    // The opted-in nested scroll container under the pointer, if any.
     const findInnerScrollable = (x: number, y: number): HTMLElement | null => {
-        let el = document.elementFromPoint(x, y) as HTMLElement | null;
-        while (el && el !== container && el !== document.body && el !== document.documentElement) {
-            if (el.scrollHeight > el.clientHeight + 1) {
-                const overflowY = getComputedStyle(el).overflowY;
-                if (overflowY === 'auto' || overflowY === 'scroll') return el;
-            }
-            el = el.parentElement;
-        }
-        return null;
+        if (!options.nestedScrollSelector) return null;
+        const el = document.elementFromPoint(x, y);
+        return (el?.closest(options.nestedScrollSelector) as HTMLElement | null) ?? null;
     };
 
     const tick = () => {

@@ -14,9 +14,9 @@ import SearchableDropdown from '@/components/SearchableDropdown.vue';
 const playoffsStore = usePlayoffsStore();
 const authStore = useAuthStore();
 const eventStore = useEventStore();
-// Much gentler than the pick list's autoscroll: this page is short, so its
-// speeds just fling you past the alliances.
-const { startAutoscroll, stopAutoscroll } = useDragAutoscroll({ sensitivity: 90, minSpeed: 3, maxSpeed: 22 });
+// Same proportional autoscroll as the pick list; the pool is also a scroll
+// container on desktop, so it scrolls itself when the pointer nears its edge.
+const { startAutoscroll, stopAutoscroll } = useDragAutoscroll({ nestedScrollSelector: '.playoffs-pool' });
 
 // On touch screens a drag only starts after a short press-and-hold, so a
 // normal swipe over the team pool scrolls the page instead of grabbing a
