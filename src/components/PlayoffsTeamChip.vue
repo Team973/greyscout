@@ -37,6 +37,7 @@ defineProps<{
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
     touch-action: manipulation;
 }
 
