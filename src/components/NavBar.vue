@@ -266,7 +266,17 @@ a.nav-link:active {
 
 a.nav-link-mobile {
     width: 100%;
-    padding: 15px;
+    /* a.nav-link's `height: 100%` and `float: left` are for the links in the
+       top bar. Inside the dropdown they must not apply: a percentage height
+       there resolves against the (tall) menu on some engines — iOS WebKit —
+       stretching every link to the height of the whole menu. Size each row
+       from its content instead, at a normal tap-target height. */
+    height: auto;
+    float: none;
+    box-sizing: border-box;
+    min-height: 48px;
+    padding: 12px 15px;
+    line-height: 1.3;
 }
 
 .nav-group-label {
@@ -275,6 +285,13 @@ a.nav-link-mobile {
     align-items: center;
     gap: 8px;
     width: 100%;
+    box-sizing: border-box;
+    height: auto;
+    min-height: 48px;
+    line-height: 1.3;
+    /* iOS gives <button>s a native look with its own sizing unless reset. */
+    -webkit-appearance: none;
+    appearance: none;
     padding: 12px 15px;
     /* Same solid color and text styling as a top-level link — the header
        reads as a normal menu row, distinguished only by its chevron. */

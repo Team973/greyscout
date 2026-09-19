@@ -100,7 +100,10 @@ export default {
     transition: background-color .5s ease;
     background-color: var(--bbq-header-color);
     display: block;
-    height: fit-content;
+    height: auto;
+    /* iOS Safari otherwise inflates text in wide blocks. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     /* A right-anchored dropdown panel, not a full-width strip — narrow
        enough to read as a menu rather than covering the whole page,
        capped to the viewport on small screens. */
@@ -114,6 +117,9 @@ export default {
        let it scroll internally instead of pushing links off-screen with
        no way to reach them. */
     max-height: calc(100vh - 65px);
+    /* On iOS Safari 100vh includes the area behind the browser toolbars, so
+       prefer the dynamic viewport height where supported. */
+    max-height: calc(100dvh - 65px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
