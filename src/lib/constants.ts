@@ -22,6 +22,7 @@ export const userProfileTable = "UserProfile";
 export const autoPathTable = "AutoPath";
 export const strategyBoardTable = "StrategyBoard";
 export const watchlistTable = "Watchlist";
+export const playoffsTable = "Playoffs";
 export const scoutAssignmentTable = "ScoutAssignment";
 
 // Picklist types

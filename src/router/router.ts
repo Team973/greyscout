@@ -20,6 +20,7 @@ import ResetPasswordView from "@/views/ResetPasswordView.vue";
 import AccountView from "@/views/AccountView.vue";
 import PicklistView from "@/views/PicklistView.vue";
 import PickEmView from "@/views/PickEmView.vue";
+import PlayoffsView from "@/views/PlayoffsView.vue";
 import DataStatusView from "@/views/DataStatusView.vue";
 import ScoutScheduleView from "@/views/ScoutScheduleView.vue";
 import { useAuthStore, roleRank } from "@/stores/auth-store";
@@ -171,6 +172,15 @@ const router = createRouter({
       meta: {
         requiresAuth: isSiteReadPrivate,
         minRole: 'member'
+      }
+    },
+    {
+      path: "/playoffs",
+      name: "Playoffs | GreyScout",
+      component: PlayoffsView,
+      meta: {
+        requiresAuth: isSiteReadPrivate,
+        minRole: 'observer'
       }
     },
     {
