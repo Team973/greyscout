@@ -14,7 +14,7 @@ Open **Alliance Selection → Playoffs** in the menu (or go to `/playoffs`).
 
 ### Building alliances
 
-Drag teams from **Available Teams** into an alliance's slots (Captain, Pick 1, Pick 2, Backup — position is just the order in the alliance). Drag between alliances, within an alliance to reorder, or back to the pool to remove a team. An alliance holds at most 4 teams; to swap a team into a full alliance, drag one out first. The pool has a search box (team number or name).
+Drag teams by their **⠿ handle** (the rest of a team card scrolls the page instead, which matters on touch screens) from **Available Teams** into an alliance's slots (Captain, Pick 1, Pick 2, Backup — position is just the order in the alliance). Drag between alliances, within an alliance to reorder, or back to the pool to remove a team. An alliance holds at most 4 teams; to swap a team into a full alliance, drag one out first. The pool has a search box (team number or name).
 
 Every change saves immediately — there is no Save button. If a save fails, a message with a **Retry** button appears and the on-screen state is kept.
 
