@@ -140,6 +140,18 @@ export async function updateScoutData(id, data, table) {
     return error;
 }
 
+export async function deleteScoutData(id, table) {
+    // RLS-denied deletes succeed with zero rows rather than erroring, so ask
+    // for the deleted rows back to tell "deleted" from "silently blocked".
+    const { data, error } = await supabase.from(table).delete().eq('id', id).select('id');
+
+    if (!error && (!data || data.length === 0)) {
+        return { message: 'Submission was not deleted (already gone, or not permitted).' };
+    }
+
+    return error;
+}
+
 // Upload file using standard upload
 export async function uploadFile(file, bucket, filename) {
     const { data, error } = await supabase.storage.from(bucket).upload(filename, file, { upsert: true, cacheControl: '3600' });
