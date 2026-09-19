@@ -18,10 +18,10 @@ const eventStore = useEventStore();
 // container on desktop, so it scrolls itself when the pointer nears its edge.
 const { startAutoscroll, stopAutoscroll } = useDragAutoscroll({ nestedScrollSelector: '.playoffs-pool' });
 
-// On touch screens a drag only starts after a short press-and-hold, so a
-// normal swipe over the team pool scrolls the page instead of grabbing a
-// team. Mouse drags start immediately.
-const TOUCH_DRAG_OPTIONS = { delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8 };
+// Teams are dragged by their grab handle only (see PlayoffsTeamChip.vue), so
+// swiping anywhere else over the team pool scrolls the page on touch screens
+// and a drag starts immediately from the handle.
+const DRAG_HANDLE = '.team-chip-handle';
 
 const SLOT_LABELS = ['Captain', 'Pick 1', 'Pick 2', 'Backup'];
 
@@ -152,8 +152,8 @@ function allianceStatus(number: number) {
 
             <div class="playoffs-description">
                 <span v-if="isViewingPastEvent">{{ displayEventName }}'s alliances and bracket (read-only).</span>
-                <span v-else-if="isEditable">Drag teams from the pool into alliances (on a touch screen, press and hold a
-                    team first), then click an alliance in the bracket to record who won. Changes save automatically, and teams placed on an alliance are marked
+                <span v-else-if="isEditable">Drag teams by their ⠿ handle from the pool into alliances, then click an
+                    alliance in the bracket to record who won. Changes save automatically, and teams placed on an alliance are marked
                     picked on the pick list.</span>
                 <span v-else>Alliances and bracket results for the current event (read-only — leads and admins can edit).</span>
             </div>
@@ -217,7 +217,7 @@ function allianceStatus(number: number) {
                                     <draggable v-if="isEditable" :list="playoffsStore.alliances[number - 1]"
                                         :group="allianceGroup(playoffsStore.alliances[number - 1])"
                                         :item-key="(el) => el" animation="200" ghost-class="alliance-ghost"
-                                        :force-fallback="true" :scroll="false" v-bind="TOUCH_DRAG_OPTIONS" class="alliance-slot-list"
+                                        :force-fallback="true" :scroll="false" :handle="DRAG_HANDLE" class="alliance-slot-list"
                                         @start="startAutoscroll" @end="onDragEnd">
                                         <template #item="{ element: teamNumber }">
                                             <PlayoffsTeamChip :team-number="teamNumber"
@@ -242,7 +242,7 @@ function allianceStatus(number: number) {
 
                         <draggable v-if="isEditable" :list="playoffsStore.pool" group="playoff-teams" :sort="false"
                             :item-key="(el) => el" animation="200" ghost-class="alliance-ghost" :force-fallback="true"
-                            :scroll="false" v-bind="TOUCH_DRAG_OPTIONS" class="playoffs-pool" id="playoffs-pool" @start="startAutoscroll"
+                            :scroll="false" :handle="DRAG_HANDLE" class="playoffs-pool" id="playoffs-pool" @start="startAutoscroll"
                             @end="onDragEnd">
                             <template #item="{ element: teamNumber }">
                                 <PlayoffsTeamChip v-show="matchesSearch(teamNumber)" :team-number="teamNumber"
