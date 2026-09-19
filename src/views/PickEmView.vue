@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useEventStore } from '@/stores/event-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue-store';
 import { computeBasicStats, computeFlagStats, computeTbaStats } from '@/lib/picklist-stats';
+import { createPickemSession } from '@/lib/pickem-session';
+import type { PickemSession } from '@/lib/pickem-session';
 import PitScoutingSection from '@/components/PitScoutingSection.vue';
 
 const picklistStore = usePicklistStore();
@@ -25,64 +27,72 @@ const activeArchetype = computed({
 
 const teamsLoaded = ref(false);
 
-// Teams still waiting to be placed, in the order they'll be presented.
-const queue = ref<number[]>([]);
-// The team currently being placed via binary search.
+// Leads and admins can skip a matchup they can't decide (issue #68).
+const canSkip = computed(() => authStore.isLead);
+
+// The matchup engine (src/lib/pickem-session.ts) decides which two teams to
+// show and how the answers place teams; these refs just mirror its state.
+let session: PickemSession | null = null;
+
+// The team currently being placed (or the upper-ranked team of a refinement pair).
 const candidate = ref<number | null>(null);
-// Binary-search bounds into sortedSnapshot.
-const lo = ref(0);
-const hi = ref(0);
-// A local copy of personalRankedFlatOrder, taken once per candidate — safe
-// since the store is only mutated between candidates, never mid-search.
-const sortedSnapshot = ref<number[]>([]);
-// The team at the current comparison midpoint.
+// The team it's being compared against.
 const compareAgainst = ref<number | null>(null);
+// Whether to show the two teams in swapped order, randomized per matchup.
+const flipSides = ref(false);
 
 const totalToPlace = ref(0);
 const placedCount = ref(0);
 
 // Once every team has been placed at least once, pick'em doesn't stop —
 // rankings drift as more matches are played, so it keeps presenting
-// adjacent pairs from the current order for continuous re-evaluation.
+// nearby pairs from the current order for continuous re-evaluation.
 // 'insufficient' only applies if the event has fewer than 2 teams total.
 const phase = ref<'placing' | 'refining' | 'insufficient'>('placing');
 const refinementCount = ref(0);
-// The flat index of the "upper" (currently better-ranked) team in the
-// pair being shown, so a swap knows exactly where to reinsert the winner.
-let refinementUpperIndex = 0;
-let lastRefinementPair: [number, number] | null = null;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+function syncFromSession() {
+    if (!session) return;
+    const state = session.getState();
+    phase.value = state.phase;
+    candidate.value = state.candidate;
+    compareAgainst.value = state.opponent;
+    flipSides.value = state.flip;
+    totalToPlace.value = state.totalToPlace;
+    placedCount.value = state.placedCount;
+    refinementCount.value = state.refinementCount;
+}
+
 // ─── Loading ───────────────────────────────────────────────────────────────────
 
-// (Re)builds the placement queue for whichever archetype is currently
+// (Re)builds the placement session for whichever archetype is currently
 // active — called on initial load and whenever the Scorer/Defender toggle
 // changes, so each archetype gets its own independent placement session.
 // Defender's pool is pre-filtered to likely defenders (defense% over the
 // threshold); Scorer sees every unranked team.
 async function loadArchetypeSession() {
-    await picklistStore.loadPersonalList(userId.value, eventId.value, activeArchetype.value);
+    const archetype = activeArchetype.value;
+    await picklistStore.loadPersonalList(userId.value, eventId.value, archetype);
 
-    let pool = [...picklistStore.personalTierSections[activeArchetype.value].Unranked];
-    if (activeArchetype.value === 'defender') {
+    let pool = [...picklistStore.personalTierSections[archetype].Unranked];
+    if (archetype === 'defender') {
         pool = pool.filter((teamNumber) => picklistStore.isLikelyDefender(teamNumber));
     }
 
-    // Shuffle so placement order doesn't always start with the lowest team number.
-    for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-
-    queue.value = pool;
-    totalToPlace.value = pool.length;
-    placedCount.value = 0;
-    refinementCount.value = 0;
-    phase.value = 'placing';
-    lastRefinementPair = null;
-
-    startNextTeam();
+    session = createPickemSession({
+        getRanked: () => picklistStore.personalRankedFlatOrder(archetype),
+        placeAt: (teamNumber, flatIndex) => {
+            picklistStore.placeTeamAtFlatIndex(archetype, teamNumber, flatIndex);
+            scheduleSave();
+        },
+        random: Math.random
+    });
+    // The engine shuffles the pool, so placement order doesn't always start
+    // with the lowest team number.
+    session.start(pool);
+    syncFromSession();
 }
 
 onMounted(async () => {
@@ -107,136 +117,20 @@ onUnmounted(() => {
     flushSave();
 });
 
-// ─── Placement flow ─────────────────────────────────────────────────────────────
-
-function startNextTeam() {
-    if (queue.value.length === 0) {
-        enterRefinementMode();
-        return;
-    }
-
-    candidate.value = queue.value.shift();
-
-    // First team ever ranked — nothing to compare against yet. Bootstraps
-    // into the middle tier; the very next comparison immediately tests it
-    // against something real.
-    if (picklistStore.personalRankedFlatOrder(activeArchetype.value).length === 0) {
-        picklistStore.placeTeamAtFlatIndex(activeArchetype.value, candidate.value, 0);
-        placedCount.value++;
-        scheduleSave();
-        startNextTeam();
-        return;
-    }
-
-    sortedSnapshot.value = [...picklistStore.personalRankedFlatOrder(activeArchetype.value)];
-    lo.value = 0;
-    hi.value = sortedSnapshot.value.length;
-    presentNextComparison();
-}
-
-// The pivot within [lo, hi) most recently presented — jittered around the
-// true midpoint (bounded to ~30% of the remaining range) rather than
-// always the exact midpoint, so the same "central" teams don't get shown
-// as the reference on every single search. Bounded (not fully random)
-// so worst-case comparison count stays close to binary search's O(log n)
-// instead of risking a near-linear search if jitter kept landing at the
-// edge of the range.
-let currentMid = 0;
-
-function presentNextComparison() {
-    if (lo.value >= hi.value) {
-        finalizePlacement();
-        return;
-    }
-    const width = hi.value - lo.value;
-    const trueMid = lo.value + (width >> 1);
-    const jitter = width > 2 ? Math.round((Math.random() - 0.5) * width * 0.6) : 0;
-    currentMid = Math.min(hi.value - 1, Math.max(lo.value, trueMid + jitter));
-    compareAgainst.value = sortedSnapshot.value[currentMid];
-}
-
-function chooseTeam(winner: number) {
-    if (winner === candidate.value) {
-        hi.value = currentMid;
-    } else {
-        lo.value = currentMid + 1;
-    }
-    presentNextComparison();
-}
-
-function finalizePlacement() {
-    picklistStore.placeTeamAtFlatIndex(activeArchetype.value, candidate.value, lo.value);
-    placedCount.value++;
-    scheduleSave();
-    startNextTeam();
-}
-
-// ─── Continuous refinement ────────────────────────────────────────────────────
-
-function enterRefinementMode() {
-    if (picklistStore.personalRankedFlatOrder(activeArchetype.value).length < 2) {
-        phase.value = 'insufficient';
-        candidate.value = null;
-        compareAgainst.value = null;
-        return;
-    }
-    phase.value = 'refining';
-    presentRefinementPair();
-}
-
-// Nearby-but-not-strictly-adjacent pairing: picking only true neighbors
-// means whichever pair a random anchor happens to land on has just one
-// possible partner, so the same two teams keep coming back around. A
-// small window keeps comparisons meaningful (close in rank, so there's
-// real ambiguity to resolve) while giving each anchor several possible
-// partners instead of one.
-const REFINEMENT_WINDOW = 5;
-
-function presentRefinementPair() {
-    const flat = picklistStore.personalRankedFlatOrder(activeArchetype.value);
-    const n = flat.length;
-    const anchor = Math.floor(Math.random() * n);
-    const maxWindow = Math.min(REFINEMENT_WINDOW, n - 1);
-    const candidates = [];
-    for (let w = 1; w <= maxWindow; w++) {
-        if (anchor - w >= 0) candidates.push(anchor - w);
-        if (anchor + w < n) candidates.push(anchor + w);
-    }
-    let other = candidates[Math.floor(Math.random() * candidates.length)];
-
-    let i = Math.min(anchor, other);
-    let j = Math.max(anchor, other);
-
-    // Avoid immediately re-showing the exact same pair, when there's a choice.
-    if (candidates.length > 1 && lastRefinementPair &&
-        flat[i] === lastRefinementPair[0] && flat[j] === lastRefinementPair[1]) {
-        other = candidates.find((c) => c !== other) ?? other;
-        i = Math.min(anchor, other);
-        j = Math.max(anchor, other);
-    }
-
-    refinementUpperIndex = i;
-    candidate.value = flat[i];
-    compareAgainst.value = flat[j];
-    lastRefinementPair = [candidate.value, compareAgainst.value];
-}
-
-function chooseRefinementTeam(winner: number) {
-    if (winner === compareAgainst.value) {
-        // The lower-ranked team was actually preferred — swap it up.
-        picklistStore.placeTeamAtFlatIndex(activeArchetype.value, winner, refinementUpperIndex);
-        scheduleSave();
-    }
-    refinementCount.value++;
-    presentRefinementPair();
-}
+// ─── Answering ─────────────────────────────────────────────────────────────────
 
 function pickWinner(winner: number) {
-    if (phase.value === 'placing') {
-        chooseTeam(winner);
-    } else if (phase.value === 'refining') {
-        chooseRefinementTeam(winner);
-    }
+    if (!session) return;
+    session.choose(winner);
+    syncFromSession();
+}
+
+// Throws the matchup away and shows two different teams; both teams sit out
+// for the next few matchups (issue #68).
+function skipMatchup() {
+    if (!session || !canSkip.value) return;
+    session.skip();
+    syncFromSession();
 }
 
 // ─── Saving ─────────────────────────────────────────────────────────────────────
@@ -296,11 +190,16 @@ watch(compareAgainst, async (teamNumber) => {
 });
 
 // One entry per matchup side, so the template renders both with a single
-// v-for instead of duplicating the card/comments/pit markup twice.
-const matchupSides = computed(() => [
-    { teamNumber: candidate.value, team: candidateTeam.value, data: candidateData.value },
-    { teamNumber: compareAgainst.value, team: compareTeam.value, data: compareData.value }
-]);
+// v-for instead of duplicating the card/comments/pit markup twice. The order
+// is randomly flipped per matchup (flipSides) so the team being placed isn't
+// always on the same side; `key` says which side an entry really is.
+const matchupSides = computed(() => {
+    const sides = [
+        { key: 'candidate' as const, teamNumber: candidate.value, team: candidateTeam.value, data: candidateData.value },
+        { key: 'compare' as const, teamNumber: compareAgainst.value, team: compareTeam.value, data: compareData.value }
+    ];
+    return flipSides.value ? sides.reverse() : sides;
+});
 
 // ─── Per-team "More Info" modal ────────────────────────────────────────────
 // Stats/comments/pit data live behind this modal (rather than always
@@ -312,9 +211,10 @@ const matchupSides = computed(() => [
 
 const infoModalSide = ref<'candidate' | 'compare' | null>(null);
 
-// Close automatically when a winner is picked and a new matchup loads —
-// otherwise the modal would keep showing a team that's no longer on screen.
-watch(candidate, () => { infoModalSide.value = null; });
+// Close automatically when a winner is picked (or the matchup is skipped) and
+// a new matchup loads — otherwise the modal would keep showing a team that's
+// no longer on screen. Watches both teams since either can change alone.
+watch([candidate, compareAgainst], () => { infoModalSide.value = null; });
 
 const infoModalTeam = computed(() => infoModalSide.value === 'candidate' ? candidateTeam.value : compareTeam.value);
 const infoModalData = computed(() => infoModalSide.value === 'candidate' ? candidateData.value : compareData.value);
@@ -368,13 +268,22 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
                             <div class="pickem-card-name">{{ side.team.name }}</div>
                         </button>
                         <button type="button" class="pickem-more-info-button" :disabled="!side.data"
-                            @click="infoModalSide = idx === 0 ? 'candidate' : 'compare'">
+                            @click="infoModalSide = side.key">
                             More Info
                         </button>
                     </div>
 
                     <div v-if="idx === 0" class="pickem-vs">VS</div>
                 </template>
+            </div>
+
+            <!-- Leads and admins only (issue #68): can't decide? Skip to see two
+                 different teams; these two sit out for the next few matchups. -->
+            <div v-if="canSkip" class="pickem-skip">
+                <button id="btn-pickem-skip" type="button" class="pickem-skip-button"
+                    title="Can't decide? Skip to see two different teams" @click="skipMatchup">
+                    Skip matchup
+                </button>
             </div>
         </template>
 
@@ -526,6 +435,29 @@ const infoModalTeamNumber = computed(() => infoModalSide.value === 'candidate' ?
     width: 320px;
     max-width: 90vw;
     gap: 16px;
+}
+
+.pickem-skip {
+    display: flex;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+.pickem-skip-button {
+    padding: 8px 24px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(128, 128, 128, 0.5);
+    background: transparent;
+    color: var(--primary-text-color);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.pickem-skip-button:hover {
+    border-color: #b05703;
+    color: #b05703;
 }
 
 .pickem-vs {
